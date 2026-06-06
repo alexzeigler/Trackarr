@@ -1,0 +1,13 @@
+﻿services:
+  trackarr.client:
+    image: trackarr.client
+    build:
+      context: .
+      dockerfile: Trackarr.Client/Dockerfile
+
+  trackarr:
+    image: trackarr
+    build:
+      context: .
+      dockerfile: Trackarr/Dockerfile
+
