@@ -1,0 +1,129 @@
+﻿@page "/system/tasks"
+@layout SettingsLayout
+@rendermode InteractiveServer
+@using Trackarr.Core.Routine
+@using Trackarr.Services
+@implements IAsyncDisposable
+@inject RoutineService RoutineService
+@inject RoutineRunner RoutineRunner
+
+<h3 class="text-white mb-2">Scheduled</h3>
+<p class="text-muted mb-4">Manage and monitor background tasks</p>
+
+<div class="table-responsive">
+    <table class="table table-dark table-hover align-middle">
+        <thead class="border-secondary">
+        <tr>
+            <th style="width:35%">Name</th>
+            <th style="width:10%">Status</th>
+            <th style="width:20%">Next Run</th>
+            <th style="width:35%" class="text-end">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (RoutineDefinition routine in _routines) {
+            <tr>
+                <td>
+                    <div class="fw-semibold">@routine.Name</div>
+                    <div class="small text-muted">@routine.Description</div>
+                </td>
+                <td>
+                    @if (routine.IsRunning) {
+                        <span class="badge bg-primary d-inline-flex align-items-center gap-1">
+                            <span class="spinner-border spinner-border-sm"></span>
+                            Running
+                        </span>
+                    }
+                    else if (routine.LastRun.HasValue) {
+                        <span class="badge @(routine.LastRunSuccess ? "bg-success" : "bg-danger")">
+                            @(routine.LastRunSuccess ? "Success" : "Failed")
+                        </span>
+                    }
+                    else {
+                        <span class="badge bg-secondary">Idle</span>
+                    }
+                </td>
+                <td>
+                    @if (routine.IsRunning) {
+                        <span class="text-muted">Running now</span>
+                    }
+                    else if (routine.NextRun.HasValue) {
+                        <span>@FormatNextRun(routine.NextRun.Value)</span>
+                    }
+                </td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-primary me-2" disabled="@routine.IsRunning" @onclick="() => RunRoutine(routine.Key)">
+                        <i class="bi bi-play-fill h6"></i>
+                        Run Now
+                    </button>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+
+@code {
+    private List<RoutineDefinition> _routines = [];
+    private PeriodicTimer? _refreshTimer;
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnInitializedAsync() {
+        _cts = new CancellationTokenSource();
+        await RefreshAsync();
+        _ = RunRefreshLoopAsync(_cts.Token);
+    }
+
+    private async Task RunRefreshLoopAsync(CancellationToken token) {
+        PeriodicTimer fastTimer = new(TimeSpan.FromSeconds(2));
+        PeriodicTimer idleTimer = new(TimeSpan.FromSeconds(30));
+
+        Task fastTask = Task.Run(async () => {
+            while (await fastTimer.WaitForNextTickAsync(token)) {
+                if (_routines.Any(r => r.IsRunning))
+                    await RefreshAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }, token);
+
+        Task idleTask = Task.Run(async () => {
+            while (await idleTimer.WaitForNextTickAsync(token)) {
+                await RefreshAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }, token);
+
+        await Task.WhenAll(fastTask, idleTask);
+    }
+
+    private async Task RefreshAsync() {
+        _routines = await RoutineService.GetAllAsync();
+    }
+
+    private async Task RunRoutine(string key) {
+        RoutineRunner.RunAsync(key);
+        await RefreshAsync();
+    }
+
+    private static string FormatNextRun(DateTime nextRun) {
+        TimeSpan span = nextRun - DateTime.UtcNow;
+        return span.TotalSeconds switch {
+            < 0 => "Overdue",
+            < 60 => "Less than a minute",
+            < 3600 => $"in {(int)span.TotalMinutes}m",
+            < 86400 => $"in {(int)span.TotalHours}h",
+            _ => $"in {(int)span.TotalDays}d"
+        };
+    }
+
+    public async ValueTask DisposeAsync() {
+        if (_cts is not null) {
+            await _cts.CancelAsync();
+            _cts.Dispose();
+        }
+
+        _refreshTimer?.Dispose();
+    }
+
+}

@@ -1,0 +1,28 @@
+﻿@using Trackarr.Core.UI
+@inherits LayoutComponentBase
+@layout MainLayout
+@rendermode InteractiveServer
+
+<OptionsBanner Options="Options" />
+
+<div class="p-3">
+    @Body
+</div>
+
+@code {
+    [Inject] NavigationManager Nav { get; set; } = null!;
+
+    private static IReadOnlyList<Option> Options => [
+        new() { DisplayName = "Show Advanced", Icon = "bi-gear-fill", Command = ShowAdvancedAsync },
+        new() { DisplayName = "No Changes", Icon = "bi-floppy", Command = SaveAsync }
+    ];
+
+    private static Task ShowAdvancedAsync() {
+        return Task.CompletedTask;
+    }
+
+    private static Task SaveAsync() {
+        return Task.CompletedTask;
+    }
+
+}

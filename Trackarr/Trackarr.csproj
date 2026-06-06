@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8"/>
+        <ProjectReference Include="..\Trackarr.Client\Trackarr.Client.csproj"/>
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.5"/>
+        <ProjectReference Include="..\Trackarr.Core\Trackarr.Core.csproj"/>
+        <ProjectReference Include="..\Trackarr.Data\Trackarr.Data.csproj"/>
+        <ProjectReference Include="..\Trackarr.Routines\Trackarr.Routines.csproj"/>
+        <ProjectReference Include="..\Trackarr.Services\Trackarr.Services.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="..\.dockerignore">
+            <Link>.dockerignore</Link>
+        </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+        <_ContentIncludedByDefault Remove="Settings\About.razor"/>
+        <_ContentIncludedByDefault Remove="Settings\General.razor"/>
+        <_ContentIncludedByDefault Remove="Settings\Jobs.razor"/>
+        <_ContentIncludedByDefault Remove="Settings\Services.razor"/>
+        <_ContentIncludedByDefault Remove="Settings\Settings.razor"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <AdditionalFiles Include="Components\Pages\Settings\General.razor"/>
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,192 @@
+html, body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+:root {
+    --bs-primary: #0084FF;
+    --bs-primary-rgb: 59, 130, 196;
+    --bs-secondary: #1D9E75;
+    --bs-secondary-rgb: 29, 158, 117;
+    --bs-link-color: #0084FF;
+    --bs-link-hover-color: #5A9ED6;
+
+    --color-primary-50: #E6F1FB;
+    --color-primary-100: #B5D4F4;
+    --color-primary-200: #85B7EB;
+    --color-primary-400: #0084FF;
+    --color-primary-600: #2C6498;
+    --color-primary-800: #185FA5;
+    --color-primary-900: #0C447C;
+
+    --color-teal-50: #E1F5EE;
+    --color-teal-100: #9FE1CB;
+    --color-teal-200: #5DCAA5;
+    --color-teal-400: #1D9E75;
+    --color-teal-600: #0F6E56;
+    --color-teal-800: #085041;
+    --color-teal-900: #04342C;
+
+    --color-amber-50: #FAEEDA;
+    --color-amber-100: #FAC775;
+    --color-amber-200: #EF9F27;
+    --color-amber-400: #BA7517;
+    --color-amber-600: #854F0B;
+    --color-amber-800: #633806;
+    --color-amber-900: #412402;
+
+    --color-red-50: #FCEBEB;
+    --color-red-100: #F7C1C1;
+    --color-red-200: #F09595;
+    --color-red-400: #E24B4A;
+    --color-red-600: #A32D2D;
+    --color-red-800: #791F1F;
+    --color-red-900: #501313;
+
+    --color-gray-50: #F1EFE8;
+    --color-gray-100: #D3D1C7;
+    --color-gray-200: #B4B2A9;
+    --color-gray-400: #888780;
+    --color-gray-600: #5F5E5A;
+    --color-gray-800: #444441;
+    --color-gray-900: #2C2C2A;
+
+    --color-purple-50: #EEEDFE;
+    --color-purple-100: #CECBF6;
+    --color-purple-200: #AFA9EC;
+    --color-purple-400: #7F77DD;
+    --color-purple-600: #534AB7;
+    --color-purple-800: #3C3489;
+    --color-purple-900: #26215C;
+
+    --status-downloading: #1D9E75;
+    --status-downloading-bg: #E1F5EE;
+    --status-importing: #0084FF;
+    --status-importing-bg: #E6F1FB;
+    --status-stalled: #EF9F27;
+    --status-stalled-bg: #FAEEDA;
+    --status-failed: #E24B4A;
+    --status-failed-bg: #FCEBEB;
+    --status-queued: #7F77DD;
+    --status-queued-bg: #EEEDFE;
+    --status-paused: #888780;
+    --status-paused-bg: #F1EFE8;
+}
+
+a, .btn-link {
+    color: #0084FF;
+}
+
+.btn-primary {
+    color: var(--color-primary-50);
+    background-color: var(--color-primary-400);
+    border-color: var(--color-primary-600);
+}
+
+.btn-primary:hover {
+    background-color: var(--color-primary-600);
+    border-color: var(--color-primary-800);
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+.content {
+    padding-top: 1.1rem;
+}
+
+h1:focus {
+    outline: none;
+}
+
+.valid.modified:not([type=checkbox]) {
+    outline: 1px solid var(--color-teal-400);
+}
+
+.invalid {
+    outline: 1px solid var(--color-red-400);
+}
+
+.validation-message {
+    color: var(--color-red-400);
+}
+
+.blazor-error-boundary {
+    background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, var(--color-red-600);
+    padding: 1rem 1rem 1rem 3.7rem;
+    color: white;
+}
+
+.blazor-error-boundary::after {
+    content: "An error has occurred."
+}
+
+.darker-border-checkbox.form-check-input {
+    border-color: #929292;
+}
+
+.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
+    color: var(--bs-secondary-color);
+    text-align: end;
+}
+
+.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
+    text-align: start;
+}
+
+.data-label {
+    overflow: hidden !important;
+    width: 50% !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    float: left;
+    clear: left;
+    text-align: right;
+    font-weight: 700 !important;
+    color: var(--bs-white) !important;
+}
+
+.data-value {
+    margin-left: 10px;
+    width: 50% !important;
+    color: var(--color-teal-400) !important;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-downloading {
+    background: var(--status-downloading-bg);
+    color: var(--status-downloading);
+}
+
+.status-importing {
+    background: var(--status-importing-bg);
+    color: var(--status-importing);
+}
+
+.status-stalled {
+    background: var(--status-stalled-bg);
+    color: var(--status-stalled);
+}
+
+.status-failed {
+    background: var(--status-failed-bg);
+    color: var(--status-failed);
+}
+
+.status-queued {
+    background: var(--status-queued-bg);
+    color: var(--status-queued);
+}
+
+.status-paused {
+    background: var(--status-paused-bg);
+    color: var(--status-paused);
+}

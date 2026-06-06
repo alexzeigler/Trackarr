@@ -1,0 +1,68 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trackarr", "Trackarr\Trackarr.csproj", "{250E53EF-EE0C-4986-9D1C-DFE4B0E8C293}"
+	ProjectSection(ProjectDependencies) = postProject
+		{B2C4E753-5C8D-43CD-AEBE-0501F06A001C} = {B2C4E753-5C8D-43CD-AEBE-0501F06A001C}
+		{6173348C-799D-4361-BB6D-B11682B83740} = {6173348C-799D-4361-BB6D-B11682B83740}
+		{E57D6A4D-520A-487E-8C2F-59F86EBDCF9B} = {E57D6A4D-520A-487E-8C2F-59F86EBDCF9B}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trackarr.Client", "Trackarr.Client\Trackarr.Client.csproj", "{E6FBA808-009C-4236-852F-39DA6D1F9D87}"
+	ProjectSection(ProjectDependencies) = postProject
+		{B2C4E753-5C8D-43CD-AEBE-0501F06A001C} = {B2C4E753-5C8D-43CD-AEBE-0501F06A001C}
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{2D3B214D-E4D2-4F6B-8507-D6004ABCAFFF}"
+	ProjectSection(SolutionItems) = preProject
+		compose.yaml = compose.yaml
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trackarr.Core", "Trackarr.Core\Trackarr.Core.csproj", "{B2C4E753-5C8D-43CD-AEBE-0501F06A001C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trackarr.Data", "Trackarr.Data\Trackarr.Data.csproj", "{6173348C-799D-4361-BB6D-B11682B83740}"
+	ProjectSection(ProjectDependencies) = postProject
+		{B2C4E753-5C8D-43CD-AEBE-0501F06A001C} = {B2C4E753-5C8D-43CD-AEBE-0501F06A001C}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trackarr.Services", "Trackarr.Services\Trackarr.Services.csproj", "{E57D6A4D-520A-487E-8C2F-59F86EBDCF9B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{B2C4E753-5C8D-43CD-AEBE-0501F06A001C} = {B2C4E753-5C8D-43CD-AEBE-0501F06A001C}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trackarr.Routines", "Trackarr.Routines\Trackarr.Routines.csproj", "{4F45A278-45A7-415D-B077-A05A11769C1C}"
+	ProjectSection(ProjectDependencies) = postProject
+		{6173348C-799D-4361-BB6D-B11682B83740} = {6173348C-799D-4361-BB6D-B11682B83740}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{250E53EF-EE0C-4986-9D1C-DFE4B0E8C293}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{250E53EF-EE0C-4986-9D1C-DFE4B0E8C293}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{250E53EF-EE0C-4986-9D1C-DFE4B0E8C293}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{250E53EF-EE0C-4986-9D1C-DFE4B0E8C293}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E6FBA808-009C-4236-852F-39DA6D1F9D87}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E6FBA808-009C-4236-852F-39DA6D1F9D87}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E6FBA808-009C-4236-852F-39DA6D1F9D87}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E6FBA808-009C-4236-852F-39DA6D1F9D87}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2C4E753-5C8D-43CD-AEBE-0501F06A001C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2C4E753-5C8D-43CD-AEBE-0501F06A001C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2C4E753-5C8D-43CD-AEBE-0501F06A001C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2C4E753-5C8D-43CD-AEBE-0501F06A001C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6173348C-799D-4361-BB6D-B11682B83740}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6173348C-799D-4361-BB6D-B11682B83740}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6173348C-799D-4361-BB6D-B11682B83740}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6173348C-799D-4361-BB6D-B11682B83740}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E57D6A4D-520A-487E-8C2F-59F86EBDCF9B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E57D6A4D-520A-487E-8C2F-59F86EBDCF9B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E57D6A4D-520A-487E-8C2F-59F86EBDCF9B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E57D6A4D-520A-487E-8C2F-59F86EBDCF9B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4F45A278-45A7-415D-B077-A05A11769C1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4F45A278-45A7-415D-B077-A05A11769C1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4F45A278-45A7-415D-B077-A05A11769C1C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4F45A278-45A7-415D-B077-A05A11769C1C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
