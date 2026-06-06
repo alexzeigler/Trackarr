@@ -12,7 +12,9 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 string solutionRoot = Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ?? "";
 string dbPath = Path.Combine(solutionRoot, "Trackarr.Data", "trackarr.db");
 
-builder.Services.AddDbContextFactory<AppDbContext>(options => { options.UseSqlite($"Data Source={dbPath};Cache=Shared;Pooling=True", sqlite => { sqlite.CommandTimeout(30); }); });
+builder.Services.AddDbContextFactory<AppDbContext>(options => {
+    options.UseSqlite($"Data Source={dbPath};Cache=Shared;Pooling=True", sqlite => { sqlite.CommandTimeout(30); });
+});
 
 builder.Services.AddHostedService<RoutineHostedService>();
 
@@ -38,7 +40,8 @@ else {
 }
 
 using (IServiceScope scope = app.Services.CreateScope()) {
-    IDbContextFactory<AppDbContext> factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+    IDbContextFactory<AppDbContext> factory =
+        scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
 
     await using AppDbContext db = await factory.CreateDbContextAsync();
 
@@ -51,6 +54,7 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 
-app.MapRazorComponents<App>().AddInteractiveServerRenderMode().AddAdditionalAssemblies(typeof(Trackarr.Client._Imports).Assembly);
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode()
+    .AddAdditionalAssemblies(typeof(Trackarr.Client._Imports).Assembly);
 
 app.Run();

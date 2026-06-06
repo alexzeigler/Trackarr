@@ -9,10 +9,54 @@ using Trackarr.Data;
 
 namespace Trackarr.Services;
 
-public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttpClientFactory httpClientFactory, ILogger<MediaServerService> logger, EventService eventService) {
+public class MediaServerService(
+    IDbContextFactory<AppDbContext> dbFactory,
+    IHttpClientFactory httpClientFactory,
+    ILogger<MediaServerService> logger) {
+    #region Media
+
+    public async Task<(bool Success, List<QualityProfile> Profiles, string Message)> GetProfilesAsync(
+        MediaServer server) {
+        logger.LogInformation("Fetching quality profiles for {name}", server.Name);
+
+        if (string.IsNullOrWhiteSpace(server.ApiKey))
+            return (false, [], "API key is required.");
+
+        try {
+            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
+            HttpClient client = CreateClient(10);
+            string url = $"{server.BaseUrl}/api/v3/qualityprofile?apikey={server.ApiKey}";
+
+            using HttpResponseMessage response = await client.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode) {
+                logger.LogError("Failed to fetch profiles: {status}", response.StatusCode);
+                return (false, [], $"Failed to fetch profiles: {response.StatusCode}");
+            }
+
+            string json = await response.Content.ReadAsStringAsync();
+            List<QualityProfile> profiles = JsonSerializer.Deserialize<List<QualityProfile>>(json, options) ?? [];
+
+            await using AppDbContext db = await dbFactory.CreateDbContextAsync();
+            MediaServer? tracked = await db.MediaServers.FindAsync(server.Id);
+            if (tracked is null) return (true, profiles, $"Fetched {profiles.Count} profiles from {server.Name}.");
+            tracked.Profiles = profiles;
+            await db.SaveChangesAsync();
+
+            return (true, profiles, $"Fetched {profiles.Count} profiles from {server.Name}.");
+        }
+        catch (Exception ex) {
+            logger.LogError("Error fetching profiles: {message}", ex.Message);
+            return (false, [], $"Error fetching profiles: {ex.Message}");
+        }
+    }
+
+    #endregion
+
     #region Movies
 
-    public async Task<(bool Success, List<Movie> Items, string Message)> GetMissingMovies(MediaServer server, bool forceRefresh = false) {
+    public async Task<(bool Success, List<Movie> Items, string Message)> GetMissingMovies(MediaServer server,
+        bool forceRefresh = false) {
         try {
             logger.LogInformation("Fetching missing movies for {name}", server.Name);
 
@@ -27,7 +71,8 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
                 List<Movie> cached = await db.Movies.Where(m => m.ServerId == server.Id).ToListAsync();
 
                 if (cached.Count != 0) {
-                    logger.LogInformation("Returning cached missing movies ({count} items) for {name}", cached.Count, server.Name);
+                    logger.LogInformation("Returning cached missing movies ({count} items) for {name}", cached.Count,
+                        server.Name);
                     return (true, cached, $"Returned {cached.Count} cached missing movies from {server.Name}.");
                 }
             }
@@ -37,7 +82,8 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
             const int pageSize = 100;
 
             while (true) {
-                (bool success, List<Movie> batch, int total) = await FetchMissingMoviesPageAsync(server, page, pageSize);
+                (bool success, List<Movie> batch, int total) =
+                    await FetchMissingMoviesPageAsync(server, page, pageSize);
 
                 if (!success) {
                     logger.LogError("Failed to fetch missing movies page {page} for {name}", page, server.Name);
@@ -56,7 +102,8 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
             }
 
             foreach (Movie item in items) {
-                Movie? existing = await db.Movies.FirstOrDefaultAsync(m => m.ServerId == item.ServerId && m.RemoteId == item.RemoteId);
+                Movie? existing = await db.Movies.FirstOrDefaultAsync(m => m.ServerId == item.ServerId &&
+                                                                           m.RemoteId == item.RemoteId);
 
                 if (existing is null) {
                     db.Movies.Add(item);
@@ -85,7 +132,10 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
         }
     }
 
-    private async Task<(bool Success, List<Movie> Items, int TotalRecords)> FetchMissingMoviesPageAsync(MediaServer server, int page, int pageSize) {
+    private async Task<(bool Success, List<Movie> Items, int TotalRecords)> FetchMissingMoviesPageAsync(
+        MediaServer server,
+        int page,
+        int pageSize) {
         if (string.IsNullOrWhiteSpace(server.ApiKey)) {
             logger.LogError("API key is required for {name}", server.Name);
             return (false, [], 0);
@@ -94,7 +144,8 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
         try {
             JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
             HttpClient client = CreateClient(15);
-            string url = $"{server.BaseUrl}/api/v3/wanted/missing?apikey={server.ApiKey}&page={page}&pageSize={pageSize}";
+            string url =
+                $"{server.BaseUrl}/api/v3/wanted/missing?apikey={server.ApiKey}&page={page}&pageSize={pageSize}";
 
             using HttpResponseMessage response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
 
@@ -104,18 +155,20 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
             }
 
             await using Stream stream = await response.Content.ReadAsStreamAsync();
-            MissingMovieResponse? missing = await JsonSerializer.DeserializeAsync<MissingMovieResponse>(stream, options);
-            foreach (MissingMovieRecord x in missing.Records) {
-                _ = JsonSerializer.Serialize(x.OriginalLanguage);
-                _ = JsonSerializer.Serialize(x.AlternateTitles);
-                _ = JsonSerializer.Serialize(x.Images);
-                _ = JsonSerializer.Serialize(x.Genres);
-                _ = JsonSerializer.Serialize(x.Keywords);
-                _ = JsonSerializer.Serialize(x.Tags);
-                _ = JsonSerializer.Serialize(x.Ratings);
-                _ = JsonSerializer.Serialize(x.Collection);
-                _ = JsonSerializer.Serialize(x.Statistics);
-            }
+            MissingMovieResponse?
+                missing = await JsonSerializer.DeserializeAsync<MissingMovieResponse>(stream, options);
+            if (missing is not null)
+                foreach (MissingMovieRecord x in missing.Records) {
+                    _ = JsonSerializer.Serialize(x.OriginalLanguage);
+                    _ = JsonSerializer.Serialize(x.AlternateTitles);
+                    _ = JsonSerializer.Serialize(x.Images);
+                    _ = JsonSerializer.Serialize(x.Genres);
+                    _ = JsonSerializer.Serialize(x.Keywords);
+                    _ = JsonSerializer.Serialize(x.Tags);
+                    _ = JsonSerializer.Serialize(x.Ratings);
+                    _ = JsonSerializer.Serialize(x.Collection);
+                    _ = JsonSerializer.Serialize(x.Statistics);
+                }
 
             List<Movie>? items = missing?.Records.Select(x => new Movie {
                 RemoteId = x.Id,
@@ -172,45 +225,6 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
     #endregion
 
-    #region Media
-
-    public async Task<(bool Success, List<QualityProfile> Profiles, string Message)> GetProfilesAsync(MediaServer server) {
-        logger.LogInformation("Fetching quality profiles for {name}", server.Name);
-
-        if (string.IsNullOrWhiteSpace(server.ApiKey))
-            return (false, [], "API key is required.");
-
-        try {
-            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
-            HttpClient client = CreateClient(10);
-            string url = $"{server.BaseUrl}/api/v3/qualityprofile?apikey={server.ApiKey}";
-
-            using HttpResponseMessage response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode) {
-                logger.LogError("Failed to fetch profiles: {status}", response.StatusCode);
-                return (false, [], $"Failed to fetch profiles: {response.StatusCode}");
-            }
-
-            string json = await response.Content.ReadAsStringAsync();
-            List<QualityProfile> profiles = JsonSerializer.Deserialize<List<QualityProfile>>(json, options) ?? [];
-
-            await using AppDbContext db = await dbFactory.CreateDbContextAsync();
-            MediaServer? tracked = await db.MediaServers.FindAsync(server.Id);
-            if (tracked is null) return (true, profiles, $"Fetched {profiles.Count} profiles from {server.Name}.");
-            tracked.Profiles = profiles;
-            await db.SaveChangesAsync();
-
-            return (true, profiles, $"Fetched {profiles.Count} profiles from {server.Name}.");
-        }
-        catch (Exception ex) {
-            logger.LogError("Error fetching profiles: {message}", ex.Message);
-            return (false, [], $"Error fetching profiles: {ex.Message}");
-        }
-    }
-
-    #endregion
-
     #region CRUD
 
     public async Task<(bool Success, List<MediaServer> Items)> GetAllServersAsync() {
@@ -218,8 +232,7 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
             await using AppDbContext db = await dbFactory.CreateDbContextAsync();
             return (true, await db.MediaServers.OrderBy(s => s.ServiceType).ThenBy(s => s.Name).ToListAsync());
         }
-        catch (Exception e) {
-            eventService.LogAsync("Could not fetch all servers: {message}", e.Message, LogLevel.Error).Wait();
+        catch (Exception) {
             return (false, []);
         }
     }
@@ -305,7 +318,9 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
         }
     }
 
-    private async Task<(bool Success, string Message)> TestArrAsync(HttpClient client, MediaServer server, string appName) {
+    private async Task<(bool Success, string Message)> TestArrAsync(HttpClient client,
+        MediaServer server,
+        string appName) {
         if (string.IsNullOrWhiteSpace(server.ApiKey))
             return (false, "API key is required.");
 
@@ -319,7 +334,8 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
         return (false, $"Failed to connect to {appName}. Server returned status code: {response.StatusCode}");
     }
 
-    public async Task<(bool Success, ServerMetadata? Metadata, string Message)> GetSystemStatusAsync(MediaServer server) {
+    public async Task<(bool Success, ServerMetadata? Metadata, string Message)>
+        GetSystemStatusAsync(MediaServer server) {
         await using AppDbContext db = await dbFactory.CreateDbContextAsync();
         MediaServer? mediaServer = await db.MediaServers.FindAsync(server.Id);
         if (string.IsNullOrWhiteSpace(mediaServer?.ApiKey))
@@ -368,7 +384,8 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
     #region Queue
 
-    public async Task<(bool Success, List<DownloadItem> Items, string Message)> GetQueueAsync(MediaServer server, bool forceRefresh = false) {
+    public async Task<(bool Success, List<DownloadItem> Items, string Message)> GetQueueAsync(MediaServer server,
+        bool forceRefresh = false) {
         try {
             logger.LogInformation("Fetching queue for {name}", server.Name);
 
@@ -384,7 +401,8 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
                 if (cached.Count != 0) {
                     server.Queue = cached;
-                    logger.LogInformation("Returning cached queue ({count} items) for {name}", cached.Count, server.Name);
+                    logger.LogInformation("Returning cached queue ({count} items) for {name}", cached.Count,
+                        server.Name);
                     return (true, cached, $"Returned {cached.Count} cached downloads from {server.Name}.");
                 }
             }
@@ -438,7 +456,10 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
         }
     }
 
-    private async Task<(bool Success, List<DownloadItem> Items, int TotalRecords)> FetchQueuePageAsync(MediaServer server, int page, int pageSize) {
+    private async Task<(bool Success, List<DownloadItem> Items, int TotalRecords)> FetchQueuePageAsync(
+        MediaServer server,
+        int page,
+        int pageSize) {
         if (string.IsNullOrWhiteSpace(server.ApiKey)) {
             logger.LogError("API key is required for {name}", server.Name);
             return (false, [], 0);
@@ -447,7 +468,8 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
         try {
             JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
             HttpClient client = CreateClient(15);
-            string url = $"{server.BaseUrl}/api/v3/queue?apikey={server.ApiKey}&page={page}&pageSize={pageSize}&includeUnknownMovieItems=true&includeMovie=true&includeSeries=true";
+            string url =
+                $"{server.BaseUrl}/api/v3/queue?apikey={server.ApiKey}&page={page}&pageSize={pageSize}&includeUnknownMovieItems=true&includeMovie=true&includeSeries=true";
 
             using HttpResponseMessage response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
 
@@ -487,7 +509,7 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
                 LanguagesJson = JsonSerializer.Serialize(x.Languages),
                 QualityJson = JsonSerializer.Serialize(x.Quality),
                 CustomFormatsJson = JsonSerializer.Serialize(x.CustomFormats),
-                StatusMessagesJson = JsonSerializer.Serialize(x.StatusMessages),
+                StatusMessagesJson = JsonSerializer.Serialize(x.StatusMessages)
             }).ToList();
 
             return (true, items ?? [], queue?.TotalRecords ?? 0);
@@ -509,7 +531,8 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
     }
 
     private static async Task ClearDefaultAsync(AppDbContext db, ServiceType type, int? excludeId) {
-        List<MediaServer> defaults = await db.MediaServers.Where(s => s.ServiceType == type && s.IsDefault && (excludeId == null || s.Id != excludeId)).ToListAsync();
+        List<MediaServer> defaults = await db.MediaServers
+            .Where(s => s.ServiceType == type && s.IsDefault && (excludeId == null || s.Id != excludeId)).ToListAsync();
 
         foreach (MediaServer s in defaults)
             s.IsDefault = false;

@@ -18,10 +18,9 @@ public sealed class QueueRefreshRoutine(MediaServerService mediaServerService) :
         (bool Success, List<MediaServer> Items) serverResult = await mediaServerService.GetAllServersAsync();
         int count = 0;
 
-        foreach (Task<(bool Success, List<DownloadItem> Items, string Message)> result in serverResult.Items.Select(server => mediaServerService.GetQueueAsync(server, true))) {
-            if (!result.Result.Success) {
-                throw new RoutineFailedException(result.Result.Message, this);
-            }
+        foreach (Task<(bool Success, List<DownloadItem> Items, string Message)> result in
+                 serverResult.Items.Select(server => mediaServerService.GetQueueAsync(server, true))) {
+            if (!result.Result.Success) throw new RoutineFailedException(result.Result.Message, this);
 
             count = result.Result.Items.Count;
             LastRunSuccess = true;

@@ -52,6 +52,5 @@ public class Movie {
 
     public int ServerId { get; set; }
 
-    [ForeignKey(nameof(ServerId))]
-    public MediaServer? ParentServer { get; set; }
+    [ForeignKey(nameof(ServerId))] public MediaServer? ParentServer { get; set; }
 }

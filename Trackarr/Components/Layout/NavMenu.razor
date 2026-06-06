@@ -4,7 +4,7 @@
 <div class="top-row navbar bg-light-subtle">
     <a class="container-fluid text-decoration-none" href="/">
         <div class="d-flex align-items-center gap-2 navbar-brand mb-0">
-            <img alt="Trackarr Logo" src="/img/Logo_NoText.png" class="img-fluid w-25" />
+            <img alt="Trackarr Logo" src="/img/Logo_NoText.png" class="img-fluid w-25"/>
             <div class="d-flex flex-column lh-sm">
                 <span class="fw-semibold text-white h1 m-0">Track
                     <span class="brand-accent">arr</span>
@@ -14,7 +14,7 @@
     </a>
 </div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+<input type="checkbox" title="Navigation menu" class="navbar-toggler"/>
 
 <div class="nav font-monospace h-auto" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="d-flex flex-column">
@@ -42,26 +42,41 @@
 
     private record NavChild(string Label, string Href);
 
-    private record NavItem(string Label, string Href, string Prefix, string Icon, NavLinkMatch Match, List<NavChild> Children);
+    private record NavItem(
+            string Label,
+            string Href,
+            string Prefix,
+            string Icon,
+            NavLinkMatch Match,
+            List<NavChild> Children);
 
     private static readonly List<NavItem> NavItems = [
         new("Track", "", "/", "bi-card-checklist", NavLinkMatch.All, []),
         new("Settings", "/settings", "/settings", "bi-gear-fill", NavLinkMatch.Prefix, [
             new NavChild("General", "/settings/general"),
-            new NavChild("Services", "/settings/services"),
+            new NavChild("Services", "/settings/services")
         ]),
         new("System", "/system/status", "/system", "bi-laptop", NavLinkMatch.Prefix, [
             new NavChild("Status", "/system/status"),
             new NavChild("Tasks", "/system/tasks"),
-            new NavChild("Events", "/system/events"),
+            new NavChild("Events", "/system/events")
         ])
     ];
 
-    private bool IsActive(string prefix) => prefix == "/" ? Nav.Uri == Nav.BaseUri || Nav.Uri == Nav.BaseUri.TrimEnd('/') : Nav.Uri.StartsWith(Nav.BaseUri.TrimEnd('/') + prefix, StringComparison.OrdinalIgnoreCase);
+    private bool IsActive(string prefix) {
+        return prefix == "/" ? Nav.Uri == Nav.BaseUri || Nav.Uri == Nav.BaseUri.TrimEnd('/') : Nav.Uri.StartsWith(Nav.BaseUri.TrimEnd('/') + prefix, StringComparison.OrdinalIgnoreCase);
+    }
 
-    protected override void OnInitialized() => Nav.LocationChanged += OnLocationChanged;
+    protected override void OnInitialized() {
+        Nav.LocationChanged += OnLocationChanged;
+    }
 
-    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => StateHasChanged();
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) {
+        StateHasChanged();
+    }
 
-    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+    public void Dispose() {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+
 }

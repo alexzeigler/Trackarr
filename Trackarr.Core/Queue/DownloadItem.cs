@@ -1,5 +1,4 @@
 ﻿using System.Text.Json.Serialization;
-using Trackarr.Core.Server;
 
 namespace Trackarr.Core.Queue;
 

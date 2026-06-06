@@ -13,13 +13,24 @@ public class EventService(IDbContextFactory<AppDbContext> dbFactory, ILogger<Eve
 
     public async Task<List<LogEvent>> GetByLevelAsync(LogLevel level, CancellationToken cancellationToken = default) {
         await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
-        return await db.LogEvents.Where(e => e.LogLevel == level).OrderByDescending(e => e.TimeStamp).ToListAsync(cancellationToken);
+        return await db.LogEvents.Where(e => e.LogLevel == level).OrderByDescending(e => e.TimeStamp)
+            .ToListAsync(cancellationToken);
     }
 
-    public async Task LogAsync(string message, string source, LogLevel level, CancellationToken cancellationToken = default) {
+    public async Task LogAsync(string message,
+        string source,
+        LogLevel level,
+        string? exception,
+        CancellationToken cancellationToken = default) {
         await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
-        db.LogEvents.Add(new LogEvent { Message = message, Source = source, LogLevel = level, TimeStamp = DateTime.UtcNow });
+        db.LogEvents.Add(new LogEvent {
+            Message = message,
+            Source = source,
+            LogLevel = level,
+            Exception = exception,
+            TimeStamp = DateTime.UtcNow
+        });
 
         await db.SaveChangesAsync(cancellationToken);
         logger.Log(level, "[{source}] {message}", source, message);

@@ -25,7 +25,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(e => e.ServiceType).IsRequired();
             entity.Property(e => e.Host).IsRequired();
             entity.Property(e => e.Port).IsRequired();
-            entity.HasOne<ServerMetadata>().WithOne().HasForeignKey<ServerMetadata>(m => m.ServerId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<ServerMetadata>().WithOne().HasForeignKey<ServerMetadata>(m => m.ServerId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<DownloadItem>(entity => { entity.HasKey(e => e.Id); });
@@ -59,7 +60,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         });
         modelBuilder.Entity<RoutineRun>(entity => {
             entity.HasKey(e => e.Id);
-            entity.HasOne(e => e.Routine).WithMany(e => e.Runs).HasForeignKey(e => e.RoutineDefinitionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Routine).WithMany(e => e.Runs).HasForeignKey(e => e.RoutineDefinitionId)
+                .OnDelete(DeleteBehavior.Cascade);
             entity.Property(e => e.State).HasConversion<string>().HasMaxLength(50);
         });
 
@@ -99,7 +101,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(e => e.RatingsJson);
             entity.Property(e => e.CollectionJson);
             entity.Property(e => e.StatisticsJson);
-            entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

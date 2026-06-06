@@ -23,6 +23,9 @@ namespace Trackarr.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Exception")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("LogLevel")
                         .HasColumnType("INTEGER");
 

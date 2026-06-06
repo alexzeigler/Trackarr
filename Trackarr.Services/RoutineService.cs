@@ -18,7 +18,8 @@ public sealed class RoutineService(IDbContextFactory<AppDbContext> dbContextFact
     public async Task RegisterRoutineInDbAsync(IRoutine routine, CancellationToken cancellationToken = default) {
         await using AppDbContext db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        RoutineDefinition? existing = await db.Routines.FirstOrDefaultAsync(r => r.Key == routine.Key, cancellationToken);
+        RoutineDefinition? existing = await db.Routines.FirstOrDefaultAsync(r => r.Key == routine.Key,
+            cancellationToken);
 
         if (existing is null) {
             db.Routines.Add(new RoutineDefinition {

@@ -1,6 +1,5 @@
 ﻿using Trackarr.Core.Exception;
 using Trackarr.Core.Media;
-using Trackarr.Core.Queue;
 using Trackarr.Core.Routine;
 using Trackarr.Core.Server;
 using Trackarr.Services;
@@ -20,12 +19,14 @@ public class MovieFetchRoutine(MediaServerService mediaServerService) : Routine 
         int count = 0;
 
         foreach (MediaServer server in serverResult.Items.Where(server => server.ServiceType == ServiceType.Radarr)) {
-            (bool Success, List<Movie> Items, string Message) result = await mediaServerService.GetMissingMovies(server);
+            (bool Success, List<Movie> Items, string Message)
+                result = await mediaServerService.GetMissingMovies(server);
             if (!result.Success)
                 throw new RoutineFailedException(result.Message, this);
             count = result.Items.Count;
             LastRunSuccess = true;
         }
+
         return $"{count} missing items found.";
     }
 }

@@ -10,5 +10,5 @@ public enum QueueStatus {
     [EnumMember(Value = "error")] Error,
 
     [EnumMember(Value = "pending")] Pending,
-    [EnumMember(Value = "completed")] Completed,
+    [EnumMember(Value = "completed")] Completed
 }

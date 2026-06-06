@@ -29,8 +29,8 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Trackarr.Core\Trackarr.Core.csproj"/>
-        <ProjectReference Include="..\Trackarr.Data\Trackarr.Data.csproj" />
-        <ProjectReference Include="..\Trackarr.Services\Trackarr.Services.csproj" />
+        <ProjectReference Include="..\Trackarr.Data\Trackarr.Data.csproj"/>
+        <ProjectReference Include="..\Trackarr.Services\Trackarr.Services.csproj"/>
     </ItemGroup>
 
 </Project>

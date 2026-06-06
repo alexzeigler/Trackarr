@@ -5,5 +5,5 @@ public enum LogEventLevel {
     Information,
     Warning,
     Error,
-    Fatal,
+    Fatal
 }
