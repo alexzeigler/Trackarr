@@ -17,11 +17,9 @@ public abstract class Routine : IRoutine {
     public bool LastRunSuccess { get; set; }
     public IEnumerable<RoutineRun>? Runs { get; set; }
 
-    public virtual Task<string> ExecuteAsync(CancellationToken cancellationToken) {
+    public virtual Task<string> ExecuteAsync(CancellationToken cancellationToken) =>
         throw new TaskNotDefinedException("No task defined for routine ", this);
-    }
 
-    public virtual Task RegisterRoutineInDbAsync(CancellationToken cancellationToken) {
+    public virtual Task RegisterRoutineInDbAsync(CancellationToken cancellationToken) =>
         throw new TaskNotDefinedException("No task defined for routine ", this);
-    }
 }

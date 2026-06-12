@@ -1,4 +1,4 @@
-﻿namespace Trackarr.Core.Media;
+﻿namespace Trackarr.Core.Server;
 
 public class ServerMetadata {
     public int ServerId { get; set; }

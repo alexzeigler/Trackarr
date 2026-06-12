@@ -2,4 +2,5 @@
 
 namespace Trackarr.Components.Pages;
 
-public partial class Status : ComponentBase { }
+public partial class Status : ComponentBase {
+}

@@ -2,4 +2,5 @@
 
 namespace Trackarr.Components.Modals;
 
-public partial class AddServerModal : ComponentBase { }
+public partial class AddServerModal : ComponentBase {
+}

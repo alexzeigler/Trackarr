@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
-using Trackarr.Core.Media;
 using Trackarr.Core.Queue;
 
 namespace Trackarr.Core.Server;
@@ -40,7 +39,5 @@ public class MediaServer {
     [NotMapped] public List<QualityProfile>? Profiles { get; set; }
     [NotMapped] public List<DownloadItem>? Queue { get; set; }
 
-    public MediaServer Clone() {
-        return (MediaServer)MemberwiseClone();
-    }
+    public MediaServer Clone() => (MediaServer)MemberwiseClone();
 }

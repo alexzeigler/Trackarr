@@ -2,4 +2,5 @@
 
 namespace Trackarr.Components.Modals;
 
-public partial class ConfirmationDialog : ComponentBase { }
+public partial class ConfirmationDialog : ComponentBase {
+}

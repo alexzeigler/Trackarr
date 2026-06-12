@@ -1,8 +1,7 @@
-﻿using Trackarr.Core.Exception;
-using Trackarr.Core.Queue;
+﻿using Trackarr.Core.Queue;
 using Trackarr.Core.Routine;
 using Trackarr.Core.Server;
-using Trackarr.Services;
+using Trackarr.Services.Media;
 
 namespace Trackarr.Tasks;
 
@@ -15,17 +14,20 @@ public sealed class QueueRefreshRoutine(MediaServerService mediaServerService) :
     public override DateTimeOffset NextRun { get; set; } = DateTimeOffset.UtcNow;
 
     public override async Task<string> ExecuteAsync(CancellationToken cancellationToken) {
-        (bool Success, List<MediaServer> Items) serverResult = await mediaServerService.GetAllServersAsync();
+        List<MediaServer> servers = await mediaServerService.GetAllServersAsync();
         int count = 0;
 
-        foreach (Task<(bool Success, List<DownloadItem> Items, string Message)> result in
-                 serverResult.Items.Select(server => mediaServerService.GetQueueAsync(server, true))) {
-            if (!result.Result.Success) throw new RoutineFailedException(result.Result.Message, this);
+        foreach (MediaServer server in servers) {
+            List<DownloadItem> items = server.ServiceType switch {
+                ServiceType.Radarr => await mediaServerService.GetQueueAsync(server, true),
+                ServiceType.Sonarr => await mediaServerService.GetQueueAsync(server, true),
+                _ => []
+            };
 
-            count = result.Result.Items.Count;
-            LastRunSuccess = true;
+            count += items.Count;
         }
 
+        LastRunSuccess = true;
         return $"{count} queue items found.";
     }
 }

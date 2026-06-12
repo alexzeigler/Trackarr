@@ -1,0 +1,317 @@
+﻿@page "/"
+
+<PageTitle>Dashboard</PageTitle>
+
+<div class="container-fluid p-3 dashboard-page">
+
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <h3 class="m-0">Trackarr Dashboard</h3>
+                    <small class="text-secondary">Queue, missing media, and unresolved downloads</small>
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-secondary">7 days</button>
+                    <button class="btn btn-sm btn-primary">Refresh</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-xl-6">
+            <div class="card dashboard-card">
+                <div class="card-header bg-transparent d-flex align-items-center justify-content-between border-0">
+                    <div class="dashboard-card-title fw-bold">
+                        Downloads Requiring Action (@FilteredActionDownloads.Count)
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-link p-0 text-decoration-none fw-semibold">
+                            View All
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body pb-0">
+                    <select class="form-select form-select-sm" style="width:180px;" @bind="SelectedActionServer">
+                        <option value="">All Servers</option>
+                        @foreach (string server in ActionServers) {
+                            <option value="@server">@server</option>
+                        }
+                    </select>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 dashboard-grid table-sm">
+                            <tbody>
+                            @foreach (ActionDownloadRow download in PagedActionDownloads) {
+                                <tr>
+                                    <td>
+                                        <span class="dashboard-type-badge">@download.Type</span>
+                                        <span class="fw-semibold h6 text-primary-emphasis">@download.Title</span>
+                                        <div class="text-muted small w-auto">
+                                            Server:
+                                            <span class="fw-semibold text-white">@download.Server</span>
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        @download.Status
+                                    </td>
+
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="text-muted small">Strikes:</span>
+
+                                            <div class="strike-pips">
+                                                @for (int i = 0; i < MaxStrikes; i++) {
+                                                    int strikeIndex = i;
+                                                    bool isWarning = string.Equals(download.Status, "Warning", StringComparison.OrdinalIgnoreCase);
+
+                                                    <span
+                                                        class="@($"strike-pip {StrikePipClass(download.Strikes, isWarning, strikeIndex)}")"></span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+
+                            @if (!FilteredActionDownloads.Any()) {
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">
+                                        No downloads requiring action.
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex align-items-center justify-content-between p-0 border-top">
+                        <div class="text-muted small">
+                            @ActionPageStart - @ActionPageEnd in @FilteredActionDownloads.Count
+                        </div>
+
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-sm btn-link text-muted text-decoration-none"
+                                    disabled="@(_actionPage <= 1)"
+                                    @onclick="PreviousActionPage">
+                                <i class="bi bi-chevron-left fs-5"></i>
+                            </button>
+
+                            <button class="btn btn-sm btn-link text-muted text-decoration-none"
+                                    disabled="@(_actionPage >= ActionTotalPages)"
+                                    @onclick="NextActionPage">
+                                <i class="bi bi-chevron-right fs-5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-header dashboard-card-header">
+                    <div>
+                        <div class="dashboard-card-title">Active Downloads</div>
+                        <div class="dashboard-card-subtitle">Current queue activity</div>
+                    </div>
+
+                    <button class="btn btn-sm btn-link">View All</button>
+                </div>
+
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 dashboard-grid">
+                            <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Server</th>
+                                <th>Progress</th>
+                                <th>ETA</th>
+                            </tr>
+                            </thead>
+
+                            <tbody>
+                            @foreach (ActiveDownloadRow download in _activeDownloads) {
+                                <tr>
+                                    <td>
+                                        <span class="dashboard-type-badge">@download.Type</span>
+                                        <span class="fw-semibold">@download.Title</span>
+                                        <div class="dashboard-muted">@download.Indexer</div>
+                                    </td>
+
+                                    <td>
+                                        @download.Server
+                                    </td>
+
+                                    <td>
+                                        <div class="dashboard-progress">
+                                            <div class="progress">
+                                                <div class="progress-bar"
+                                                     style="width:@($"{download.Progress}%")"></div>
+                                            </div>
+                                            <span>@download.Progress% · @download.Size</span>
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        @download.Eta
+                                    </td>
+                                </tr>
+                            }
+
+                            @if (!_activeDownloads.Any()) {
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">
+                                        No active downloads.
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-header dashboard-card-header">
+                    <div>
+                        <div class="dashboard-card-title">Missing Media Ready to Search</div>
+                        <div class="dashboard-card-subtitle">Eligible missing movies and episodes</div>
+                    </div>
+
+                    <button class="btn btn-sm btn-link">View All</button>
+                </div>
+
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 dashboard-grid">
+                            <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Server</th>
+                                <th>Target</th>
+                                <th>Last Search</th>
+                                <th>Attempts</th>
+                            </tr>
+                            </thead>
+
+                            <tbody>
+                            @foreach (MissingMediaRow media in _missingMedia) {
+                                <tr>
+                                    <td>
+                                        <span class="dashboard-type-badge">@media.Type</span>
+                                        <span class="fw-semibold">@media.Title</span>
+                                    </td>
+
+                                    <td>
+                                        @media.Server
+                                    </td>
+
+                                    <td>
+                                        @media.QualityTarget
+                                    </td>
+
+                                    <td>
+                                        @media.LastSearch
+                                    </td>
+
+                                    <td>
+                                        @media.Attempts
+                                    </td>
+                                </tr>
+                            }
+
+                            @if (!_missingMedia.Any()) {
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        No missing media ready to search.
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-6">
+            <div class="card dashboard-card h-100">
+                <div class="card-header dashboard-card-header">
+                    <div>
+                        <div class="dashboard-card-title">Unavailable After Attempts</div>
+                        <div class="dashboard-card-subtitle">Searched multiple times with no usable download</div>
+                    </div>
+
+                    <button class="btn btn-sm btn-link">View All</button>
+                </div>
+
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 dashboard-grid">
+                            <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Server</th>
+                                <th>Original</th>
+                                <th>Current</th>
+                                <th>Attempts</th>
+                                <th>Last Search</th>
+                            </tr>
+                            </thead>
+
+                            <tbody>
+                            @foreach (UnavailableMediaRow media in _unavailableMedia) {
+                                <tr>
+                                    <td>
+                                        <span class="dashboard-type-badge">@media.Type</span>
+                                        <span class="fw-semibold">@media.Title</span>
+                                        <div class="dashboard-muted">@media.Reason</div>
+                                    </td>
+
+                                    <td>
+                                        @media.Server
+                                    </td>
+
+                                    <td>
+                                        @media.OriginalQuality
+                                    </td>
+
+                                    <td>
+                                        @media.CurrentQuality
+                                    </td>
+
+                                    <td>
+                                        @media.Attempts
+                                    </td>
+
+                                    <td>
+                                        @media.LastSearch
+                                    </td>
+                                </tr>
+                            }
+
+                            @if (!_unavailableMedia.Any()) {
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        No unavailable media.
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

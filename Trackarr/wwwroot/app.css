@@ -70,6 +70,21 @@ html, body {
     --status-queued-bg: #EEEDFE;
     --status-paused: #888780;
     --status-paused-bg: #F1EFE8;
+
+    --log-trace: #888780;
+    --log-trace-bg: #F1EFE8;
+    --log-debug: #7F77DD;
+    --log-debug-bg: #EEEDFE;
+    --log-information: #1D9E75;
+    --log-information-bg: #E1F5EE;
+    --log-warning: #EF9F27;
+    --log-warning-bg: #FAEEDA;
+    --log-error: #E24B4A;
+    --log-error-bg: #FCEBEB;
+    --log-critical: #A32D2D;
+    --log-critical-bg: #FCEBEB;
+    --log-none: #B4B2A9;
+    --log-none-bg: #F1EFE8;
 }
 
 a, .btn-link {

@@ -4,7 +4,8 @@
         <button type="button"
                 class="btn btn-link p-0 text-white text-decoration-none d-flex flex-column align-items-center justify-content-center"
                 style="width:56px; height:50px;" @onclick="() => ExecuteAsync(option)">
-            <i class="bi @option.Icon lh-1" style="font-size:21px;"></i>
+            <i class="bi @option.Icon lh-1 @(IsRefreshing && option.IsRefreshable ? "spin" : "")"
+               style="font-size:21px;"></i>
             <small class="lh-1 mt-1">@option.DisplayName</small>
         </button>
     }
@@ -12,11 +13,10 @@
 
 @code {
     [Parameter] public IReadOnlyList<Option> Options { get; set; } = [];
+    [Parameter] public bool IsRefreshing { get; set; }
 
     private static async Task ExecuteAsync(Option option) {
-        if (option.Command is not null) {
+        if (option.Command is not null)
             await option.Command();
-        }
     }
-
 }

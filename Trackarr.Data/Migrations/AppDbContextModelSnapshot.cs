@@ -47,7 +47,7 @@ namespace Trackarr.Data.Migrations
                     b.ToTable("LogEvents");
                 });
 
-            modelBuilder.Entity("Trackarr.Core.Media.Movie", b =>
+            modelBuilder.Entity("Trackarr.Core.Media.Movies.Movie", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -202,142 +202,238 @@ namespace Trackarr.Data.Migrations
                     b.ToTable("Movies");
                 });
 
-            modelBuilder.Entity("Trackarr.Core.Media.ServerMetadata", b =>
+            modelBuilder.Entity("Trackarr.Core.Media.Shows.Episode", b =>
                 {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AbsoluteEpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AirDate")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("AirDateUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EpisodeFileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EpisodeFileJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("HasFile")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ImagesJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LanguagesJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastSearchTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Monitored")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Overview")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RatingsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RemoteId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RemoteSeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeasonNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SeriesDbId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("ServerId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("AppData")
-                        .IsRequired()
+                    b.Property<string>("Title")
+                        .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("AppName")
-                        .IsRequired()
+                    b.Property<int>("TvdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("UnverifiedSceneNumbering")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServerId", "RemoteId")
+                        .IsUnique();
+
+                    b.HasIndex("ServerId", "RemoteSeriesId");
+
+                    b.HasIndex("SeriesDbId", "SeasonNumber", "EpisodeNumber");
+
+                    b.ToTable("Episodes");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Media.Shows.Series", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("Added")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AirTime")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AlternateTitlesJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Certification")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CleanTitle")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Ended")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("FirstAired")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GenresJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImagesJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImdbId")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("LanguageProfileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastAired")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MonitorNewItems")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Monitored")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Network")
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Authentication")
-                        .IsRequired()
+                    b.Property<DateTime?>("NextAiring")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OriginalLanguageJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Overview")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Path")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PreviousAiring")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("QualityProfileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RatingsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RemoteId")
+                        .HasColumnType("INTEGER")
+                        .HasJsonPropertyName("id");
+
+                    b.Property<string>("RootFolderPath")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Runtime")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SeasonFolder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SeasonsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SeriesType")
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Branch")
-                        .IsRequired()
+                    b.Property<int>("ServerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SortTitle")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StatisticsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("BuildTime")
+                    b.Property<string>("TagsJson")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("DatabaseType")
-                        .IsRequired()
-                        .HasMaxLength(50)
+                    b.Property<string>("Title")
+                        .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("DatabaseVersion")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("InstanceName")
-                        .IsRequired()
+                    b.Property<string>("TitleSlug")
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("IsAdmin")
+                    b.Property<int>("TmdbId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsDebug")
+                    b.Property<int>("TvMazeId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsDocker")
+                    b.Property<int>("TvRageId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsLinux")
+                    b.Property<int>("TvdbId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsNetCore")
+                    b.Property<bool>("UseSceneNumbering")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsOsx")
+                    b.Property<int>("Year")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsProduction")
-                        .HasColumnType("INTEGER");
+                    b.HasKey("Id");
 
-                    b.Property<bool>("IsUserInteractive")
-                        .HasColumnType("INTEGER");
+                    b.HasIndex("ServerId", "RemoteId")
+                        .IsUnique();
 
-                    b.Property<bool>("IsWindows")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("MigrationVersion")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Mode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("OsName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("OsVersion")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PackageAuthor")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PackageUpdateMechanism")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PackageUpdateMechanismMessage")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PackageVersion")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RuntimeName")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RuntimeVersion")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("StartTime")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("StartupPath")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UrlBase")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Version")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("ServerId");
-
-                    b.ToTable("ServerMetadata");
+                    b.ToTable("Series");
                 });
 
             modelBuilder.Entity("Trackarr.Core.Queue.DownloadItem", b =>
@@ -346,7 +442,16 @@ namespace Trackarr.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("ActiveStrikeCount")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("Added")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AttemptKey")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("CustomFormatScore")
@@ -373,10 +478,28 @@ namespace Trackarr.Data.Migrations
                     b.Property<DateTime?>("EstimatedCompletionTime")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("FailedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("FirstSeenAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Indexer")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("LanguagesJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("LastObservedProgress")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LastObservedSizeLeft")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastProgressAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastSeenAtUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("MovieId")
@@ -425,15 +548,97 @@ namespace Trackarr.Data.Migrations
                     b.Property<string>("Title")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TotalStrikeCount")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("TrackedDownloadState")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TrackedDownloadStatus")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("TrackingState")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
+                    b.HasIndex("AttemptKey");
+
+                    b.HasIndex("ServerId", "AttemptKey");
+
                     b.ToTable("DownloadQueue");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Queue.DownloadStrike", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("CountsAgainstDownload")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DownloadItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Fingerprint")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ObservedDownloadClient")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ObservedDownloadId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ObservedErrorMessage")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ObservedIndexer")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("ObservedProgress")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ObservedSize")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ObservedSizeLeft")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ObservedStatus")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Resolution")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DownloadItemId");
+
+                    b.HasIndex("DownloadItemId", "Reason", "Fingerprint", "ResolvedAtUtc");
+
+                    b.ToTable("DownloadStrikes");
                 });
 
             modelBuilder.Entity("Trackarr.Core.Routine.RoutineDefinition", b =>
@@ -577,7 +782,145 @@ namespace Trackarr.Data.Migrations
                     b.ToTable("MediaServers");
                 });
 
-            modelBuilder.Entity("Trackarr.Core.Media.Movie", b =>
+            modelBuilder.Entity("Trackarr.Core.Server.ServerMetadata", b =>
+                {
+                    b.Property<int>("ServerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AppData")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AppName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Authentication")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Branch")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("BuildTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DatabaseType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DatabaseVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InstanceName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsAdmin")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsDebug")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsDocker")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsLinux")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsNetCore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsOsx")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsProduction")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsUserInteractive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsWindows")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MigrationVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OsName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OsVersion")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PackageAuthor")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PackageUpdateMechanism")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PackageUpdateMechanismMessage")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PackageVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RuntimeName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RuntimeVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StartupPath")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UrlBase")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ServerId");
+
+                    b.ToTable("ServerMetadata");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Media.Movies.Movie", b =>
                 {
                     b.HasOne("Trackarr.Core.Server.MediaServer", "ParentServer")
                         .WithMany()
@@ -588,13 +931,44 @@ namespace Trackarr.Data.Migrations
                     b.Navigation("ParentServer");
                 });
 
-            modelBuilder.Entity("Trackarr.Core.Media.ServerMetadata", b =>
+            modelBuilder.Entity("Trackarr.Core.Media.Shows.Episode", b =>
                 {
-                    b.HasOne("Trackarr.Core.Server.MediaServer", null)
-                        .WithOne()
-                        .HasForeignKey("Trackarr.Core.Media.ServerMetadata", "ServerId")
+                    b.HasOne("Trackarr.Core.Media.Shows.Series", "Series")
+                        .WithMany()
+                        .HasForeignKey("SeriesDbId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Trackarr.Core.Server.MediaServer", "ParentServer")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ParentServer");
+
+                    b.Navigation("Series");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Media.Shows.Series", b =>
+                {
+                    b.HasOne("Trackarr.Core.Server.MediaServer", "ParentServer")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ParentServer");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Queue.DownloadStrike", b =>
+                {
+                    b.HasOne("Trackarr.Core.Queue.DownloadItem", "DownloadItem")
+                        .WithMany("Strikes")
+                        .HasForeignKey("DownloadItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DownloadItem");
                 });
 
             modelBuilder.Entity("Trackarr.Core.Routine.RoutineRun", b =>
@@ -606,6 +980,20 @@ namespace Trackarr.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Routine");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Server.ServerMetadata", b =>
+                {
+                    b.HasOne("Trackarr.Core.Server.MediaServer", null)
+                        .WithOne()
+                        .HasForeignKey("Trackarr.Core.Server.ServerMetadata", "ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Queue.DownloadItem", b =>
+                {
+                    b.Navigation("Strikes");
                 });
 
             modelBuilder.Entity("Trackarr.Core.Routine.RoutineDefinition", b =>

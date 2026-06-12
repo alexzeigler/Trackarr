@@ -1,12 +1,13 @@
 ﻿@page "/system/events"
 @using Trackarr.Core.Event
 @using Trackarr.Core.UI
-@using Trackarr.Services
+@using Trackarr.Services.Diagnostics
 @inject EventService EventService
+@inject ILogger<Events> Logger
 
 <PageTitle>Logs</PageTitle>
 
-<OptionsBanner Options="Options"/>
+<OptionsBanner Options="_options" IsRefreshing="_isRefreshing"/>
 
 <div class="p-3">
     <div class="d-flex align-items-center justify-content-between mb-3">
@@ -16,10 +17,10 @@
     <div class="d-flex gap-2 mb-3">
         <input class="form-control"
                placeholder="Filter logs..."
-               @bind="filterText"
+               @bind="_filterText"
                @bind:event="oninput"/>
 
-        <select class="form-select" style="max-width:180px;" @bind="selectedLevel">
+        <select class="form-select" style="max-width:180px;" @bind="_selectedLevel">
             <option value="">All Levels</option>
             <option value="@LogLevel.Trace">Trace</option>
             <option value="@LogLevel.Debug">Debug</option>
@@ -31,7 +32,7 @@
 
     </div>
     <div class="d-flex align-items-center justify-content-between mt-3">
-        <div class="text-secondary small">
+        <div class="text-muted small">
             Showing @PageStart - @PageEnd of @FilteredLogs.Count
         </div>
 
@@ -41,36 +42,36 @@
                     data-bs-target="#pageSizeModal"
                     title="Items per page">
                 <i class="bi bi-list-ol"></i>
-                @pageSize
+                @_pageSize
             </button>
 
             <button class="btn btn-sm btn-outline-secondary"
-                    disabled="@(currentPage <= 1)"
+                    disabled="@(_currentPage <= 1)"
                     @onclick="FirstPage"
                     title="First Page">
                 <i class="bi bi-chevron-double-left"></i>
             </button>
 
             <button class="btn btn-sm btn-outline-secondary"
-                    disabled="@(currentPage <= 1)"
+                    disabled="@(_currentPage <= 1)"
                     @onclick="PreviousPage"
                     title="Previous Page">
                 <i class="bi bi-chevron-left"></i>
             </button>
 
             <span class="small px-2">
-                @currentPage / @TotalPages
+                @_currentPage / @TotalPages
             </span>
 
             <button class="btn btn-sm btn-outline-secondary"
-                    disabled="@(currentPage >= TotalPages)"
+                    disabled="@(_currentPage >= TotalPages)"
                     @onclick="NextPage"
                     title="Next Page">
                 <i class="bi bi-chevron-right"></i>
             </button>
 
             <button class="btn btn-sm btn-outline-secondary"
-                    disabled="@(currentPage >= TotalPages)"
+                    disabled="@(_currentPage >= TotalPages)"
                     @onclick="LastPage"
                     title="Last Page">
                 <i class="bi bi-chevron-double-right"></i>
@@ -93,30 +94,40 @@
 
                 <tbody>
                 @foreach (LogEvent log in PagedLogs) {
-                    <tr>
+                    <tr @onclick="() => _selectedLog = log" data-bs-target="#logDetailsModal" data-bs-toggle="modal"
+                        title="Details" style="cursor:pointer;">
                         <td>
                             @switch (log.LogLevel) {
                                 case LogLevel.Trace:
+                                    <i class="bi bi-circle-dotted" title="trace" style="color: var(--log-trace);"></i>
+                                    break;
+
                                 case LogLevel.Debug:
-                                    <i class="bi bi-bug-fill text-secondary" title="debug"></i>
+                                    <i class="bi bi-bug-fill" title="debug" style="color: var(--log-debug);"></i>
                                     break;
 
                                 case LogLevel.Information:
-                                    <i class="bi bi-info-circle-fill text-info" title="info"></i>
+                                    <i class="bi bi-info-circle-fill" title="info"
+                                       style="color: var(--log-information);"></i>
                                     break;
 
                                 case LogLevel.Warning:
-                                    <i class="bi bi-exclamation-circle-fill text-warning" title="warning"></i>
+                                    <i class="bi bi-exclamation-circle-fill" title="warning"
+                                       style="color: var(--log-warning);"></i>
                                     break;
 
                                 case LogLevel.Error:
+                                    <i class="bi bi-x-circle-fill" title="error" style="color: var(--log-error);"></i>
+                                    break;
+
                                 case LogLevel.Critical:
-                                    <i class="bi bi-x-circle-fill text-danger" title="error"></i>
+                                    <i class="bi bi-exclamation-octagon-fill" title="critical"
+                                       style="color: var(--log-critical);"></i>
                                     break;
 
                                 case LogLevel.None:
                                 default:
-                                    <i class="bi bi-circle-fill text-secondary"></i>
+                                    <i class="bi bi-dash-circle" title="none" style="color: var(--log-none);"></i>
                                     break;
                             }
                         </td>
@@ -130,10 +141,9 @@
                         <td>@log.Message</td>
                     </tr>
                 }
-
                 @if (!PagedLogs.Any()) {
                     <tr>
-                        <td colspan="4" class="text-center text-secondary py-4">
+                        <td colspan="4" class="text-center text-muted py-4">
                             No logs found.
                         </td>
                     </tr>
@@ -142,37 +152,40 @@
             </table>
         </div>
     </div>
-
-
 </div>
 
-<div class="modal fade" id="pageSizeModal" tabindex="-1" aria-labelledby="pageSizeModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
+
+<div class="modal fade" id="logDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content bg-dark border text-white">
             <div class="modal-header">
-                <h5 class="modal-title" id="pageSizeModalLabel">Items Per Page</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <div class="d-flex align-items-center gap-2">
+                    <h4>Details</h4>
+                </div>
+                <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal"></button>
             </div>
 
-            <div class="modal-body">
-                <label class="form-label">Show up to 250 logs per page</label>
-                <input type="number"
-                       class="form-control"
-                       min="1"
-                       max="250"
-                       @bind="pageSizeInput"/>
+            <div class="modal-body pt-3 pb-4">
+                @if (_selectedLog is not null) {
+                    <div>
+                        <p class="mb-0">Message</p>
+                        <pre class="border font-monospace p-3 rounded-1 small user-select-all">
+                            @_selectedLog.Message
+                        </pre>
+
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(_selectedLog.Exception)) {
+                        <pre class="border font-monospace p-3 rounded-1 small user-select-all">
+                            @_selectedLog.Exception
+                        </pre>
+                    }
+                }
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    Cancel
-                </button>
-
-                <button type="button"
-                        class="btn btn-primary"
-                        data-bs-dismiss="modal"
-                        @onclick="ApplyPageSize">
-                    Apply
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    Close
                 </button>
             </div>
         </div>
@@ -180,99 +193,103 @@
 </div>
 
 @code {
-    private List<LogEvent> logs = [];
-    private bool isRefreshing;
-    private IReadOnlyList<Option> Options = [];
+    private LogEvent? _selectedLog = null;
+    private List<LogEvent> _logs = [];
+    private bool _isRefreshing;
+    private IReadOnlyList<Option> _options = [];
 
-    private string filterText = string.Empty;
-    private string selectedLevel = string.Empty;
+    private string _filterText = string.Empty;
+    private string _selectedLevel = string.Empty;
 
-    private int currentPage = 1;
-    private int pageSize = 50;
-    private int pageSizeInput = 50;
+    private int _currentPage = 1;
+    private int _pageSize = 50;
+    private int _pageSizeInput = 50;
 
     private List<LogEvent> FilteredLogs {
         get {
-            IEnumerable<LogEvent> query = logs;
+            IEnumerable<LogEvent> query = _logs;
 
-            if (!string.IsNullOrWhiteSpace(selectedLevel) && Enum.TryParse(selectedLevel, out LogLevel level)) {
+            if (!string.IsNullOrWhiteSpace(_selectedLevel) && Enum.TryParse(_selectedLevel, out LogLevel level)) {
                 query = query.Where(x => x.LogLevel == level);
             }
 
-            if (!string.IsNullOrWhiteSpace(filterText)) {
-                query = query.Where(x => x.Source.Contains(filterText, StringComparison.OrdinalIgnoreCase) || x.Message.Contains(filterText, StringComparison.OrdinalIgnoreCase) || x.LogLevel.ToString().Contains(filterText, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(_filterText)) {
+                query = query.Where(x => x.Source != null && x.Message != null && (x.Source.Contains(_filterText, StringComparison.OrdinalIgnoreCase) || x.Message.Contains(_filterText, StringComparison.OrdinalIgnoreCase) || x.LogLevel.ToString().Contains(_filterText, StringComparison.OrdinalIgnoreCase)));
             }
 
             return query.ToList();
         }
     }
 
-    private List<LogEvent> PagedLogs => FilteredLogs.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+    private List<LogEvent> PagedLogs => FilteredLogs.Skip((_currentPage - 1) * _pageSize).Take(_pageSize).ToList();
 
-    private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredLogs.Count / (double)pageSize));
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredLogs.Count / (double)_pageSize));
 
-    private int PageStart => FilteredLogs.Count == 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    private int PageStart => FilteredLogs.Count == 0 ? 0 : (_currentPage - 1) * _pageSize + 1;
 
-    private int PageEnd => Math.Min(currentPage * pageSize, FilteredLogs.Count);
+    private int PageEnd => Math.Min(_currentPage * _pageSize, FilteredLogs.Count);
 
     protected override async Task OnInitializedAsync() {
-        Options = BuildOptions();
+        _options = BuildOptions();
         await LoadLogsAsync();
     }
 
-    private IReadOnlyList<Option> BuildOptions() {
-        return [
-                new Option { DisplayName = "Refresh", Icon = isRefreshing ? "bi-arrow-clockwise spin" : "bi-arrow-clockwise", Command = LoadLogsAsync },
-                new Option { DisplayName = "Clear", Icon = "bi-trash-fill", Command = DeleteAllLogs }
-        ];
-    }
+    private IReadOnlyList<Option> BuildOptions() => [
+        new() { DisplayName = "Refresh", Icon = "bi-arrow-clockwise", IsRefreshable = true, Command = LoadLogsAsync },
+        new() { DisplayName = "Clear", Icon = "bi-trash-fill", Command = DeleteAllLogs }
+    ];
 
     private async Task LoadLogsAsync() {
-        isRefreshing = true;
-        Options = BuildOptions();
+        Logger.LogInformation("Refreshing logs...");
+        _isRefreshing = true;
         await InvokeAsync(StateHasChanged);
+        await Task.Delay(300);
+        _options = BuildOptions();
 
         try {
-            logs = await EventService.GetAllAsync();
-            currentPage = 1;
+            _logs = await EventService.GetAllAsync();
+            _currentPage = 1;
         }
         finally {
-            isRefreshing = false;
-            Options = BuildOptions();
+            _isRefreshing = false;
+            _options = BuildOptions();
             await InvokeAsync(StateHasChanged);
+            Logger.LogInformation((string)"Loaded {LogsCount} logs", _logs.Count);
+
         }
     }
 
     private async Task DeleteAllLogs() {
         await EventService.ClearAllAsync();
-        logs.Clear();
-        currentPage = 1;
+        _logs.Clear();
+        _currentPage = 1;
+        await LoadLogsAsync();
     }
 
     private void PreviousPage() {
-        if (currentPage > 1) {
-            currentPage--;
+        if (_currentPage > 1) {
+            _currentPage--;
         }
     }
 
     private void NextPage() {
-        if (currentPage < TotalPages) {
-            currentPage++;
+        if (_currentPage < TotalPages) {
+            _currentPage++;
         }
     }
 
     private void ApplyPageSize() {
-        pageSize = Math.Clamp(pageSizeInput, 1, 250);
-        pageSizeInput = pageSize;
-        currentPage = 1;
+        _pageSize = Math.Clamp(_pageSizeInput, 1, 250);
+        _pageSizeInput = _pageSize;
+        _currentPage = 1;
     }
 
     private void FirstPage() {
-        currentPage = 1;
+        _currentPage = 1;
     }
 
     private void LastPage() {
-        currentPage = TotalPages;
+        _currentPage = TotalPages;
     }
 
 }

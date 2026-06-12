@@ -1,9 +1,13 @@
-﻿using System.Text.Json;
+﻿using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
+using Trackarr.Core.Server;
 
-namespace Trackarr.Core.Media;
+namespace Trackarr.Core.Media.Movies;
 
-public class MissingMovieRecord {
-    public int Id { get; set; }
+public class Movie {
+    [JsonIgnore] public int Id { get; set; }
+    [JsonPropertyName("id")] public int RemoteId { get; set; }
+
     public string? Title { get; set; }
     public string? OriginalTitle { get; set; }
     public string? SortTitle { get; set; }
@@ -36,13 +40,17 @@ public class MissingMovieRecord {
     public DateTime? LastSearchTime { get; set; }
     public double Popularity { get; set; }
 
-    public JsonElement OriginalLanguage { get; set; }
-    public JsonElement AlternateTitles { get; set; }
-    public JsonElement Images { get; set; }
-    public JsonElement Genres { get; set; }
-    public JsonElement Keywords { get; set; }
-    public JsonElement Tags { get; set; }
-    public JsonElement Ratings { get; set; }
-    public JsonElement Collection { get; set; }
-    public JsonElement Statistics { get; set; }
+    public string? OriginalLanguageJson { get; set; }
+    public string? AlternateTitlesJson { get; set; }
+    public string? ImagesJson { get; set; }
+    public string? GenresJson { get; set; }
+    public string? KeywordsJson { get; set; }
+    public string? TagsJson { get; set; }
+    public string? RatingsJson { get; set; }
+    public string? CollectionJson { get; set; }
+    public string? StatisticsJson { get; set; }
+
+    public int ServerId { get; set; }
+
+    [ForeignKey(nameof(ServerId))] public MediaServer? ParentServer { get; set; }
 }

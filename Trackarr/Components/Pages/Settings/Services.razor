@@ -1,7 +1,7 @@
 ﻿@page "/settings/services"
 @using Trackarr.Components.Modals
 @using Trackarr.Core.Server
-@using Trackarr.Services
+@using Trackarr.Services.Media
 @layout SettingsLayout
 @inject MediaServerService ServerService
 @inject IJSRuntime Js
@@ -15,7 +15,7 @@
     <p class="text-muted mb-4">@svc.Description</p>
 
     <ul class="list-unstyled row g-3 mb-5 w-100">
-        @foreach (MediaServer server in _servers.Items.Where(s => s.ServiceType == svc.Type)) {
+        @foreach (MediaServer server in _servers.Where(s => s.ServiceType == svc.Type)) {
             <li class="col-12 col-md-6 col-xl-5">
                 <div class="rounded-3 bg-dark border border-secondary shadow">
                     <div class="d-flex align-items-start justify-content-between p-3 gap-3">
@@ -132,44 +132,50 @@
     private string? _confirmText;
     private Func<Task>? _pendingAction;
     private AddServerModal _modal = null!;
-    private (bool Success, List<MediaServer> Items) _servers = (false, []);
+    private List<MediaServer> _servers = [];
 
     private record SectionInfo(string Title, string Description, ServiceType Type, RenderFragment Icon);
 
     private readonly List<SectionInfo> _sections = [
         // TODO: Make this section use the services' logos rather than building them ourselves. We may need to pull the svg from a source so we can build manipulate it like we do. 
-        new("Radarr", "Connect your Radarr server to manage movie requests.", ServiceType.Radarr, @<svg
-                                                                                                          viewBox="0 0 1000 1115.2"
-                                                                                                          xmlns="http://www.w3.org/2000/svg"
-                                                                                                          style="height:2.5rem;width:2.5rem;">
-                                                                                                      <path
-                                                                                                              d="m120.015 174.916-1.433 810.916C50.198 993.53-.595 958.758.245 890.481L0 216.126C2.624 2.76 199.555-46.036 317.994 40.776l601.67 357.383c84.615 60.794 100.32 171.956 56.7 248.25-7.799-59.85-32.984-94.304-83.773-129.073l-678.066-392.46c-50.79-34.768-93.568-26.758-94.513 50.056zm-61.707 852.847c51 17.7 102.314 9.794 145.3-15.285L908.5 611.405c41.94 60.268 32.671 119.903-18.958 153.414L296.44 1098.972c-85.873 41.624-196.297-2.414-238.138-71.217z"
-                                                                                                              fill="#fff"/>
-                                                                                                      <path
-                                                                                                              d="m272.941 797.285 414.225-245.888L273.7 327.762z"
-                                                                                                              fill="#ffc230"/>
-                                                                                                  </svg>),
+        new("Radarr",
+        "Connect your Radarr server to manage movie requests.",
+        ServiceType.Radarr,
+        @<svg
+                viewBox="0 0 1000 1115.2"
+                xmlns="http://www.w3.org/2000/svg"
+                style="height:2.5rem;width:2.5rem;">
+            <path
+                    d="m120.015 174.916-1.433 810.916C50.198 993.53-.595 958.758.245 890.481L0 216.126C2.624 2.76 199.555-46.036 317.994 40.776l601.67 357.383c84.615 60.794 100.32 171.956 56.7 248.25-7.799-59.85-32.984-94.304-83.773-129.073l-678.066-392.46c-50.79-34.768-93.568-26.758-94.513 50.056zm-61.707 852.847c51 17.7 102.314 9.794 145.3-15.285L908.5 611.405c41.94 60.268 32.671 119.903-18.958 153.414L296.44 1098.972c-85.873 41.624-196.297-2.414-238.138-71.217z"
+                    fill="#fff"/>
+            <path
+                    d="m272.941 797.285 414.225-245.888L273.7 327.762z"
+                    fill="#ffc230"/>
+        </svg>),
 
-        new("Sonarr", "Connect your Sonarr server to manage TV show requests.", ServiceType.Sonarr, @<svg
-                                                                                                            viewBox="0 0 216.7 216.9"
-                                                                                                            xmlns="http://www.w3.org/2000/svg"
-                                                                                                            style="height:2.5rem;width:2.5rem;">
-                                                                                                        <path
-                                                                                                                d="M216.7 108.45c0 29.833-10.533 55.4-31.6 76.7-.7.833-1.483 1.6-2.35 2.3a92.767 92.767 0 0 1-11 9.25c-18.267 13.467-39.367 20.2-63.3 20.2-23.967 0-45.033-6.733-63.2-20.2-4.8-3.4-9.3-7.25-13.5-11.55-16.367-16.266-26.417-35.167-30.15-56.7-.733-4.2-1.217-8.467-1.45-12.8-.1-2.4-.15-4.8-.15-7.2 0-2.533.05-4.95.15-7.25 0-.233.066-.467.2-.7 1.567-26.6 12.033-49.583 31.4-68.95C53.05 10.517 78.617 0 108.45 0c29.933 0 55.484 10.517 76.65 31.55 21.067 21.433 31.6 47.067 31.6 76.9z"
-                                                                                                                clip-rule="evenodd"
-                                                                                                                fill="#EEE"
-                                                                                                                fill-rule="evenodd"/>
-                                                                                                        <path
-                                                                                                                d="m194.65 42.5-22.4 22.4C159.152 77.998 158 89.4 158 109.5c0 17.934 2.852 34.352 16.2 47.7 9.746 9.746 19 18.95 19 18.95-2.5 3.067-5.2 6.067-8.1 9-.7.833-1.483 1.6-2.35 2.3a90.601 90.601 0 0 1-7.9 6.95l-17.55-17.55c-15.598-15.6-27.996-17.1-48.6-17.1-19.77 0-33.223 1.822-47.7 16.3-8.647 8.647-18.55 18.6-18.55 18.6a95.782 95.782 0 0 1-10.7-9.5c-2.8-2.8-5.417-5.667-7.85-8.6 0 0 9.798-9.848 19.15-19.2 13.852-13.853 16.1-29.916 16.1-47.85 0-17.5-2.874-33.823-15.6-46.55-8.835-8.836-21.05-21-21.05-21 2.833-3.6 5.917-7.067 9.25-10.4a134.482 134.482 0 0 1 9-8.05L61.1 43.85C74.102 56.852 90.767 60.2 108.7 60.2c18.467 0 35.077-3.577 48.6-17.1 8.32-8.32 19.3-19.25 19.3-19.25 2.9 2.367 5.733 4.933 8.5 7.7a121.188 121.188 0 0 1 9.55 10.95z"
-                                                                                                                clip-rule="evenodd"
-                                                                                                                fill="#3A3F51"
-                                                                                                                fill-rule="evenodd"/>
-                                                                                                        <circle
-                                                                                                                cx="108.45"
-                                                                                                                cy="108.45"
-                                                                                                                r="30"
-                                                                                                                fill="#0CF"/>
-                                                                                                    </svg>)
+        new("Sonarr",
+        "Connect your Sonarr server to manage TV show requests.",
+        ServiceType.Sonarr,
+        @<svg
+                viewBox="0 0 216.7 216.9"
+                xmlns="http://www.w3.org/2000/svg"
+                style="height:2.5rem;width:2.5rem;">
+            <path
+                    d="M216.7 108.45c0 29.833-10.533 55.4-31.6 76.7-.7.833-1.483 1.6-2.35 2.3a92.767 92.767 0 0 1-11 9.25c-18.267 13.467-39.367 20.2-63.3 20.2-23.967 0-45.033-6.733-63.2-20.2-4.8-3.4-9.3-7.25-13.5-11.55-16.367-16.266-26.417-35.167-30.15-56.7-.733-4.2-1.217-8.467-1.45-12.8-.1-2.4-.15-4.8-.15-7.2 0-2.533.05-4.95.15-7.25 0-.233.066-.467.2-.7 1.567-26.6 12.033-49.583 31.4-68.95C53.05 10.517 78.617 0 108.45 0c29.933 0 55.484 10.517 76.65 31.55 21.067 21.433 31.6 47.067 31.6 76.9z"
+                    clip-rule="evenodd"
+                    fill="#EEE"
+                    fill-rule="evenodd"/>
+            <path
+                    d="m194.65 42.5-22.4 22.4C159.152 77.998 158 89.4 158 109.5c0 17.934 2.852 34.352 16.2 47.7 9.746 9.746 19 18.95 19 18.95-2.5 3.067-5.2 6.067-8.1 9-.7.833-1.483 1.6-2.35 2.3a90.601 90.601 0 0 1-7.9 6.95l-17.55-17.55c-15.598-15.6-27.996-17.1-48.6-17.1-19.77 0-33.223 1.822-47.7 16.3-8.647 8.647-18.55 18.6-18.55 18.6a95.782 95.782 0 0 1-10.7-9.5c-2.8-2.8-5.417-5.667-7.85-8.6 0 0 9.798-9.848 19.15-19.2 13.852-13.853 16.1-29.916 16.1-47.85 0-17.5-2.874-33.823-15.6-46.55-8.835-8.836-21.05-21-21.05-21 2.833-3.6 5.917-7.067 9.25-10.4a134.482 134.482 0 0 1 9-8.05L61.1 43.85C74.102 56.852 90.767 60.2 108.7 60.2c18.467 0 35.077-3.577 48.6-17.1 8.32-8.32 19.3-19.25 19.3-19.25 2.9 2.367 5.733 4.933 8.5 7.7a121.188 121.188 0 0 1 9.55 10.95z"
+                    clip-rule="evenodd"
+                    fill="#3A3F51"
+                    fill-rule="evenodd"/>
+            <circle
+                    cx="108.45"
+                    cy="108.45"
+                    r="30"
+                    fill="#0CF"/>
+        </svg>)
         // TODO: Add Overseerr/Seerr integration. 
     ];
 

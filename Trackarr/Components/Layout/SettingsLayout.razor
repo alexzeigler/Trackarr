@@ -13,16 +13,12 @@
     [Inject] NavigationManager Nav { get; set; } = null!;
 
     private static IReadOnlyList<Option> Options => [
-        new() { DisplayName = "Show Advanced", Icon = "bi-gear-fill", Command = ShowAdvancedAsync },
+            new() { DisplayName = "Series Advanced", Icon = "bi-gear-fill", Command = ShowAdvancedAsync },
         new() { DisplayName = "No Changes", Icon = "bi-floppy", Command = SaveAsync }
     ];
 
-    private static Task ShowAdvancedAsync() {
-        return Task.CompletedTask;
-    }
+    private static Task ShowAdvancedAsync() => Task.CompletedTask;
 
-    private static Task SaveAsync() {
-        return Task.CompletedTask;
-    }
+    private static Task SaveAsync() => Task.CompletedTask;
 
 }

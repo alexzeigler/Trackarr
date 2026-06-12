@@ -2,4 +2,5 @@
 
 namespace Trackarr.Components.Layout;
 
-public partial class OptionsBanner : ComponentBase { }
+public partial class OptionsBanner : ComponentBase {
+}

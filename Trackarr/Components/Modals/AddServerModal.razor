@@ -1,5 +1,5 @@
 ﻿@using Trackarr.Core.Server
-@using Trackarr.Services
+@using Trackarr.Services.Media
 @inject IJSRuntime Js
 @inject MediaServerService ServerService
 
@@ -12,8 +12,8 @@
             </div>
             <div class="modal-body pt-3 pb-5">
                 @if (TestResult is not null) {
-                    <div class="alert @(TestResult.Value.Success ? "alert-success" : "alert-danger") py-2 small mb-3">
-                        @TestResult.Value.Message
+                    <div class="alert @(TestResult.Value.Item1 ? "alert-success" : "alert-danger") py-2 small mb-3">
+                        @TestResult.Value.ReasonPhrase
                     </div>
                 }
                 <div class="mb-3 form-check">
@@ -148,10 +148,10 @@
     private bool IsSaving { get; set; }
     private bool IsBusy => IsTesting || IsSaving;
     private bool IsValid => !string.IsNullOrWhiteSpace(Model.Name) && !string.IsNullOrWhiteSpace(Model.Host) && Model.Port > 0 && !string.IsNullOrWhiteSpace(Model.ApiKey);
-    private bool CanSave => IsValid && TestResult?.Success == true && !IsBusy;
+    private bool CanSave => IsValid && TestResult is { Item1: true } && !IsBusy;
     private List<QualityProfile>? Profiles { get; set; } = [];
 
-    private (bool Success, string Message, long? PingTime)? TestResult { get; set; }
+    private (bool, long ElapsedMilliseconds, string? ReasonPhrase)? TestResult { get; set; }
     private bool _showApiKey;
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
@@ -193,7 +193,7 @@
             Profiles = server.Profiles;
             QualityProfile? selected = Profiles?.FirstOrDefault(p => string.Equals(p.Name, Model.FallbackProfile, StringComparison.OrdinalIgnoreCase));
             if (selected == null) {
-                TestResult = new ValueTuple<bool, string, long?>(false, $"Profile does not exist on the server: \"{Model.FallbackProfile}\".", null);
+                TestResult = new ValueTuple<bool, long, string?>(false, 0, $"Profile does not exist on the server: \"{Model.FallbackProfile}\".");
             }
         }
         else {
@@ -214,13 +214,11 @@
 
         TestResult = await ServerService.TestConnectionAsync(Model);
 
-        if (TestResult is { Success: true }) {
-            Model.LastPingTime = TestResult.Value.PingTime;
+        if (TestResult is { Item1: true }) {
+            Model.LastPingTime = TestResult.Value.ElapsedMilliseconds;
             Model.LastPingSuccessful = true;
-            TestResult = TestResult.Value with { Message = $"{TestResult.Value.Message} Last ping time: {TestResult.Value.PingTime}ms" };
-            (bool Success, List<QualityProfile> Profiles, string Message) profileResults = await ServerService.GetProfilesAsync(Model);
-            if (profileResults.Success)
-                Profiles = profileResults.Profiles;
+            TestResult = TestResult.Value with { ReasonPhrase = $"{TestResult.Value.ReasonPhrase} Last ping time: {TestResult.Value.ElapsedMilliseconds}ms" };
+            Profiles = await ServerService.GetProfilesAsync(Model);
         }
         else {
             Profiles?.Clear();

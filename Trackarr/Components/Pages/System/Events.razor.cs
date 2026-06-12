@@ -2,4 +2,5 @@
 
 namespace Trackarr.Components.Pages.System;
 
-public partial class Events : ComponentBase { }
+public partial class Events : ComponentBase {
+}

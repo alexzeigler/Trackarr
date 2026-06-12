@@ -41,4 +41,20 @@ public class DownloadItem {
 
     public QueueState State { get; set; }
     public QueueStatus QueueStatus { get; set; }
+    public string? AttemptKey { get; set; }
+
+    public DownloadItemTrackingState TrackingState { get; set; } = DownloadItemTrackingState.Active;
+
+    public int ActiveStrikeCount { get; set; }
+    public int TotalStrikeCount { get; set; }
+
+    public DateTime? FirstSeenAtUtc { get; set; }
+    public DateTime? LastSeenAtUtc { get; set; }
+    public DateTime? LastProgressAtUtc { get; set; }
+    public DateTime? FailedAtUtc { get; set; }
+    public DateTime? CompletedAtUtc { get; set; }
+
+    public ICollection<DownloadStrike> Strikes { get; set; } = [];
+    public decimal? LastObservedProgress { get; set; }
+    public long? LastObservedSizeLeft { get; set; }
 }

@@ -2,7 +2,7 @@
 using Trackarr.Core.Routine;
 using Trackarr.Data;
 
-namespace Trackarr.Services;
+namespace Trackarr.Services.Routines;
 
 public sealed class RoutineService(IDbContextFactory<AppDbContext> dbContextFactory) {
     public async Task<List<RoutineDefinition>> GetAllAsync(CancellationToken cancellationToken = default) {
@@ -18,8 +18,7 @@ public sealed class RoutineService(IDbContextFactory<AppDbContext> dbContextFact
     public async Task RegisterRoutineInDbAsync(IRoutine routine, CancellationToken cancellationToken = default) {
         await using AppDbContext db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        RoutineDefinition? existing = await db.Routines.FirstOrDefaultAsync(r => r.Key == routine.Key,
-            cancellationToken);
+        RoutineDefinition? existing = await db.Routines.FirstOrDefaultAsync(r => r.Key == routine.Key, cancellationToken);
 
         if (existing is null) {
             db.Routines.Add(new RoutineDefinition {

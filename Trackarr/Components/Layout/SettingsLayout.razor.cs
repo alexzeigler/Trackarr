@@ -2,4 +2,5 @@
 
 namespace Trackarr.Components.Layout;
 
-public partial class SettingsLayout : LayoutComponentBase { }
+public partial class SettingsLayout : LayoutComponentBase {
+}

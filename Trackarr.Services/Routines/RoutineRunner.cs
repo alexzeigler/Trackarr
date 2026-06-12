@@ -1,12 +1,10 @@
 ﻿using Microsoft.Extensions.Logging;
 using Trackarr.Core.Routine;
+using Trackarr.Services.Diagnostics;
 
-namespace Trackarr.Services;
+namespace Trackarr.Services.Routines;
 
-public sealed class RoutineRunner(
-    IEnumerable<IRoutine> handlers,
-    RoutineService routineService,
-    EventService eventService) {
+public sealed class RoutineRunner(IEnumerable<IRoutine> handlers, RoutineService routineService, EventService eventService) {
     private readonly List<RoutineRun> _history = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly Queue<string> _manualQueue = new();
@@ -16,7 +14,8 @@ public sealed class RoutineRunner(
     public bool IsRunning => _lock.CurrentCount == 0;
 
     private void Enqueue(string key) {
-        if (!_manualQueue.Contains(key)) _manualQueue.Enqueue(key);
+        if (!_manualQueue.Contains(key))
+            _manualQueue.Enqueue(key);
     }
 
     public void Load(List<RoutineDefinition> definitions) {
@@ -24,21 +23,22 @@ public sealed class RoutineRunner(
     }
 
     public async Task TickAsync(CancellationToken cancellationToken) {
-        bool entered = await _lock.WaitAsync(0, cancellationToken);
-
-        if (!entered) return;
+        if (!await _lock.WaitAsync(0, cancellationToken)) {
+            return;
+        }
 
         try {
             DateTime now = DateTime.UtcNow;
 
-            RoutineDefinition? routine = _manualQueue.Count > 0
-                ? _routines.FirstOrDefault(x => x.Key == _manualQueue.Peek() && !x.IsRunning)
-                : _routines.Where(x => x.Enabled).Where(x => !x.IsPaused).Where(x => !x.IsRunning)
-                    .Where(x => x.NextRun <= now).OrderBy(x => x.NextRun).FirstOrDefault();
+            RoutineDefinition? routine = _manualQueue.Count > 0 ? _routines.FirstOrDefault(x => x.Key == _manualQueue.Peek() && !x.IsRunning) : _routines.Where(x => x.Enabled).Where(x => !x.IsPaused).Where(x => !x.IsRunning).Where(x => x.NextRun <= now).OrderBy(x => x.NextRun).FirstOrDefault();
 
-            if (routine is null) return;
+            if (routine is null) {
+                return;
+            }
 
-            if (_manualQueue.Count > 0 && _manualQueue.Peek() == routine.Key) _manualQueue.Dequeue();
+            if (_manualQueue.Count > 0 && _manualQueue.Peek() == routine.Key) {
+                _manualQueue.Dequeue();
+            }
 
             await ExecuteRoutineAsync(routine, cancellationToken);
         }
@@ -49,17 +49,13 @@ public sealed class RoutineRunner(
 
     public void RunAsync(string key) {
         RoutineDefinition? routine = _routines.FirstOrDefault(x => x.Key == key);
-        if (routine is null) throw new InvalidOperationException($"No routine found for key '{key}'.");
+        if (routine is null)
+            throw new InvalidOperationException($"No routine found for key '{key}'.");
         Enqueue(key);
     }
 
     private async Task ExecuteRoutineAsync(RoutineDefinition routine, CancellationToken cancellationToken) {
         IRoutine? handler = handlers.FirstOrDefault(x => x.Key == routine.Key);
-
-        if (handler is null) {
-            _lock.Release();
-            return;
-        }
 
         RoutineRun run = new() {
             Routine = routine,
@@ -73,22 +69,30 @@ public sealed class RoutineRunner(
         try {
             routine.IsRunning = true;
             await routineService.UpdateDefinitionAsync(routine, cancellationToken);
-            await eventService.LogAsync($"Task '{routine.Name}' started.", routine.Key, LogLevel.Information, null,
+            await eventService.LogAsync($"Task '{routine.Name}' started.",
+            routine.Key,
+            LogLevel.Information,
+            null,
+            cancellationToken);
+            if (handler != null) {
+                string msg = await handler.ExecuteAsync(cancellationToken);
+
+                DateTime finishedAt = DateTime.UtcNow;
+
+                routine.LastRun = finishedAt;
+                routine.LastRunTime = (int)(finishedAt - run.StartTime).TotalMilliseconds;
+                routine.NextRun = finishedAt.AddSeconds(routine.IntervalSeconds);
+                routine.LastRunSuccess = true;
+
+                run.EndTime = finishedAt;
+                run.State = RoutineState.Success;
+
+                await eventService.LogAsync($"Task '{routine.Name}' completed in {routine.LastRunTime}ms. {msg}",
+                routine.Key,
+                LogLevel.Information,
+                null,
                 cancellationToken);
-            string msg = await handler.ExecuteAsync(cancellationToken);
-
-            DateTime finishedAt = DateTime.UtcNow;
-
-            routine.LastRun = finishedAt;
-            routine.LastRunTime = (int)(finishedAt - run.StartTime).TotalMilliseconds;
-            routine.NextRun = finishedAt.AddSeconds(routine.IntervalSeconds);
-            routine.LastRunSuccess = true;
-
-            run.EndTime = finishedAt;
-            run.State = RoutineState.Success;
-
-            await eventService.LogAsync($"Task '{routine.Name}' completed in {routine.LastRunTime}ms. {msg}",
-                routine.Key, LogLevel.Information, null, cancellationToken);
+            }
         }
         catch (Exception ex) {
             DateTime failedAt = DateTime.UtcNow;
@@ -102,14 +106,16 @@ public sealed class RoutineRunner(
             run.State = RoutineState.Failed;
             run.ErrorMessage = ex.Message;
 
-            await eventService.LogAsync($"Routine '{routine.Name}' failed: {ex.Message}", routine.Key, LogLevel.Error,
-                ex.StackTrace, cancellationToken);
+            await eventService.LogAsync($"Routine '{routine.Name}' failed: {ex.Message}",
+            routine.Key,
+            LogLevel.Error,
+            ex.ToString(),
+            cancellationToken);
         }
         finally {
             routine.IsRunning = false;
             await routineService.SaveRunAsync(run, cancellationToken);
             await routineService.UpdateDefinitionAsync(routine, cancellationToken);
-            _lock.Release();
         }
     }
 }
