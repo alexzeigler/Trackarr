@@ -7,59 +7,59 @@
 @inject RoutineService RoutineService
 @inject RoutineRunner RoutineRunner
 
-<h3 class="text-white mb-2">Scheduled</h3>
-<p class="text-muted mb-4">Manage and monitor background tasks</p>
+<h3 class = "text-white mb-2">Scheduled</h3>
+<p class = "text-muted mb-4">Manage and monitor background tasks</p>
 
-<div class="table-responsive">
-    <table class="table table-dark table-hover align-middle">
-        <thead class="border-secondary">
-        <tr>
-            <th style="width:35%">Name</th>
-            <th style="width:10%">Status</th>
-            <th style="width:20%">Next Run</th>
-            <th style="width:35%" class="text-end">Actions</th>
-        </tr>
+<div class = "table-responsive">
+    <table class = "table table-dark table-hover align-middle">
+        <thead class = "border-secondary">
+            <tr>
+                <th style = "width:35%">Name</th>
+                <th style = "width:10%">Status</th>
+                <th style = "width:20%">Next Run</th>
+                <th style = "width:35%" class = "text-end">Actions</th>
+            </tr>
         </thead>
         <tbody>
-        @foreach (RoutineDefinition routine in _routines) {
-            <tr>
-                <td>
-                    <div class="fw-semibold">@routine.Name</div>
-                    <div class="small text-muted">@routine.Description</div>
-                </td>
-                <td>
-                    @if (routine.IsRunning) {
-                        <span class="badge bg-primary d-inline-flex align-items-center gap-1">
-                            <span class="spinner-border spinner-border-sm"></span>
-                            Running
-                        </span>
-                    }
-                    else if (routine.LastRun.HasValue) {
-                        <span class="badge @(routine.LastRunSuccess ? "bg-success" : "bg-danger")">
-                            @(routine.LastRunSuccess ? "Success" : "Failed")
-                        </span>
-                    }
-                    else {
-                        <span class="badge bg-secondary">Idle</span>
-                    }
-                </td>
-                <td>
-                    @if (routine.IsRunning) {
-                        <span class="text-muted">Running now</span>
-                    }
-                    else if (routine.NextRun.HasValue) {
-                        <span>@FormatNextRun(routine.NextRun.Value)</span>
-                    }
-                </td>
-                <td class="text-end">
-                    <button class="btn btn-sm btn-primary me-2" disabled="@routine.IsRunning"
-                            @onclick="() => RunRoutine(routine.Key)">
-                        <i class="bi bi-play-fill h6"></i>
-                        Run Now
-                    </button>
-                </td>
-            </tr>
-        }
+            @foreach (RoutineDefinition routine in _routines) {
+                <tr>
+                    <td>
+                        <div class = "fw-semibold">@routine.Name</div>
+                        <div class = "small text-muted">@routine.Description</div>
+                    </td>
+                    <td>
+                        @if (routine.IsRunning) {
+                            <span class = "badge bg-primary d-inline-flex align-items-center gap-1">
+                                <span class = "spinner-border spinner-border-sm"></span>
+                                Running
+                            </span>
+                        }
+                        else if (routine.LastRun.HasValue) {
+                            <span class = "badge @(routine.LastRunSuccess ? "bg-success" : "bg-danger")">
+                                @(routine.LastRunSuccess ? "Success" : "Failed")
+                            </span>
+                        }
+                        else {
+                            <span class = "badge bg-secondary">Idle</span>
+                        }
+                    </td>
+                    <td>
+                        @if (routine.IsRunning) {
+                            <span class = "text-muted">Running now</span>
+                        }
+                        else if (routine.NextRun.HasValue) {
+                            <span>@FormatNextRun(routine.NextRun.Value)</span>
+                        }
+                    </td>
+                    <td class = "text-end">
+                        <button class = "btn btn-sm btn-primary me-2"
+                                disabled = "@routine.IsRunning"
+                                @onclick = "() => RunRoutine(routine.Key)">
+                            <i class = "bi bi-play-fill h6"></i> Run Now
+                        </button>
+                    </td>
+                </tr>
+            }
         </tbody>
     </table>
 </div>

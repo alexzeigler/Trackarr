@@ -7,147 +7,158 @@
 
 <PageTitle>Logs</PageTitle>
 
-<OptionsBanner Options="_options" IsRefreshing="_isRefreshing"/>
+<OptionsBanner Options = "_options" IsRefreshing = "_isRefreshing" />
 
-<div class="p-3">
-    <div class="d-flex align-items-center justify-content-between mb-3">
-        <h3 class="m-0">Logs</h3>
+<div class = "p-3">
+    <div class = "d-flex align-items-center justify-content-between mb-3">
+        <h3 class = "m-0">Logs</h3>
     </div>
 
-    <div class="d-flex gap-2 mb-3">
-        <input class="form-control"
-               placeholder="Filter logs..."
-               @bind="_filterText"
-               @bind:event="oninput"/>
+    <div class = "d-flex gap-2 mb-3">
+        <input class = "form-control" placeholder = "Filter logs..." @bind = "_filterText" @bind:event = "oninput" />
 
-        <select class="form-select" style="max-width:180px;" @bind="_selectedLevel">
-            <option value="">All Levels</option>
-            <option value="@LogLevel.Trace">Trace</option>
-            <option value="@LogLevel.Debug">Debug</option>
-            <option value="@LogLevel.Information">Information</option>
-            <option value="@LogLevel.Warning">Warning</option>
-            <option value="@LogLevel.Error">Error</option>
-            <option value="@LogLevel.Critical">Critical</option>
+        <select class = "form-select" style = "max-width:180px;" @bind = "_selectedLevel">
+            <option value = "">All Levels</option>
+            <option value = "@LogLevel.Trace">Trace</option>
+            <option value = "@LogLevel.Debug">Debug</option>
+            <option value = "@LogLevel.Information">Information</option>
+            <option value = "@LogLevel.Warning">Warning</option>
+            <option value = "@LogLevel.Error">Error</option>
+            <option value = "@LogLevel.Critical">Critical</option>
         </select>
 
     </div>
-    <div class="d-flex align-items-center justify-content-between mt-3">
-        <div class="text-muted small">
+    <div class = "d-flex align-items-center justify-content-between mt-3">
+        <div class = "text-muted small">
             Showing @PageStart - @PageEnd of @FilteredLogs.Count
         </div>
 
-        <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-sm btn-outline-secondary"
-                    data-bs-toggle="modal"
-                    data-bs-target="#pageSizeModal"
-                    title="Items per page">
-                <i class="bi bi-list-ol"></i>
+        <div class = "d-flex align-items-center gap-2">
+            <button class = "btn btn-sm btn-outline-secondary"
+                    data-bs-toggle = "modal"
+                    data-bs-target = "#pageSizeModal"
+                    title = "Items per page">
+                <i class = "bi bi-list-ol"></i>
                 @_pageSize
             </button>
 
-            <button class="btn btn-sm btn-outline-secondary"
-                    disabled="@(_currentPage <= 1)"
-                    @onclick="FirstPage"
-                    title="First Page">
-                <i class="bi bi-chevron-double-left"></i>
+            <button class = "btn btn-sm btn-outline-secondary"
+                    disabled = "@(_currentPage <= 1)"
+                    @onclick = "FirstPage"
+                    title = "First Page">
+                <i class = "bi bi-chevron-double-left"></i>
             </button>
 
-            <button class="btn btn-sm btn-outline-secondary"
-                    disabled="@(_currentPage <= 1)"
-                    @onclick="PreviousPage"
-                    title="Previous Page">
-                <i class="bi bi-chevron-left"></i>
+            <button class = "btn btn-sm btn-outline-secondary"
+                    disabled = "@(_currentPage <= 1)"
+                    @onclick = "PreviousPage"
+                    title = "Previous Page">
+                <i class = "bi bi-chevron-left"></i>
             </button>
 
-            <span class="small px-2">
+            <span class = "small px-2">
                 @_currentPage / @TotalPages
             </span>
 
-            <button class="btn btn-sm btn-outline-secondary"
-                    disabled="@(_currentPage >= TotalPages)"
-                    @onclick="NextPage"
-                    title="Next Page">
-                <i class="bi bi-chevron-right"></i>
+            <button class = "btn btn-sm btn-outline-secondary"
+                    disabled = "@(_currentPage >= TotalPages)"
+                    @onclick = "NextPage"
+                    title = "Next Page">
+                <i class = "bi bi-chevron-right"></i>
             </button>
 
-            <button class="btn btn-sm btn-outline-secondary"
-                    disabled="@(_currentPage >= TotalPages)"
-                    @onclick="LastPage"
-                    title="Last Page">
-                <i class="bi bi-chevron-double-right"></i>
+            <button class = "btn btn-sm btn-outline-secondary"
+                    disabled = "@(_currentPage >= TotalPages)"
+                    @onclick = "LastPage"
+                    title = "Last Page">
+                <i class = "bi bi-chevron-double-right"></i>
             </button>
         </div>
     </div>
 
 
-    <div class="card border-0 shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 logs-table">
+    <div class = "card border-0 shadow-sm">
+        <div class = "table-responsive">
+            <table class = "table table-hover align-middle mb-0 logs-table">
                 <thead>
-                <tr>
-                    <th style="width:40px"></th>
-                    <th>Time</th>
-                    <th>Component</th>
-                    <th>Message</th>
-                </tr>
+                    <tr>
+                        <th style = "width:40px"></th>
+                        <th>Time</th>
+                        <th>Component</th>
+                        <th>Message</th>
+                    </tr>
                 </thead>
 
                 <tbody>
-                @foreach (LogEvent log in PagedLogs) {
-                    <tr @onclick="() => _selectedLog = log" data-bs-target="#logDetailsModal" data-bs-toggle="modal"
-                        title="Details" style="cursor:pointer;">
-                        <td>
-                            @switch (log.LogLevel) {
-                                case LogLevel.Trace:
-                                    <i class="bi bi-circle-dotted" title="trace" style="color: var(--log-trace);"></i>
-                                    break;
+                    @foreach (LogEvent log in PagedLogs) {
+                        <tr @onclick = "() => _selectedLog = log"
+                            data-bs-target = "#logDetailsModal"
+                            data-bs-toggle = "modal"
+                            title = "Details"
+                            style = "cursor:pointer;">
+                            <td>
+                                @switch (log.LogLevel) {
+                                    case LogLevel.Trace:
+                                        <i class = "bi bi-circle-dotted"
+                                           title = "trace"
+                                           style = "color: var(--log-trace);"></i>
+                                        break;
 
-                                case LogLevel.Debug:
-                                    <i class="bi bi-bug-fill" title="debug" style="color: var(--log-debug);"></i>
-                                    break;
+                                    case LogLevel.Debug:
+                                        <i class = "bi bi-bug-fill"
+                                           title = "debug"
+                                           style = "color: var(--log-debug);"></i>
+                                        break;
 
-                                case LogLevel.Information:
-                                    <i class="bi bi-info-circle-fill" title="info"
-                                       style="color: var(--log-information);"></i>
-                                    break;
+                                    case LogLevel.Information:
+                                        <i class = "bi bi-info-circle-fill"
+                                           title = "info"
+                                           style = "color: var(--log-information);"></i>
+                                        break;
 
-                                case LogLevel.Warning:
-                                    <i class="bi bi-exclamation-circle-fill" title="warning"
-                                       style="color: var(--log-warning);"></i>
-                                    break;
+                                    case LogLevel.Warning:
+                                        <i class = "bi bi-exclamation-circle-fill"
+                                           title = "warning"
+                                           style = "color: var(--log-warning);"></i>
+                                        break;
 
-                                case LogLevel.Error:
-                                    <i class="bi bi-x-circle-fill" title="error" style="color: var(--log-error);"></i>
-                                    break;
+                                    case LogLevel.Error:
+                                        <i class = "bi bi-x-circle-fill"
+                                           title = "error"
+                                           style = "color: var(--log-error);"></i>
+                                        break;
 
-                                case LogLevel.Critical:
-                                    <i class="bi bi-exclamation-octagon-fill" title="critical"
-                                       style="color: var(--log-critical);"></i>
-                                    break;
+                                    case LogLevel.Critical:
+                                        <i class = "bi bi-exclamation-octagon-fill"
+                                           title = "critical"
+                                           style = "color: var(--log-critical);"></i>
+                                        break;
 
-                                case LogLevel.None:
-                                default:
-                                    <i class="bi bi-dash-circle" title="none" style="color: var(--log-none);"></i>
-                                    break;
-                            }
-                        </td>
+                                    case LogLevel.None:
+                                    default:
+                                        <i class = "bi bi-dash-circle"
+                                           title = "none"
+                                           style = "color: var(--log-none);"></i>
+                                        break;
+                                }
+                            </td>
 
-                        <td title="@log.TimeStamp.ToLocalTime().ToString("f")">
-                            @log.TimeStamp.ToLocalTime().ToString("h:mmtt").ToLower()
-                        </td>
+                            <td title = "@log.TimeStamp.ToLocalTime().ToString("f")">
+                                @log.TimeStamp.ToLocalTime().ToString("h:mmtt").ToLower()
+                            </td>
 
-                        <td>@log.Source</td>
+                            <td>@log.Source</td>
 
-                        <td>@log.Message</td>
-                    </tr>
-                }
-                @if (!PagedLogs.Any()) {
-                    <tr>
-                        <td colspan="4" class="text-center text-muted py-4">
-                            No logs found.
-                        </td>
-                    </tr>
-                }
+                            <td>@log.Message</td>
+                        </tr>
+                    }
+                    @if (!PagedLogs.Any()) {
+                        <tr>
+                            <td colspan = "4" class = "text-center text-muted py-4">
+                                No logs found.
+                            </td>
+                        </tr>
+                    }
                 </tbody>
             </table>
         </div>
@@ -155,36 +166,36 @@
 </div>
 
 
-<div class="modal fade" id="logDetailsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-xl">
-        <div class="modal-content bg-dark border text-white">
-            <div class="modal-header">
-                <div class="d-flex align-items-center gap-2">
+<div class = "modal fade" id = "logDetailsModal" tabindex = "-1" aria-hidden = "true">
+    <div class = "modal-dialog modal-dialog-centered modal-xl">
+        <div class = "modal-content bg-dark border text-white">
+            <div class = "modal-header">
+                <div class = "d-flex align-items-center gap-2">
                     <h4>Details</h4>
                 </div>
-                <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal"></button>
+                <button type = "button" class = "btn-close btn-close-white ms-auto" data-bs-dismiss = "modal"></button>
             </div>
 
-            <div class="modal-body pt-3 pb-4">
+            <div class = "modal-body pt-3 pb-4">
                 @if (_selectedLog is not null) {
                     <div>
-                        <p class="mb-0">Message</p>
-                        <pre class="border font-monospace p-3 rounded-1 small user-select-all">
+                        <p class = "mb-0">Message</p>
+                        <pre class = "border font-monospace p-3 rounded-1 small user-select-all">
                             @_selectedLog.Message
                         </pre>
 
                     </div>
 
                     @if (!string.IsNullOrWhiteSpace(_selectedLog.Exception)) {
-                        <pre class="border font-monospace p-3 rounded-1 small user-select-all">
+                        <pre class = "border font-monospace p-3 rounded-1 small user-select-all">
                             @_selectedLog.Exception
                         </pre>
                     }
                 }
             </div>
 
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+            <div class = "modal-footer">
+                <button type = "button" class = "btn btn-outline-secondary" data-bs-dismiss = "modal">
                     Close
                 </button>
             </div>
@@ -193,7 +204,7 @@
 </div>
 
 @code {
-    private LogEvent? _selectedLog = null;
+    private LogEvent? _selectedLog;
     private List<LogEvent> _logs = [];
     private bool _isRefreshing;
     private IReadOnlyList<Option> _options = [];

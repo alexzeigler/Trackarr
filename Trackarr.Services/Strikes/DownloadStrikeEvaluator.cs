@@ -106,18 +106,16 @@ public sealed class DownloadStrikeEvaluator(AppDbContext db, DownloadStrikeServi
         }
     }
 
-    private static DownloadStrikeObservation CreateObservation(DownloadItem downloadItem) {
-        return new DownloadStrikeObservation {
-            Status = downloadItem.Status,
-            ErrorMessage = downloadItem.ErrorMessage,
-            Progress = GetProgress(downloadItem),
-            Size = downloadItem.Size,
-            SizeLeft = GetSizeLeft(downloadItem),
-            DownloadId = downloadItem.DownloadId,
-            DownloadClient = downloadItem.DownloadClient,
-            Indexer = downloadItem.Indexer
-        };
-    }
+    private static DownloadStrikeObservation CreateObservation(DownloadItem downloadItem) => new() {
+        Status = downloadItem.Status,
+        ErrorMessage = downloadItem.ErrorMessage,
+        Progress = GetProgress(downloadItem),
+        Size = downloadItem.Size,
+        SizeLeft = GetSizeLeft(downloadItem),
+        DownloadId = downloadItem.DownloadId,
+        DownloadClient = downloadItem.DownloadClient,
+        Indexer = downloadItem.Indexer
+    };
 
     private static bool HasProgressed(DownloadItem downloadItem, decimal? currentProgress, long? currentSizeLeft) {
         if (currentProgress is not null && downloadItem.LastObservedProgress is not null && currentProgress > downloadItem.LastObservedProgress) {
@@ -144,9 +142,7 @@ public sealed class DownloadStrikeEvaluator(AppDbContext db, DownloadStrikeServi
         return Math.Clamp(progress, 0, 100);
     }
 
-    private static long? GetSizeLeft(DownloadItem downloadItem) {
-        return downloadItem.SizeLeft;
-    }
+    private static long? GetSizeLeft(DownloadItem downloadItem) => downloadItem.SizeLeft;
 
     private static bool ShouldEvaluateNoProgress(DownloadItem downloadItem) {
         if (downloadItem.TrackingState is DownloadItemTrackingState.Completed or DownloadItemTrackingState.Removed) {

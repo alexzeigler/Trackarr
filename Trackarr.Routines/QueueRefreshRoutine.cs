@@ -19,12 +19,17 @@ public sealed class QueueRefreshRoutine(MediaServerService mediaServerService) :
 
         foreach (MediaServer server in servers) {
             List<DownloadItem> items = server.ServiceType switch {
-                ServiceType.Radarr => await mediaServerService.GetQueueAsync(server, true),
-                ServiceType.Sonarr => await mediaServerService.GetQueueAsync(server, true),
+                ServiceType.Radarr or ServiceType.Sonarr => await mediaServerService.GetQueueAsync(server, true),
                 _ => []
             };
 
             count += items.Count;
+
+            await mediaServerService.UpdateServerStatsAsync(server.Id,
+            s => {
+                s.LastQueueFetchAt = DateTime.UtcNow;
+                s.LastQueueCount = items.Count;
+            });
         }
 
         LastRunSuccess = true;

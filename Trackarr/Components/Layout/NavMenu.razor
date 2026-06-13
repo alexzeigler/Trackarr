@@ -1,33 +1,23 @@
 ﻿@inject NavigationManager Nav
 @implements IDisposable
 
-<div class="top-row navbar bg-light-subtle">
-    <a class="container-fluid text-decoration-none" href="/">
-        <div class="d-flex align-items-center gap-2 navbar-brand mb-0">
-            <img alt="Trackarr Logo" src="/img/Logo_NoText.png" class="img-fluid w-25"/>
-            <div class="d-flex flex-column lh-sm">
-                <span class="fw-semibold text-white h1 m-0">Track
-                    <span class="brand-accent">arr</span>
-                </span>
-            </div>
-        </div>
-    </a>
-</div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler"/>
+<input type = "checkbox" title = "Navigation menu" class = "navbar-toggler" />
 
-<div class="nav font-monospace h-auto" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="d-flex flex-column">
+<div class = "nav font-monospace h-auto" onclick = "document.querySelector('.navbar-toggler').click()">
+    <nav class = "d-flex flex-column">
         @foreach (NavItem item in NavItems) {
-            <div class="nav-item @(IsActive(item.Prefix) ? "active-group" : "inactive-group") p-0">
-                <NavLink class="nav-link nav-parent pl-5" href="@item.Href" Match="@item.Match">
-                    <i class="bi @item.Icon"></i>
+            <div class = "nav-item @(IsActive(item.Prefix) ? "active-group" : "inactive-group") p-0">
+                <NavLink class = "nav-link nav-parent pl-5" href = "@item.Href" Match = "@item.Match">
+                    <i class = "ti @item.Icon"></i>
                     @item.Label
                 </NavLink>
                 @if (IsActive(item.Prefix) && item.Children.Any()) {
                     @foreach (NavChild child in item.Children) {
-                        <div class="nav-child">
-                            <NavLink class="nav-link nav-link-child" href="@child.Href" Match="NavLinkMatch.Prefix">
+                        <div class = "nav-child">
+                            <NavLink class = "nav-link nav-link-child"
+                                     href = "@child.Href"
+                                     Match = "NavLinkMatch.Prefix">
                                 @child.Label
                             </NavLink>
                         </div>
@@ -45,27 +35,33 @@
     private record NavItem(string Label, string Href, string Prefix, string Icon, NavLinkMatch Match, List<NavChild> Children);
 
     private static readonly List<NavItem> NavItems = [
-            new("Track",
-            "",
-            "/",
-            "bi-card-checklist",
-            NavLinkMatch.All,
-            []),
-            new("Settings",
-            "/settings",
-            "/settings",
-            "bi-gear-fill",
-            NavLinkMatch.Prefix,
-            [
+        new("Track",
+        "",
+        "/",
+        "ti-stack-2",
+        NavLinkMatch.All,
+        []),
+        new("Servers",
+        "/servers",
+        "/servers",
+        "ti-server",
+        NavLinkMatch.All,
+        []),
+        new("Settings",
+        "/settings",
+        "/settings",
+        "bi-gear-fill",
+        NavLinkMatch.Prefix,
+        [
             new NavChild("General", "/settings/general"),
             new NavChild("Services", "/settings/services")
         ]),
-            new("System",
-            "/system/status",
-            "/system",
-            "bi-laptop",
-            NavLinkMatch.Prefix,
-            [
+        new("System",
+        "/system/status",
+        "/system",
+        "bi-laptop",
+        NavLinkMatch.Prefix,
+        [
             new NavChild("Status", "/system/status"),
             new NavChild("Tasks", "/system/tasks"),
             new NavChild("Events", "/system/events")

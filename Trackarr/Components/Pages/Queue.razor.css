@@ -1,104 +1,25 @@
-﻿.dashboard-card {
-    background: var(--bs-body-bg);
-    border: 1px solid var(--bs-border-color);
+﻿.input-group-flat .form-control,
+.input-group-flat .input-group-text {
+	background   : rgba(255, 255, 255, .035);
+	border-color : rgba(255, 255, 255, .08);
 }
 
-.dashboard-card-header {
-    display: flex;
-    align-items: center;
-    background: transparent;
-    border-bottom: 1px solid var(--bs-border-color);
-    padding: .75rem 1rem;
+@media (max-width : 768px) {
+	.app-card-header {
+		align-items    : stretch;
+		flex-direction : column;
+	}
 }
 
-.dashboard-card-title {
-    font-weight: 700;
-    line-height: 1.1;
-}
+@media (max-width : 576px) {
+	.card-footer.d-flex {
+		align-items    : stretch;
+		flex-direction : column;
+		gap            : .75rem;
+	}
 
-.dashboard-card-subtitle {
-    color: var(--bs-secondary-color);
-    font-size: .8rem;
-    margin-top: .15rem;
-}
-
-.dashboard-grid {
-    font-size: .875rem;
-}
-
-.dashboard-grid th {
-    color: var(--bs-secondary-color);
-    font-size: .75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
-.dashboard-grid td {
-    white-space: nowrap;
-}
-
-tr {
-    border-top: hidden !important;
-}
-
-.dashboard-muted {
-    color: var(--bs-secondary-color);
-    font-size: .75rem;
-    margin-top: .15rem;
-}
-
-.dashboard-type-badge {
-    border: 1px solid var(--bs-border-color);
-    border-radius: .25rem;
-    color: var(--bs-secondary-color);
-    display: inline-block;
-    font-size: .7rem;
-    font-weight: 700;
-    line-height: 1;
-    margin-right: .35rem;
-    padding: .2rem .35rem;
-}
-
-.dashboard-progress {
-    min-width: 130px;
-}
-
-.dashboard-progress .progress {
-    height: 3px;
-    margin-bottom: .25rem;
-}
-
-.dashboard-progress span {
-    color: var(--bs-secondary-color);
-    font-size: .75rem;
-}
-
-.strike-pips {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-}
-
-.strike-pip {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    border: 1.5px solid var(--bs-border-color);
-    background: transparent;
-    flex-shrink: 0;
-}
-
-.strike-pip.strike-red {
-    background: var(--bs-danger);
-    border-color: var(--bs-danger);
-}
-
-.strike-pip.strike-amber {
-    background: var(--bs-warning);
-    border-color: var(--bs-warning);
-}
-
-.strike-pip.strike-empty {
-    background: transparent;
+	.card-footer .pagination {
+		justify-content : center;
+		margin-left     : 0 !important;
+	}
 }

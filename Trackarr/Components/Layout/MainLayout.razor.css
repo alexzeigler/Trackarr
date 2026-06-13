@@ -1,7 +1,7 @@
 .page {
-    position: relative;
     display: flex;
     flex-direction: column;
+	position : relative;
 }
 
 main {
@@ -10,17 +10,17 @@ main {
 
 
 .top-row {
+	align-items : center;
     background-color: #f7f7f7;
+	display     : flex;
+	height      : 3.5rem;
     justify-content: flex-end;
-    height: 3.5rem;
-    display: flex;
-    align-items: center;
 }
 
 .top-row ::deep a, .top-row ::deep .btn-link {
-    white-space: nowrap;
     margin-left: 1.5rem;
     text-decoration: none;
+	white-space : nowrap;
 }
 
 .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
@@ -48,10 +48,10 @@ main {
     }
 
     .sidebar {
-        width: 250px;
         height: 100vh;
         position: sticky;
         top: 0;
+	    width : 250px;
     }
 
     .top-row {
@@ -73,11 +73,11 @@ main {
 }
 
 #blazor-error-ui {
-    color-scheme: light only;
     background: lightyellow;
     bottom: 0;
     box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
     box-sizing: border-box;
+	color-scheme : light only;
     display: none;
     left: 0;
     padding: 0.6rem 1.25rem 0.7rem 1.25rem;
@@ -91,4 +91,76 @@ main {
     position: absolute;
     right: 0.75rem;
     top: 0.5rem;
+}
+.app-shell {
+	background            : #0f1624;
+	color                 : var(--bs-body-color);
+	display               : grid;
+	grid-template-columns : 230px minmax(0, 1fr);
+	min-height            : 100vh;
+}
+
+.app-sidebar {
+	background     : #121b2a;
+	border-right   : 1px solid rgba(255, 255, 255, .08);
+	display        : flex;
+	flex-direction : column;
+	min-height     : 100vh;
+}
+
+.app-brand {
+	align-items   : center;
+	border-bottom : 1px solid rgba(255, 255, 255, .08);
+	display       : flex;
+	flex-shrink   : 0;
+	gap           : .75rem;
+	height        : 70px;
+	padding       : 0 1.25rem;
+}
+
+.app-brand-icon {
+	flex       : 0 0 auto;
+	height     : 30px;
+	object-fit : contain;
+	width      : 30px;
+}
+
+.app-brand-text {
+	height     : 28px;
+	max-width  : 145px;
+	object-fit : contain;
+	width      : auto;
+}
+
+.app-main {
+	display            : grid;
+	grid-template-rows : 70px minmax(0, 1fr);
+	min-height         : 100vh;
+	min-width          : 0;
+}
+
+.app-topbar {
+	align-items   : center;
+	background    : #111a29;
+	border-bottom : 1px solid rgba(255, 255, 255, .08);
+	display       : flex;
+	height        : 70px;
+	padding       : 0 1.5rem;
+}
+
+.app-menu-button {
+	color           : var(--bs-secondary-color);
+	font-size       : 1.35rem;
+	padding         : 0;
+	text-decoration : none;
+}
+
+.app-menu-button:hover {
+	color : var(--bs-body-color);
+}
+
+.app-content {
+	min-width : 0;
+	overflow  : auto;
+	padding   : 1.5rem;
 }

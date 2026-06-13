@@ -1,315 +1,499 @@
 ﻿@page "/"
+@inject IJSRuntime Js
+@inject MediaServerService MediaServerService
+@using Trackarr.Components.Modals
+@using Trackarr.Core.Media.Movies
+@using Trackarr.Core.Media.Shows
+@using Trackarr.Core.Queue
+@using Trackarr.Core.Server
+@using Trackarr.Services.Media
+@implements IAsyncDisposable
 
-<PageTitle>Dashboard</PageTitle>
+<div class = "d-flex flex-column gap-3">
+    <MediaDetailsModal @ref = "_detailsModal" />
 
-<div class="container-fluid p-3 dashboard-page">
+    <div class = "d-flex align-items-end justify-content-between gap-3 mb-1">
+        <div>
+            <h1 class = "h2 fw-bold mb-0" style = "letter-spacing: -.02em">Triage</h1>
+            <div class = "text-secondary small">Review active downloads, health score, status, and recent activity.
+            </div>
+        </div>
 
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="d-flex align-items-center justify-content-between">
+        <button class = "btn btn-app-ghost">
+            <svg xmlns = "http://www.w3.org/2000/svg"
+                 width = "20"
+                 height = "20"
+                 viewBox = "0 0 24 24"
+                 fill = "none"
+                 stroke = "currentColor"
+                 stroke-width = "2"
+                 stroke-linecap = "round"
+                 stroke-linejoin = "round"
+                 class = "icon icon-tabler icons-tabler-outline icon-tabler-refresh">
+                <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
+                <path d = "M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
+                <path d = "M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+            </svg>
+            Refresh
+        </button>
+    </div>
+
+    <div class = "row g-3">
+        <div class = "col-12 col-sm-6 col-xl-3">
+            <div class = "card stat-card">
+                <div class = "card-body">
+                    <div class = "stat-icon stat-icon-danger">
+                        <svg xmlns = "http://www.w3.org/2000/svg"
+                             width = "24"
+                             height = "24"
+                             viewBox = "0 0 24 24"
+                             fill = "currentColor"
+                             class = "icon icon-tabler icons-tabler-filled icon-tabler-exclamation-circle">
+                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
+                            <path d = "M17 3.34a10 10 0 1 1 -15 8.66l.005 -.324a10 10 0 0 1 14.995 -8.336m-5 11.66a1 1 0 0 0 -1 1v.01a1 1 0 0 0 2 0v-.01a1 1 0 0 0 -1 -1m0 -7a1 1 0 0 0 -1 1v4a1 1 0 0 0 2 0v-4a1 1 0 0 0 -1 -1" />
+                        </svg>
+                    </div>
+                    <div>
+                        <div class = "stat-label">Stuck</div>
+                        <div class = "stat-value">@StuckCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class = "col-12 col-sm-6 col-xl-3">
+            <div class = "card stat-card">
+                <div class = "card-body">
+                    <div class = "stat-icon stat-icon-warning">
+                        <svg xmlns = "http://www.w3.org/2000/svg"
+                             width = "24"
+                             height = "24"
+                             viewBox = "0 0 24 24"
+                             fill = "currentColor"
+                             class = "icon icon-tabler icons-tabler-filled icon-tabler-clock">
+                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
+                            <path d = "M17 3.34a10 10 0 1 1 -14.995 8.984l-.005 -.324l.005 -.324a10 10 0 0 1 14.995 -8.336zm-5 2.66a1 1 0 0 0 -.993 .883l-.007 .117v5l.009 .131a1 1 0 0 0 .197 .477l.087 .1l3 3l.094 .082a1 1 0 0 0 1.226 0l.094 -.083l.083 -.094a1 1 0 0 0 0 -1.226l-.083 -.094l-2.707 -2.708v-4.585l-.007 -.117a1 1 0 0 0 -.993 -.883z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <div class = "stat-label">Waiting</div>
+                        <div class = "stat-value">@WaitingCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class = "col-12 col-sm-6 col-xl-3">
+            <div class = "card stat-card">
+                <div class = "card-body">
+                    <div class = "stat-icon stat-icon-primary">
+                        <svg xmlns = "http://www.w3.org/2000/svg"
+                             width = "24"
+                             height = "24"
+                             viewBox = "0 0 24 24"
+                             fill = "currentColor"
+                             class = "icon icon-tabler icons-tabler-filled icon-tabler-circle-x">
+                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
+                            <path d = "M17 3.34a10 10 0 1 1 -14.995 8.984l-.005 -.324l.005 -.324a10 10 0 0 1 14.995 -8.336zm-6.489 5.8a1 1 0 0 0 -1.218 1.567l1.292 1.293l-1.292 1.293l-.083 .094a1 1 0 0 0 1.497 1.32l1.293 -1.292l1.293 1.292l.094 .083a1 1 0 0 0 1.32 -1.497l-1.292 -1.293l1.292 -1.293l.083 -.094a1 1 0 0 0 -1.497 -1.32l-1.293 1.292l-1.293 -1.292l-.094 -.083z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <div class = "stat-label">Missing</div>
+                        <div class = "stat-value">@MissingCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class = "col-12 col-sm-6 col-xl-3">
+            <div class = "card stat-card">
+                <div class = "card-body">
+                    <div class = "stat-icon stat-icon-purple">
+                        <svg xmlns = "http://www.w3.org/2000/svg"
+                             width = "24"
+                             height = "24"
+                             viewBox = "0 0 24 24"
+                             fill = "currentColor"
+                             class = "icon icon-tabler icons-tabler-filled icon-tabler-stack-2">
+                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
+                            <path d = "M20.894 15.553a1 1 0 0 1 -.447 1.341l-8 4a1 1 0 0 1 -.894 0l-8 -4a1 1 0 0 1 .894 -1.788l7.553 3.774l7.554 -3.775a1 1 0 0 1 1.341 .447m0 -4a1 1 0 0 1 -.447 1.341l-8 4a1 1 0 0 1 -.894 0l-8 -4a1 1 0 0 1 .894 -1.788l7.552 3.775l7.554 -3.775a1 1 0 0 1 1.341 .447m-8.887 -8.552q .056 0 .111 .007l.111 .02l.086 .024l.012 .006l.012 .002l.029 .014l.05 .019l.016 .009l.012 .005l8 4a1 1 0 0 1 0 1.788l-8 4a1 1 0 0 1 -.894 0l-8 -4a1 1 0 0 1 0 -1.788l8 -4l.011 -.005l.018 -.01l.078 -.032l.011 -.002l.013 -.006l.086 -.024l.11 -.02l.056 -.005z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <div class = "stat-label">Total in Queue</div>
+                        <div class = "stat-value">@TotalQueueCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class = "card app-card">
+        <div class = "card-table">
+            <div class = "card-header app-card-header">
                 <div>
-                    <h3 class="m-0">Trackarr Dashboard</h3>
-                    <small class="text-secondary">Queue, missing media, and unresolved downloads</small>
+                    <h3 class = "card-title mb-0">Queue</h3>
                 </div>
 
-                <div class="d-flex align-items-center gap-2">
-                    <button class="btn btn-sm btn-outline-secondary">7 days</button>
-                    <button class="btn btn-sm btn-primary">Refresh</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-3 mb-3">
-        <div class="col-12 col-xl-6">
-            <div class="card dashboard-card">
-                <div class="card-header bg-transparent d-flex align-items-center justify-content-between border-0">
-                    <div class="dashboard-card-title fw-bold">
-                        Downloads Requiring Action (@FilteredActionDownloads.Count)
-                    </div>
-
-                    <div class="d-flex align-items-center gap-2">
-                        <button class="btn btn-sm btn-link p-0 text-decoration-none fw-semibold">
-                            View All
+                <div class = "d-flex align-items-center gap-2">
+                    <button class = "btn btn-app-ghost text-warning"
+                            title = "Clear filters"
+                            onclick = "trackarrTable.clearFilters('advanced-table'); return false;">
+                        <svg xmlns = "http://www.w3.org/2000/svg"
+                             width = "24"
+                             height = "24"
+                             viewBox = "0 0 24 24"
+                             fill = "none"
+                             stroke = "currentColor"
+                             stroke-width = "2"
+                             stroke-linecap = "round"
+                             stroke-linejoin = "round"
+                             class = "icon icon-tabler icons-tabler-outline icon-tabler-xbox-x m-0">
+                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
+                            <path d = "M12 21a9 9 0 0 0 9 -9a9 9 0 0 0 -9 -9a9 9 0 0 0 -9 9a9 9 0 0 0 9 9" />
+                            <path d = "M9 8l6 8" />
+                            <path d = "M15 8l-6 8" />
+                        </svg>
+                    </button>
+                    <div class = "dropdown">
+                        <button class = "btn btn-app-ghost dropdown-toggle" type = "button" data-bs-toggle = "dropdown">
+                            <svg xmlns = "http://www.w3.org/2000/svg"
+                                 width = "24"
+                                 height = "24"
+                                 viewBox = "0 0 24 24"
+                                 fill = "none"
+                                 stroke = "currentColor"
+                                 stroke-width = "2"
+                                 stroke-linecap = "round"
+                                 stroke-linejoin = "round"
+                                 class = "icon icon-tabler icons-tabler-outline icon-tabler-server-2">
+                                <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
+                                <path d = "M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-2" />
+                                <path d = "M3 15a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -2" />
+                                <path d = "M7 8l0 .01" />
+                                <path d = "M7 16l0 .01" />
+                                <path d = "M11 8h6" />
+                                <path d = "M11 16h6" />
+                            </svg>
+                            All Servers
                         </button>
+                        <ul class = "dropdown-menu">
+                            <li>
+                                <a class = "dropdown-item active"
+                                   href = "#"
+                                   onclick = "trackarrTable.filter('advanced-table', 'sort-server', null); return false;">
+                                    All Servers
+                                </a>
+                            </li>
+                            @foreach (MediaServer server in _servers) {
+                                <li>
+                                    <a class = "dropdown-item"
+                                       href = "#"
+                                       onclick = "trackarrTable.filter('advanced-table', 'sort-server', '@server.Name'); return false;">@server.Name</a>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+
+                    <div class = "dropdown">
+                        <button class = "btn btn-app-ghost dropdown-toggle" type = "button" data-bs-toggle = "dropdown">
+                            <svg xmlns = "http://www.w3.org/2000/svg"
+                                 width = "24"
+                                 height = "24"
+                                 viewBox = "0 0 24 24"
+                                 fill = "none"
+                                 stroke = "currentColor"
+                                 stroke-width = "2"
+                                 stroke-linecap = "round"
+                                 stroke-linejoin = "round"
+                                 class = "icon icon-tabler icons-tabler-outline icon-tabler-books">
+                                <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
+                                <path d = "M5 5a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -14" />
+                                <path d = "M9 5a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -14" />
+                                <path d = "M5 8h4" />
+                                <path d = "M9 16h4" />
+                                <path d = "M13.803 4.56l2.184 -.53c.562 -.135 1.133 .19 1.282 .732l3.695 13.418a1.02 1.02 0 0 1 -.634 1.219l-.133 .041l-2.184 .53c-.562 .135 -1.133 -.19 -1.282 -.732l-3.695 -13.418a1.02 1.02 0 0 1 .634 -1.219l.133 -.041" />
+                                <path d = "M14 9l4 -1" />
+                                <path d = "M16 16l3.923 -.98" />
+                            </svg>
+                            All Media Types
+                        </button>
+                        <ul class = "dropdown-menu">
+                            <li>
+                                <a class = "dropdown-item active"
+                                   href = "#"
+                                   onclick = "trackarrTable.filter('advanced-table', 'sort-type', null); return false;">
+                                    All Media Types
+                                </a>
+                            </li>
+                            <li>
+                                <a class = "dropdown-item"
+                                   href = "#"
+                                   onclick = "trackarrTable.filter('advanced-table', 'sort-type', 'Movie'); return false;">
+                                    Movie
+                                </a>
+                            </li>
+                            <li>
+                                <a class = "dropdown-item"
+                                   href = "#"
+                                   onclick = "trackarrTable.filter('advanced-table', 'sort-type', 'Series'); return false;">
+                                    Series
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class = "dropdown">
+                        <button class = "btn btn-app-ghost dropdown-toggle" type = "button" data-bs-toggle = "dropdown">
+                            <svg xmlns = "http://www.w3.org/2000/svg"
+                                 width = "24"
+                                 height = "24"
+                                 viewBox = "0 0 24 24"
+                                 fill = "none"
+                                 stroke = "currentColor"
+                                 stroke-width = "2"
+                                 stroke-linecap = "round"
+                                 stroke-linejoin = "round"
+                                 class = "icon icon-tabler icons-tabler-outline icon-tabler-activity">
+                                <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
+                                <path d = "M3 12h4l3 8l4 -16l3 8h4" />
+                            </svg>
+                            All Statuses
+                        </button>
+                        <ul class = "dropdown-menu">
+                            <li>
+                                <a class = "dropdown-item active"
+                                   href = "#"
+                                   onclick = "trackarrTable.filter('advanced-table', 'sort-status', null); return false;">
+                                    All Statuses
+                                </a>
+                            </li>
+                            <li>
+                                <a class = "dropdown-item"
+                                   href = "#"
+                                   onclick = "trackarrTable.filter('advanced-table', 'sort-status', 'Downloading'); return false;">
+                                    Downloading
+                                </a>
+                            </li>
+                            <li>
+                                <a class = "dropdown-item"
+                                   href = "#"
+                                   onclick = "trackarrTable.filter('advanced-table', 'sort-status', 'Waiting'); return false;">
+                                    Waiting
+                                </a>
+                            </li>
+                            <li>
+                                <a class = "dropdown-item"
+                                   href = "#"
+                                   onclick = "trackarrTable.filter('advanced-table', 'sort-status', 'Stuck'); return false;">
+                                    Stuck
+                                </a>
+                            </li>
+                            <li>
+                                <a class = "dropdown-item"
+                                   href = "#"
+                                   onclick = "trackarrTable.filter('advanced-table', 'sort-status', 'Missing'); return false;">
+                                    Missing
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class = "dropdown">
+                        <button class = "btn btn-app-ghost dropdown-toggle" type = "button" data-bs-toggle = "dropdown">
+                            <svg xmlns = "http://www.w3.org/2000/svg"
+                                 width = "24"
+                                 height = "24"
+                                 viewBox = "0 0 24 24"
+                                 fill = "none"
+                                 stroke = "currentColor"
+                                 stroke-width = "2"
+                                 stroke-linecap = "round"
+                                 stroke-linejoin = "round"
+                                 class = "icon icon-tabler icons-tabler-outline icon-tabler-arrow-badge-up">
+                                <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
+                                <path d = "M17 11v6l-5 -4l-5 4v-6l5 -4l5 4" />
+                            </svg>
+                            All Priorities
+                        </button>
+                        <ul class = "dropdown-menu">
+                            <li>
+                                <a class = "dropdown-item active"
+                                   href = "#"
+                                   onclick = "trackarrTable.filter('advanced-table', 'sort-priority', null); return false;">
+                                    All Priorities
+                                </a>
+                            </li>
+                            <li>
+                                <a class = "dropdown-item"
+                                   href = "#"
+                                   onclick = "trackarrTable.filter('advanced-table', 'sort-priority', 'High'); return false;">
+                                    High
+                                </a>
+                            </li>
+                            <li>
+                                <a class = "dropdown-item"
+                                   href = "#"
+                                   onclick = "trackarrTable.filter('advanced-table', 'sort-priority', 'Normal'); return false;">
+                                    Normal
+                                </a>
+                            </li>
+                            <li>
+                                <a class = "dropdown-item"
+                                   href = "#"
+                                   onclick = "trackarrTable.filter('advanced-table', 'sort-priority', 'Low'); return false;">
+                                    Low
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class = "input-group input-group-flat">
+                        <span class = "input-group-text">
+                            <svg xmlns = "http://www.w3.org/2000/svg"
+                                 width = "20"
+                                 height = "20"
+                                 viewBox = "0 0 24 24"
+                                 fill = "none"
+                                 stroke = "currentColor"
+                                 stroke-width = "2"
+                                 stroke-linecap = "round"
+                                 stroke-linejoin = "round"
+                                 class = "icon">
+                                <path d = "M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"></path>
+                                <path d = "M21 21l-6 -6"></path>
+                            </svg>
+                        </span>
+                        <input id = "advanced-table-search"
+                               type = "text"
+                               class = "form-control"
+                               placeholder = "Search..."
+                               autocomplete = "off">
                     </div>
                 </div>
+            </div>
 
-                <div class="card-body pb-0">
-                    <select class="form-select form-select-sm" style="width:180px;" @bind="SelectedActionServer">
-                        <option value="">All Servers</option>
-                        @foreach (string server in ActionServers) {
-                            <option value="@server">@server</option>
-                        }
-                    </select>
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0 dashboard-grid table-sm">
-                            <tbody>
-                            @foreach (ActionDownloadRow download in PagedActionDownloads) {
+            <div id = "advanced-table">
+                <div class = "table-responsive">
+                    <table class = "table table-vcenter card-table app-table">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <button class = "table-sort desc col-sort" data-sort = "sort-name">Name</button>
+                                </th>
+                                <th>
+                                    <button class = "table-sort col-sort" data-sort = "sort-type">Type</button>
+                                </th>
+                                <th>
+                                    <button class = "table-sort col-sort" data-sort = "sort-status">Status</button>
+                                </th>
+                                <th>
+                                    <button class = "table-sort col-sort" data-sort = "sort-score">Score</button>
+                                </th>
+                                <th>
+                                    <button class = "table-sort col-sort" data-sort = "sort-progress">Progress</button>
+                                </th>
+                                <th class = "text-end">
+                                    <button class = "table-sort col-sort" data-sort = "sort-activity">Last Activity
+                                    </button>
+                                </th>
+                                <th class = "text-end" style = "width: 135px;"></th>
+                            </tr>
+                        </thead>
+
+                        <tbody class = "table-tbody">
+                            @if (_downloads.Count == 0) {
                                 <tr>
-                                    <td>
-                                        <span class="dashboard-type-badge">@download.Type</span>
-                                        <span class="fw-semibold h6 text-primary-emphasis">@download.Title</span>
-                                        <div class="text-muted small w-auto">
-                                            Server:
-                                            <span class="fw-semibold text-white">@download.Server</span>
+                                    <td colspan = "8" class = "text-center text-muted py-4">No downloads in queue</td>
+                                </tr>
+                            }
+                            @foreach (DownloadItem item in FilteredDownloads) {
+                                int score = GetScore(item);
+                                int progress = item.DownloadPercent;
+                                string server = GetServerName(item);
+                                string type = GetMediaType(item);
+                                string status = GetStatusText(item);
+                                string statusBadgeClass = GetStatusBadgeClass(status);
+                                string lastActivity = GetRelativeTime(item.LastSeenAtUtc);
+
+                                <tr @key = "@($"{item.ServerId}_{item.RemoteId}")">
+                                    <td class = "sort-name">
+                                        @{
+                                            string? posterUrl = item.MovieId > 0 ? _movies.TryGetValue(item.MovieId, out Movie? m) ? GetPosterUrl(m.ImagesJson) : null : _seriesMap.TryGetValue(item.SeriesId, out Series? s) ? GetPosterUrl(s.ImagesJson) : null;
+                                        }
+                                        <div class = "item-title-cell">
+                                            @if (posterUrl != null) {
+                                                <img src = "@posterUrl"
+                                                     class = "media-poster media-poster-md"
+                                                     alt = "" />
+                                            }
+                                            <div>
+                                                <div class = "item-title">
+                                                    @(item.MovieId > 0 ? _movies.TryGetValue(item.MovieId, out Movie? movie) ? $"{movie.Title} ({movie.Year})" : item.Title : _seriesMap.TryGetValue(item.SeriesId, out Series? series) ? $"{series.Title} ({series.Year})" : item.Title)
+                                                </div>
+                                                <div class = "item-meta">
+                                                    <span class = "@GetServerBadgeClass(server) app-badge">@server</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </td>
 
-                                    <td>
-                                        @download.Status
+                                    <td class = "sort-type">
+                                        <span class = "app-badge app-badge-muted">@type</span>
                                     </td>
 
-                                    <td>
-                                        <div class="d-flex align-items-center gap-2">
-                                            <span class="text-muted small">Strikes:</span>
+                                    <td class = "sort-status">
+                                        <span class = "@statusBadgeClass app-badge">@status</span>
+                                    </td>
 
-                                            <div class="strike-pips">
-                                                @for (int i = 0; i < MaxStrikes; i++) {
-                                                    int strikeIndex = i;
-                                                    bool isWarning = string.Equals(download.Status, "Warning", StringComparison.OrdinalIgnoreCase);
+                                    <td class = "sort-score" data-sort = "@score">
+                                        <span class = "@GetScoreBadgeClass(score) score-badge">@score</span>
+                                    </td>
 
-                                                    <span
-                                                        class="@($"strike-pip {StrikePipClass(download.Strikes, isWarning, strikeIndex)}")"></span>
-                                                }
+                                    <td class = "sort-progress" data-sort = "@progress">
+                                        <div class = "app-progress-label">
+                                            <span>@progress%</span>
+                                        </div>
+                                        <div class = "progress app-progress">
+                                            <div class = "progress-bar"
+                                                 style = "width: @(progress)%"
+                                                 role = "progressbar"
+                                                 aria-valuenow = "@progress"
+                                                 aria-valuemin = "0"
+                                                 aria-valuemax = "100"
+                                                 aria-label = "@($"{progress}% Complete")"></div>
+                                        </div>
+                                    </td>
+
+                                    <td class = "sort-activity fw-semibold small text-nowrap"
+                                        data-sort = "@GetSortTicks(item.LastProgressAtUtc)">
+                                        @lastActivity
+                                    </td>
+
+                                    <td class = "text-end">
+                                        <div class = "btn-group">
+                                            <button class = "btn btn-app-ghost text-white"
+                                                    @onclick = "() => _detailsModal.Open(item, item.ServerId)">View
+                                            </button>
+                                            <button data-bs-toggle = "dropdown"
+                                                    type = "button"
+                                                    class = "btn btn-app-ghost dropdown-toggle dropdown-toggle-split text-white"
+                                                    aria-expanded = "false"></button>
+                                            <div class = "dropdown-menu dropdown-menu-end">
+                                                <a class = "dropdown-item" href = "#">Mark As...</a>
+                                                <a class = "dropdown-item text-status-failed" href = "#">Remove</a>
                                             </div>
                                         </div>
                                     </td>
                                 </tr>
                             }
-
-                            @if (!FilteredActionDownloads.Any()) {
-                                <tr>
-                                    <td colspan="3" class="text-center text-muted py-4">
-                                        No downloads requiring action.
-                                    </td>
-                                </tr>
-                            }
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="d-flex align-items-center justify-content-between p-0 border-top">
-                        <div class="text-muted small">
-                            @ActionPageStart - @ActionPageEnd in @FilteredActionDownloads.Count
-                        </div>
-
-                        <div class="d-flex align-items-center gap-2">
-                            <button class="btn btn-sm btn-link text-muted text-decoration-none"
-                                    disabled="@(_actionPage <= 1)"
-                                    @onclick="PreviousActionPage">
-                                <i class="bi bi-chevron-left fs-5"></i>
-                            </button>
-
-                            <button class="btn btn-sm btn-link text-muted text-decoration-none"
-                                    disabled="@(_actionPage >= ActionTotalPages)"
-                                    @onclick="NextActionPage">
-                                <i class="bi bi-chevron-right fs-5"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12 col-xl-6">
-            <div class="card dashboard-card h-100">
-                <div class="card-header dashboard-card-header">
-                    <div>
-                        <div class="dashboard-card-title">Active Downloads</div>
-                        <div class="dashboard-card-subtitle">Current queue activity</div>
-                    </div>
-
-                    <button class="btn btn-sm btn-link">View All</button>
+                        </tbody>
+                    </table>
                 </div>
 
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0 dashboard-grid">
-                            <thead>
-                            <tr>
-                                <th>Title</th>
-                                <th>Server</th>
-                                <th>Progress</th>
-                                <th>ETA</th>
-                            </tr>
-                            </thead>
-
-                            <tbody>
-                            @foreach (ActiveDownloadRow download in _activeDownloads) {
-                                <tr>
-                                    <td>
-                                        <span class="dashboard-type-badge">@download.Type</span>
-                                        <span class="fw-semibold">@download.Title</span>
-                                        <div class="dashboard-muted">@download.Indexer</div>
-                                    </td>
-
-                                    <td>
-                                        @download.Server
-                                    </td>
-
-                                    <td>
-                                        <div class="dashboard-progress">
-                                            <div class="progress">
-                                                <div class="progress-bar"
-                                                     style="width:@($"{download.Progress}%")"></div>
-                                            </div>
-                                            <span>@download.Progress% · @download.Size</span>
-                                        </div>
-                                    </td>
-
-                                    <td>
-                                        @download.Eta
-                                    </td>
-                                </tr>
-                            }
-
-                            @if (!_activeDownloads.Any()) {
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">
-                                        No active downloads.
-                                    </td>
-                                </tr>
-                            }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-3">
-        <div class="col-12 col-xl-6">
-            <div class="card dashboard-card h-100">
-                <div class="card-header dashboard-card-header">
-                    <div>
-                        <div class="dashboard-card-title">Missing Media Ready to Search</div>
-                        <div class="dashboard-card-subtitle">Eligible missing movies and episodes</div>
-                    </div>
-
-                    <button class="btn btn-sm btn-link">View All</button>
-                </div>
-
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0 dashboard-grid">
-                            <thead>
-                            <tr>
-                                <th>Title</th>
-                                <th>Server</th>
-                                <th>Target</th>
-                                <th>Last Search</th>
-                                <th>Attempts</th>
-                            </tr>
-                            </thead>
-
-                            <tbody>
-                            @foreach (MissingMediaRow media in _missingMedia) {
-                                <tr>
-                                    <td>
-                                        <span class="dashboard-type-badge">@media.Type</span>
-                                        <span class="fw-semibold">@media.Title</span>
-                                    </td>
-
-                                    <td>
-                                        @media.Server
-                                    </td>
-
-                                    <td>
-                                        @media.QualityTarget
-                                    </td>
-
-                                    <td>
-                                        @media.LastSearch
-                                    </td>
-
-                                    <td>
-                                        @media.Attempts
-                                    </td>
-                                </tr>
-                            }
-
-                            @if (!_missingMedia.Any()) {
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">
-                                        No missing media ready to search.
-                                    </td>
-                                </tr>
-                            }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-12 col-xl-6">
-            <div class="card dashboard-card h-100">
-                <div class="card-header dashboard-card-header">
-                    <div>
-                        <div class="dashboard-card-title">Unavailable After Attempts</div>
-                        <div class="dashboard-card-subtitle">Searched multiple times with no usable download</div>
-                    </div>
-
-                    <button class="btn btn-sm btn-link">View All</button>
-                </div>
-
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0 dashboard-grid">
-                            <thead>
-                            <tr>
-                                <th>Title</th>
-                                <th>Server</th>
-                                <th>Original</th>
-                                <th>Current</th>
-                                <th>Attempts</th>
-                                <th>Last Search</th>
-                            </tr>
-                            </thead>
-
-                            <tbody>
-                            @foreach (UnavailableMediaRow media in _unavailableMedia) {
-                                <tr>
-                                    <td>
-                                        <span class="dashboard-type-badge">@media.Type</span>
-                                        <span class="fw-semibold">@media.Title</span>
-                                        <div class="dashboard-muted">@media.Reason</div>
-                                    </td>
-
-                                    <td>
-                                        @media.Server
-                                    </td>
-
-                                    <td>
-                                        @media.OriginalQuality
-                                    </td>
-
-                                    <td>
-                                        @media.CurrentQuality
-                                    </td>
-
-                                    <td>
-                                        @media.Attempts
-                                    </td>
-
-                                    <td>
-                                        @media.LastSearch
-                                    </td>
-                                </tr>
-                            }
-
-                            @if (!_unavailableMedia.Any()) {
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
-                                        No unavailable media.
-                                    </td>
-                                </tr>
-                            }
-                            </tbody>
-                        </table>
-                    </div>
+                <div class = "card-footer d-flex align-items-center justify-content-end gap-4">
+                    <div id = "page-count" class = "fw-semibold"></div>
+                    <ul class = "pagination mb-0 gap-2"></ul>
                 </div>
             </div>
         </div>

@@ -1,8 +1,17 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Trackarr.Core.Queue;
 
+public record QualityModel(QualityDetail Quality);
+
+public record QualityDetail(int Id, string Name, string Source, int Resolution);
+
+public record StatusMessage(string Title, List<string> Messages);
+
 public class DownloadItem {
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     [JsonIgnore] public int Id { get; set; }
     [JsonPropertyName("id")] public int RemoteId { get; set; }
 
@@ -57,4 +66,22 @@ public class DownloadItem {
     public ICollection<DownloadStrike> Strikes { get; set; } = [];
     public decimal? LastObservedProgress { get; set; }
     public long? LastObservedSizeLeft { get; set; }
+
+    [NotMapped]
+    public QualityModel? Quality => Deserialize<QualityModel>(QualityJson);
+
+    [NotMapped]
+    public IReadOnlyList<StatusMessage> StatusMessages => Deserialize<List<StatusMessage>>(StatusMessagesJson) ?? [];
+
+    [NotMapped]
+    public int SeasonNumber { get; set; }
+
+    [NotMapped]
+    public int EpisodeNumber { get; set; }
+
+    private static T? Deserialize<T>(string? json) {
+        if (string.IsNullOrEmpty(json)) return default;
+        try { return JsonSerializer.Deserialize<T>(json, JsonOptions); }
+        catch { return default; }
+    }
 }

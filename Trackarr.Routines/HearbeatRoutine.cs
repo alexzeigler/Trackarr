@@ -17,10 +17,15 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
         List<MediaServer> servers = await mediaServerService.GetAllServersAsync();
 
         foreach (MediaServer server in servers) {
-            (bool Success, long ElapsedMilliseconds, string? ReasonPhrase) connectionResult = await mediaServerService.TestConnectionAsync(server);
-            logger.LogInformation("Heartbeat [{name}]: {message} ({ping}ms)", server.Name, connectionResult.ReasonPhrase, connectionResult.ElapsedMilliseconds);
+            try {
+                (bool Success, long ElapsedMilliseconds, string? ReasonPhrase) result = await mediaServerService.TestConnectionAsync(server);
+                logger.LogInformation("Heartbeat [{name}]: {message} ({ping}ms)", server.Name, result.ReasonPhrase, result.ElapsedMilliseconds);
+            }
+            catch (Exception ex) {
+                logger.LogWarning("Heartbeat [{name}]: failed — {message}", server.Name, ex.Message);
+            }
         }
 
-        return $"{servers.Count} servers connected";
+        return $"{servers.Count} servers checked";
     }
 }

@@ -755,14 +755,35 @@ namespace Trackarr.Data.Migrations
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("LastAuthenticated")
+                    b.Property<bool>("IsOnline")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("LastAuthenticatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<bool?>("LastPingSuccessful")
+                    b.Property<string>("LastError")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastErrorAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("LastMissingCount")
                         .HasColumnType("INTEGER");
 
-                    b.Property<long?>("LastPingTime")
+                    b.Property<DateTime?>("LastMissingFetchAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LastPingMs")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastPingedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("LastQueueCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastQueueFetchAt")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -985,7 +1006,7 @@ namespace Trackarr.Data.Migrations
             modelBuilder.Entity("Trackarr.Core.Server.ServerMetadata", b =>
                 {
                     b.HasOne("Trackarr.Core.Server.MediaServer", null)
-                        .WithOne()
+                        .WithOne("Metadata")
                         .HasForeignKey("Trackarr.Core.Server.ServerMetadata", "ServerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -999,6 +1020,11 @@ namespace Trackarr.Data.Migrations
             modelBuilder.Entity("Trackarr.Core.Routine.RoutineDefinition", b =>
                 {
                     b.Navigation("Runs");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Server.MediaServer", b =>
+                {
+                    b.Navigation("Metadata");
                 });
 #pragma warning restore 612, 618
         }

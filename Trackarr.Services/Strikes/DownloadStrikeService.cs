@@ -130,7 +130,5 @@ public sealed class DownloadStrikeService(AppDbContext db) {
         return reason.ToString().ToLowerInvariant();
     }
 
-    private static bool CanUpdateTrackingState(DownloadItemTrackingState state) {
-        return state is DownloadItemTrackingState.Active or DownloadItemTrackingState.Watching or DownloadItemTrackingState.Struck;
-    }
+    private static bool CanUpdateTrackingState(DownloadItemTrackingState state) => state is DownloadItemTrackingState.Active or DownloadItemTrackingState.Watching or DownloadItemTrackingState.Struck;
 }

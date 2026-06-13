@@ -1,12 +1,12 @@
 ﻿@using Trackarr.Core.UI
-<div class="bg-dark-subtle w-100 px-3 m-0 d-flex align-items-center gap-3" style="height:75px;">
+<div class = "bg-dark-subtle w-100 px-3 m-0 d-flex align-items-center gap-3" style = "height:75px;">
     @foreach (Option option in Options) {
-        <button type="button"
-                class="btn btn-link p-0 text-white text-decoration-none d-flex flex-column align-items-center justify-content-center"
-                style="width:56px; height:50px;" @onclick="() => ExecuteAsync(option)">
-            <i class="bi @option.Icon lh-1 @(IsRefreshing && option.IsRefreshable ? "spin" : "")"
-               style="font-size:21px;"></i>
-            <small class="lh-1 mt-1">@option.DisplayName</small>
+        <button type = "button"
+                class = "btn btn-link p-0 text-white text-decoration-none d-flex flex-column align-items-center justify-content-center"
+                style = "width:56px; height:50px;"
+                @onclick = "() => ExecuteAsync(option)">
+            <i class = "bi @option.Icon lh-1 @(IsRefreshing && option.IsRefreshable ? "spin" : "")"
+               style = "font-size:21px;"></i> <small class = "lh-1 mt-1">@option.DisplayName</small>
         </button>
     }
 </div>

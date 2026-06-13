@@ -25,11 +25,21 @@ public class MissingMediaFetchRoutine(MediaServerService mediaServerService) : R
                 case ServiceType.Radarr:
                     List<Movie> movies = await mediaServerService.GetMissingMovies(server, true);
                     movieCount += movies.Count;
+                    await mediaServerService.UpdateServerStatsAsync(server.Id,
+                    s => {
+                        s.LastMissingFetchAt = DateTime.UtcNow;
+                        s.LastMissingCount = movies.Count;
+                    });
                     break;
 
                 case ServiceType.Sonarr:
                     List<Episode> episodes = await mediaServerService.GetMissingEpisodes(server, true);
                     episodeCount += episodes.Count;
+                    await mediaServerService.UpdateServerStatsAsync(server.Id,
+                    s => {
+                        s.LastMissingFetchAt = DateTime.UtcNow;
+                        s.LastMissingCount = episodes.Count;
+                    });
                     break;
 
                 default:

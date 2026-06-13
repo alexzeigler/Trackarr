@@ -22,20 +22,28 @@ public class MediaServer {
     public bool IsDefault { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime LastAuthenticated { get; set; }
-    public long? LastPingTime { get; set; }
-    public bool? LastPingSuccessful { get; set; }
-
     public bool IsEnabled { get; set; } = true;
-    public bool IsAuthenticated { get; set; }
-
     public int DownloadsProcessed { get; set; }
+
+    public bool IsOnline { get; set; }
+    public DateTime? LastPingedAt { get; set; }
+    public long? LastPingMs { get; set; }
+
+    public bool IsAuthenticated { get; set; }
+    public DateTime LastAuthenticatedAt { get; set; }
+
+    public DateTime? LastQueueFetchAt { get; set; }
+    public int? LastQueueCount { get; set; }
+
+    public DateTime? LastMissingFetchAt { get; set; }
+    public int? LastMissingCount { get; set; }
+
+    public DateTime? LastErrorAt { get; set; }
+    public string? LastError { get; set; }
 
     public string BaseUrl => $"{(UseHttps ? "https" : "http")}://{Host}:{Port}";
 
-
     [NotMapped] public ServerMetadata? Metadata { get; set; }
-
     [NotMapped] public List<QualityProfile>? Profiles { get; set; }
     [NotMapped] public List<DownloadItem>? Queue { get; set; }
 

@@ -30,7 +30,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(e => e.ServiceType).IsRequired();
             entity.Property(e => e.Host).IsRequired();
             entity.Property(e => e.Port).IsRequired();
-            entity.HasOne<ServerMetadata>().WithOne().HasForeignKey<ServerMetadata>(m => m.ServerId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Metadata).WithOne().HasForeignKey<ServerMetadata>(m => m.ServerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<DownloadItem>(entity => { entity.HasKey(e => e.Id); });
