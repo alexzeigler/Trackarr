@@ -6,10 +6,13 @@
 @using Trackarr.Services.Media
 @implements IAsyncDisposable
 <AddServerModal @ref = "_serverModal" />
+<ConfirmationDialog @ref = "_confirmModal"
+                    Text = "@_confirmText"
+                    OnConfirm = "@(() => SendDeleteToDb(_selectedServerId))" />
 <div class = "d-flex flex-column gap-3">
     <div class = "d-flex align-items-end justify-content-between gap-3 mb-1">
         <div>
-            <h1 class = "h2 fw-bold mb-0" style = "letter-spacing: -.02em">Servers</h1>
+            <h1 class = "h1 fw-bold mb-0">Servers</h1>
             <div class = "text-secondary small">Manage and monitor your connected *arr applications.</div>
         </div>
 
@@ -150,144 +153,105 @@
     <div class = "card app-card">
         <div class = "card-table">
             <div class = "app-table-toolbar">
-                <div class = "input-group input-group-flat server-search">
-                    <span class = "input-group-text">
-                        <svg xmlns = "http://www.w3.org/2000/svg"
-                             width = "24"
-                             height = "24"
-                             viewBox = "0 0 24 24"
-                             fill = "none"
-                             stroke = "currentColor"
-                             stroke-width = "2"
-                             stroke-linecap = "round"
-                             stroke-linejoin = "round"
-                             class = "icon icon-tabler icons-tabler-outline icon-tabler-search">
-                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                            <path d = "M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
-                            <path d = "M21 21l-6 -6" />
-                        </svg>
-                    </span>
-                    <input id = "servers-table-search"
-                           type = "text"
-                           class = "form-control"
-                           placeholder = "Search servers..."
-                           autocomplete = "off">
+                <div class = "p-3 border-bottom">
+                    <div class = "row g-3 align-items-start">
+                        <div class = "col-12 col-md-5 col-xl-4">
+                            <div class = "input-group input-group-flat">
+                                <span class = "input-group-text">
+                                    <svg xmlns = "http://www.w3.org/2000/svg"
+                                         width = "24"
+                                         height = "24"
+                                         viewBox = "0 0 24 24"
+                                         fill = "none"
+                                         stroke = "currentColor"
+                                         stroke-width = "2"
+                                         stroke-linecap = "round"
+                                         stroke-linejoin = "round"
+                                         class = "icon icon-tabler icons-tabler-outline icon-tabler-search">
+                                        <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
+                                        <path d = "M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
+                                        <path d = "M21 21l-6 -6" />
+                                    </svg>
+                                </span>
+                                <input id = "servers-table-search"
+                                       type = "text"
+                                       class = "form-control"
+                                       placeholder = "Search servers..."
+                                       autocomplete = "off">
+                            </div>
+                        </div>
+
+                        <div class = "col-12 col-md-auto">
+                            <div class = "d-flex flex-wrap gap-2">
+                                <div class = "dropdown">
+                                    <button class = "btn btn-app-ghost dropdown-toggle"
+                                            type = "button"
+                                            data-bs-toggle = "dropdown">
+                                        All Types
+                                    </button>
+                                    <ul class = "dropdown-menu">
+                                        <li>
+                                            <a class = "dropdown-item active"
+                                               href = "#"
+                                               onclick = "trackarrTable.filter('servers-table', 'sort-type', null); return false;">
+                                                All Types
+                                            </a>
+                                        </li>
+                                        @foreach (string type in _serverTypes) {
+                                            <li>
+                                                <a class = "dropdown-item"
+                                                   href = "#"
+                                                   onclick = "trackarrTable.filter('servers-table', 'sort-type', '@type'); return false;">
+                                                    @type
+                                                </a>
+                                            </li>
+                                        }
+                                    </ul>
+                                </div>
+
+                                <div class = "dropdown">
+                                    <button class = "btn btn-app-ghost dropdown-toggle"
+                                            type = "button"
+                                            data-bs-toggle = "dropdown">
+                                        All Statuses
+                                    </button>
+                                    <ul class = "dropdown-menu">
+                                        <li>
+                                            <a class = "dropdown-item active"
+                                               href = "#"
+                                               onclick = "trackarrTable.filter('servers-table', 'sort-status', null); return false;">
+                                                All Statuses
+                                            </a>
+                                        </li>
+                                        @foreach (string status in _statuses) {
+                                            <li>
+                                                <a class = "dropdown-item"
+                                                   href = "#"
+                                                   onclick = "trackarrTable.filter('servers-table', 'sort-status', '@status'); return false;">
+                                                    @status
+                                                </a>
+                                            </li>
+                                        }
+                                    </ul>
+                                </div>
+                                <button class = "btn btn-app-ghost text-warning"
+                                        title = "Clear filters"
+                                        onclick = "trackarrTable.clearFilters('servers-table'); return false;">
+                                    Clear Filters
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class = "col-12 col-xl">
+                            <div class = "d-flex flex-wrap justify-content-start justify-content-xl-end gap-2">
+                                <button class = "btn btn-app-ghost" @onclick = "SyncAll">
+                                    Sync All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class = "dropdown">
-                    <button class = "btn btn-app-ghost dropdown-toggle" type = "button" data-bs-toggle = "dropdown">
-                        <svg xmlns = "http://www.w3.org/2000/svg"
-                             width = "24"
-                             height = "24"
-                             viewBox = "0 0 24 24"
-                             fill = "none"
-                             stroke = "currentColor"
-                             stroke-width = "2"
-                             stroke-linecap = "round"
-                             stroke-linejoin = "round"
-                             class = "icon icon-tabler icons-tabler-outline icon-tabler-server-2">
-                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                            <path d = "M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-2" />
-                            <path d = "M3 15a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -2" />
-                            <path d = "M7 8l0 .01" />
-                            <path d = "M7 16l0 .01" />
-                            <path d = "M11 8h6" />
-                            <path d = "M11 16h6" />
-                        </svg>
-                        All Types
-                    </button>
-                    <ul class = "dropdown-menu">
-                        <li>
-                            <a class = "dropdown-item active"
-                               href = "#"
-                               onclick = "trackarrTable.filter('servers-table', 'sort-type', null); return false;">
-                                All Types
-                            </a>
-                        </li>
-                        @foreach (string type in _serverTypes) {
-                            <li>
-                                <a class = "dropdown-item"
-                                   href = "#"
-                                   onclick = "trackarrTable.filter('servers-table', 'sort-type', '@type'); return false;">
-                                    @type
-                                </a>
-                            </li>
-                        }
-                    </ul>
-                </div>
-
-                <div class = "dropdown">
-                    <button class = "btn btn-app-ghost dropdown-toggle" type = "button" data-bs-toggle = "dropdown">
-                        <svg xmlns = "http://www.w3.org/2000/svg"
-                             width = "24"
-                             height = "24"
-                             viewBox = "0 0 24 24"
-                             fill = "currentColor"
-                             class = "icon icon-tabler icons-tabler-filled icon-tabler-info-circle">
-                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                            <path d = "M12 2c5.523 0 10 4.477 10 10a10 10 0 0 1 -19.995 .324l-.005 -.324l.004 -.28c.148 -5.393 4.566 -9.72 9.996 -9.72zm0 9h-1l-.117 .007a1 1 0 0 0 0 1.986l.117 .007v3l.007 .117a1 1 0 0 0 .876 .876l.117 .007h1l.117 -.007a1 1 0 0 0 .876 -.876l.007 -.117l-.007 -.117a1 1 0 0 0 -.764 -.857l-.112 -.02l-.117 -.006v-3l-.007 -.117a1 1 0 0 0 -.876 -.876l-.117 -.007zm.01 -3l-.127 .007a1 1 0 0 0 0 1.986l.117 .007l.127 -.007a1 1 0 0 0 0 -1.986l-.117 -.007z" />
-                        </svg>
-                        All Statuses
-                    </button>
-                    <ul class = "dropdown-menu">
-                        <li>
-                            <a class = "dropdown-item active"
-                               href = "#"
-                               onclick = "trackarrTable.filter('servers-table', 'sort-status', null); return false;">
-                                All Statuses
-                            </a>
-                        </li>
-                        @foreach (string status in _statuses) {
-                            <li>
-                                <a class = "dropdown-item"
-                                   href = "#"
-                                   onclick = "trackarrTable.filter('servers-table', 'sort-status', '@status'); return false;">
-                                    @status
-                                </a>
-                            </li>
-                        }
-                    </ul>
-                </div>
-
-                <div class = "ms-auto d-flex align-items-center gap-2">
-                    <button class = "btn btn-app-ghost" @onclick = "SyncAll">
-                        <svg xmlns = "http://www.w3.org/2000/svg"
-                             width = "24"
-                             height = "24"
-                             viewBox = "0 0 24 24"
-                             fill = "none"
-                             stroke = "currentColor"
-                             stroke-width = "2"
-                             stroke-linecap = "round"
-                             stroke-linejoin = "round"
-                             class = "icon icon-tabler icons-tabler-outline icon-tabler-refresh">
-                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                            <path d = "M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
-                            <path d = "M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
-                        </svg>
-                        Sync All
-                    </button>
-
-                    <button class = "btn btn-app-ghost text-warning"
-                            title = "Clear filters"
-                            onclick = "trackarrTable.clearFilters('servers-table'); return false;">
-                        <svg xmlns = "http://www.w3.org/2000/svg"
-                             width = "24"
-                             height = "24"
-                             viewBox = "0 0 24 24"
-                             fill = "none"
-                             stroke = "currentColor"
-                             stroke-width = "2"
-                             stroke-linecap = "round"
-                             stroke-linejoin = "round"
-                             class = "icon icon-tabler icons-tabler-outline icon-tabler-dots">
-                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                            <path d = "M4 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
-                            <path d = "M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
-                            <path d = "M18 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
-                        </svg>
-                    </button>
-                </div>
             </div>
 
             <div id = "servers-table">
@@ -391,6 +355,7 @@
                                                     @onclick = "() => TestConnection(row)">Test
                                             </button>
                                             <button data-bs-toggle = "dropdown"
+                                                    data-bs-strategy = "fixed"
                                                     type = "button"
                                                     class = "btn btn-app-ghost dropdown-toggle dropdown-toggle-split text-white"
                                                     aria-expanded = "false"></button>
@@ -440,6 +405,9 @@
 
     private string LastSyncSubtitle => _servers.Count == 0 ? "No servers synced yet" : "All servers synced recently";
     private readonly CancellationTokenSource _refreshCancellation = new();
+    private ConfirmationDialog? _confirmModal;
+    private string? _confirmText = "Are you sure you want to delete this server?";
+    private int _selectedServerId;
 
     protected override async void OnInitialized() {
         _servers = await MediaServerService.GetAllServersAsync();
@@ -483,15 +451,25 @@
     }
 
     private void TestConnection(MediaServer row) {
+
     }
 
     private void SyncServer(MediaServer row) {
     }
 
-    private void EditServer(MediaServer row) {
+    private async Task EditServer(MediaServer row) {
+        await _serverModal.OpenForEdit(row);
     }
 
-    private void RemoveServer(MediaServer row) {
+    private async void SendDeleteToDb(int id) {
+        await MediaServerService.DeleteServerAsync(id);
+        await Js.InvokeVoidAsync("modalHelper.hide", "confirmationModal");
+    }
+    private async Task RemoveServer(MediaServer row) {
+        _selectedServerId = row.Id;
+        _confirmText = $"Are you sure you want to remove '{row.Name}'?";
+        await Js.InvokeVoidAsync("modalHelper.show", "confirmationModal");
+
     }
 
     private static string GetRelativeTime(DateTime dateTime) {

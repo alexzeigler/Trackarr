@@ -3,6 +3,8 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Trackarr.Core.Exception;
+using Trackarr.Core.Health;
+using Trackarr.Core.Media;
 using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
@@ -35,11 +37,11 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
             await using AppDbContext db = await dbFactory.CreateDbContextAsync();
             MediaServer? tracked = await db.MediaServers.FindAsync(server.Id);
-            if (tracked is not null) {
-                tracked.Profiles = profiles;
-                await db.SaveChangesAsync();
-            }
 
+            if (tracked is null)
+                return profiles;
+
+            tracked.Profiles = profiles;
             return profiles;
         }
         catch (MediaServerException) { throw; }
@@ -63,8 +65,12 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
             if (!forceRefresh) {
                 List<Movie> cached = await db.Movies.Where(m => m.ServerId == server.Id).ToListAsync();
-                if (cached.Count != 0)
+
+                if (cached.Count != 0) {
+                    await EnsureMediaHealthSummariesAsync(db, cached, DateTime.UtcNow);
+                    await db.SaveChangesAsync();
                     return cached;
+                }
             }
 
             List<Movie> items = [];
@@ -99,6 +105,9 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
             await db.SaveChangesAsync();
 
+            await EnsureMediaHealthSummariesAsync(db, items, DateTime.UtcNow);
+            await db.SaveChangesAsync();
+
             logger.LogInformation("Fetched {count} missing movies for {name}", items.Count, server.Name);
             return items;
         }
@@ -107,6 +116,7 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
         catch (HttpRequestException ex) { throw new ConnectionException(server.Name, ex); }
         catch (Exception ex) { throw new MediaServerException($"{server.Name}: Unexpected error fetching missing movies.", ex); }
     }
+
     public async Task<Dictionary<int, Movie>> GetParentMovieAsync(int serverId, IEnumerable<DownloadItem> downloads) {
         List<int> movieIds = downloads.Where(item => item.MovieId > 0).Select(item => item.MovieId).Distinct().ToList();
 
@@ -116,10 +126,14 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
         await using AppDbContext db = await dbFactory.CreateDbContextAsync();
 
-        List<Movie> movies = await db.Movies.AsNoTracking().Where(movie => movie.ServerId == serverId && movieIds.Contains(movie.RemoteId)).ToListAsync();
+        List<Movie> movies = await db.Movies.Where(movie => movie.ServerId == serverId && movieIds.Contains(movie.RemoteId)).ToListAsync();
+
+        await EnsureMediaHealthSummariesAsync(db, movies, DateTime.UtcNow);
+        await db.SaveChangesAsync();
 
         return movies.GroupBy(movie => movie.RemoteId).ToDictionary(group => group.Key, group => group.First());
     }
+
     private async Task<(List<Movie> Items, int TotalRecords)> FetchMissingMoviesPageAsync(MediaServer server, int page, int pageSize) {
         if (string.IsNullOrWhiteSpace(server.ApiKey))
             throw new MediaServerException($"{server.Name}: API key is required.");
@@ -191,6 +205,7 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
         catch (MediaServerException) { throw; }
         catch (Exception ex) { throw new MediaServerException($"{server.Name}: Error fetching missing movies page {page}.", ex); }
     }
+
     public async Task<Movie?> GetMovieByIdAsync(MediaServer server, int radarrMovieId) {
         await using AppDbContext db = await dbFactory.CreateDbContextAsync();
 
@@ -209,7 +224,14 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
             string json = await response.Content.ReadAsStringAsync();
             MovieRecord? x = JsonSerializer.Deserialize<MovieRecord>(json, options);
 
-            if (x is null) return existing;
+            if (x is null) {
+                if (existing is not null) {
+                    await EnsureMediaHealthSummaryAsync(db, existing, DateTime.UtcNow);
+                    await db.SaveChangesAsync();
+                }
+
+                return existing;
+            }
 
             Movie movie = new() {
                 RemoteId = x.Id,
@@ -265,7 +287,13 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
             }
 
             await db.SaveChangesAsync();
-            return existing ?? movie;
+
+            Movie saved = existing ?? movie;
+
+            await EnsureMediaHealthSummaryAsync(db, saved, DateTime.UtcNow);
+            await db.SaveChangesAsync();
+
+            return saved;
         }
         catch (MediaServerException) { throw; }
         catch (TaskCanceledException ex) { throw new ConnectionException(server.Name, ex); }
@@ -288,6 +316,7 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
             if (!forceRefresh) {
                 List<Episode> cached = await db.Episodes.Where(e => e.ServerId == server.Id && !e.HasFile).ToListAsync();
+
                 if (cached.Count != 0)
                     return cached;
             }
@@ -332,6 +361,7 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
         catch (HttpRequestException ex) { throw new ConnectionException(server.Name, ex); }
         catch (Exception ex) { throw new MediaServerException($"{server.Name}: Unexpected error fetching missing episodes.", ex); }
     }
+
     public async Task<Dictionary<int, Series>> GetParentSeriesAsync(int serverId, IEnumerable<DownloadItem> downloads) {
         List<int> seriesIds = downloads.Where(item => item.SeriesId > 0).Select(item => item.SeriesId).Distinct().ToList();
 
@@ -341,10 +371,14 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
         await using AppDbContext db = await dbFactory.CreateDbContextAsync();
 
-        List<Series> series = await db.Series.AsNoTracking().Where(item => item.ServerId == serverId && seriesIds.Contains(item.RemoteId)).ToListAsync();
+        List<Series> series = await db.Series.Where(item => item.ServerId == serverId && seriesIds.Contains(item.RemoteId)).ToListAsync();
+
+        await EnsureMediaHealthSummariesAsync(db, series, DateTime.UtcNow);
+        await db.SaveChangesAsync();
 
         return series.GroupBy(item => item.RemoteId).ToDictionary(group => group.Key, group => group.First());
     }
+
     private async Task<(List<Episode> Items, int TotalRecords)> FetchMissingEpisodesPageAsync(MediaServer server, int page, int pageSize) {
         if (string.IsNullOrWhiteSpace(server.ApiKey))
             throw new MediaServerException($"{server.Name}: API key is required.");
@@ -369,21 +403,36 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
                                           RemoteSeriesId = x.SeriesId,
                                           TvdbId = x.TvdbId,
                                           EpisodeFileId = x.EpisodeFileId,
+
                                           SeasonNumber = x.SeasonNumber,
                                           EpisodeNumber = x.EpisodeNumber,
                                           AbsoluteEpisodeNumber = x.AbsoluteEpisodeNumber,
+
+                                          SceneAbsoluteEpisodeNumber = x.SceneAbsoluteEpisodeNumber,
+                                          SceneEpisodeNumber = x.SceneEpisodeNumber,
+                                          SceneSeasonNumber = x.SceneSeasonNumber,
+
                                           Title = x.Title,
                                           AirDate = x.AirDate,
                                           AirDateUtc = x.AirDateUtc,
+                                          EndTime = x.EndTime,
+                                          GrabDate = x.GrabDate,
+
+                                          Runtime = x.Runtime,
+                                          FinaleType = x.FinaleType,
                                           Overview = x.Overview,
+
                                           HasFile = x.HasFile,
                                           Monitored = x.Monitored,
+                                          UnverifiedSceneNumbering = x.UnverifiedSceneNumbering,
+
                                           LastSearchTime = x.LastSearchTime,
+
                                           ServerId = server.Id,
+
                                           ImagesJson = JsonSerializer.Serialize(x.Images),
                                           EpisodeFileJson = JsonSerializer.Serialize(x.EpisodeFile),
-                                          RatingsJson = JsonSerializer.Serialize(x.Ratings),
-                                          LanguagesJson = JsonSerializer.Serialize(x.Languages)
+                                          SeriesJson = JsonSerializer.Serialize(x.Series)
                                       })
                                       .ToList() ??
                                   [];
@@ -415,10 +464,58 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
             string json = await response.Content.ReadAsStringAsync();
             SeriesRecord? x = JsonSerializer.Deserialize<SeriesRecord>(json, options);
 
-            if (x is null)
-                return existing;
+            if (x is null) {
+                if (existing is not null) {
+                    await EnsureMediaHealthSummaryAsync(db, existing, DateTime.UtcNow);
+                    await db.SaveChangesAsync();
+                }
 
-            Series series = MapSeries(server, x);
+                return existing;
+            }
+
+            Series series = new() {
+                RemoteId = x.Id,
+                Title = x.Title,
+                SortTitle = x.SortTitle,
+                Status = x.Status,
+                Ended = x.Ended,
+                Overview = x.Overview,
+                Network = x.Network,
+                AirTime = x.AirTime,
+                Path = x.Path,
+                QualityProfileId = x.QualityProfileId,
+                LanguageProfileId = x.LanguageProfileId,
+                SeasonFolder = x.SeasonFolder,
+                Monitored = x.Monitored,
+                MonitorNewItems = x.MonitorNewItems,
+                UseSceneNumbering = x.UseSceneNumbering,
+                Runtime = x.Runtime,
+                TvdbId = x.TvdbId,
+                TvRageId = x.TvRageId,
+                TvMazeId = x.TvMazeId,
+                TmdbId = x.TmdbId,
+                ImdbId = x.ImdbId,
+                TitleSlug = x.TitleSlug,
+                RootFolderPath = x.RootFolderPath,
+                Certification = x.Certification,
+                SeriesType = x.SeriesType,
+                CleanTitle = x.CleanTitle,
+                Year = x.Year,
+                FirstAired = x.FirstAired,
+                LastAired = x.LastAired,
+                NextAiring = x.NextAiring,
+                PreviousAiring = x.PreviousAiring,
+                Added = x.Added,
+                ServerId = server.Id,
+                AlternateTitlesJson = JsonSerializer.Serialize(x.AlternateTitles),
+                ImagesJson = JsonSerializer.Serialize(x.Images),
+                OriginalLanguageJson = JsonSerializer.Serialize(x.OriginalLanguage),
+                SeasonsJson = JsonSerializer.Serialize(x.Seasons),
+                GenresJson = JsonSerializer.Serialize(x.Genres),
+                TagsJson = JsonSerializer.Serialize(x.Tags),
+                RatingsJson = JsonSerializer.Serialize(x.Ratings),
+                StatisticsJson = JsonSerializer.Serialize(x.Statistics)
+            };
 
             if (existing is null) {
                 db.Series.Add(series);
@@ -429,7 +526,13 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
             }
 
             await db.SaveChangesAsync();
-            return existing ?? series;
+
+            Series saved = existing ?? series;
+
+            await EnsureMediaHealthSummaryAsync(db, saved, DateTime.UtcNow);
+            await db.SaveChangesAsync();
+
+            return saved;
         }
         catch (MediaServerException) { throw; }
         catch (TaskCanceledException ex) { throw new ConnectionException(server.Name, ex); }
@@ -461,7 +564,26 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
             if (x is null)
                 return existing;
 
-            Episode episode = MapEpisode(server, x);
+            Episode episode = new() {
+                RemoteId = x.Id,
+                RemoteSeriesId = x.SeriesId,
+                TvdbId = x.TvdbId,
+                EpisodeFileId = x.EpisodeFileId,
+                SeasonNumber = x.SeasonNumber,
+                EpisodeNumber = x.EpisodeNumber,
+                AbsoluteEpisodeNumber = x.AbsoluteEpisodeNumber,
+                Title = x.Title,
+                AirDate = x.AirDate,
+                AirDateUtc = x.AirDateUtc,
+                Overview = x.Overview,
+                HasFile = x.HasFile,
+                Monitored = x.Monitored,
+                UnverifiedSceneNumbering = x.UnverifiedSceneNumbering,
+                LastSearchTime = x.LastSearchTime,
+                ServerId = server.Id,
+                ImagesJson = JsonSerializer.Serialize(x.Images),
+                EpisodeFileJson = JsonSerializer.Serialize(x.EpisodeFile)
+            };
 
             Series? series = await db.Series.FirstOrDefaultAsync(s => s.ServerId == server.Id && s.RemoteId == x.SeriesId);
 
@@ -501,17 +623,22 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
     public async Task<MediaServer> CreateServerAsync(MediaServer server) {
         await using AppDbContext db = await dbFactory.CreateDbContextAsync();
+
         if (server.IsDefault)
             await ClearDefaultAsync(db, server.ServiceType, null);
+
         db.MediaServers.Add(server);
         await db.SaveChangesAsync();
+
         server.Metadata = await GetSystemStatusAsync(server);
+
         logger.LogInformation("Created server: {name}", server.Name);
         return server;
     }
 
     public async Task UpdateServerAsync(MediaServer server) {
         await using AppDbContext db = await dbFactory.CreateDbContextAsync();
+
         if (server.IsDefault)
             await ClearDefaultAsync(db, server.ServiceType, server.Id);
 
@@ -519,18 +646,23 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
         db.Entry(tracked).CurrentValues.SetValues(server);
         await db.SaveChangesAsync();
+
         await GetSystemStatusAsync(tracked);
         server.Metadata = await GetSystemStatusAsync(server);
+
         logger.LogInformation("Updated server: {name}", server.Name);
     }
 
     public async Task DeleteServerAsync(int id) {
         await using AppDbContext db = await dbFactory.CreateDbContextAsync();
         MediaServer? server = await db.MediaServers.FindAsync(id);
+
         if (server is null)
             return;
+
         db.MediaServers.Remove(server);
         await db.SaveChangesAsync();
+
         logger.LogInformation("Deleted server: {name}", server.Name);
     }
 
@@ -545,6 +677,7 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
         try {
             HttpClient client = CreateClient(10);
             Task<HttpResponseMessage> response;
+
             await (server.ServiceType switch {
                 ServiceType.Radarr or ServiceType.Sonarr => response = TestArrAsync(client, server),
                 _ => throw new MediaServerException($"{server.Name}: Unknown service type.")
@@ -554,35 +687,39 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
             if (server.Id == 0)
                 return (true, sw.ElapsedMilliseconds, response.Result.ReasonPhrase);
+
             await using AppDbContext db = await dbFactory.CreateDbContextAsync();
             MediaServer? tracked = await db.MediaServers.FindAsync(server.Id);
+
             if (tracked is null)
                 return (true, sw.ElapsedMilliseconds, response.Result.ReasonPhrase);
+
             sw.Stop();
 
             if (server.Id == 0)
                 return (true, sw.ElapsedMilliseconds, response.Result.ReasonPhrase);
 
             await UpdateServerStatsAsync(server.Id,
-            s => {
-                s.IsOnline = true;
-                s.LastPingedAt = DateTime.UtcNow;
-                s.LastPingMs = sw.ElapsedMilliseconds;
-                s.IsAuthenticated = true;
-                s.LastAuthenticatedAt = DateTime.UtcNow;
-            });
+                s => {
+                    s.IsOnline = true;
+                    s.LastPingedAt = DateTime.UtcNow;
+                    s.LastPingMs = sw.ElapsedMilliseconds;
+                    s.IsAuthenticated = true;
+                    s.LastAuthenticatedAt = DateTime.UtcNow;
+                });
 
             return (true, sw.ElapsedMilliseconds, response.Result.ReasonPhrase);
         }
         catch (ConnectionException ex) {
             if (server.Id != 0)
                 await UpdateServerStatsAsync(server.Id,
-                s => {
-                    s.IsOnline = false;
-                    s.LastPingedAt = DateTime.UtcNow;
-                    s.LastErrorAt = DateTime.UtcNow;
-                    s.LastError = ex.Message;
-                });
+                    s => {
+                        s.IsOnline = false;
+                        s.LastPingedAt = DateTime.UtcNow;
+                        s.LastErrorAt = DateTime.UtcNow;
+                        s.LastError = ex.Message;
+                    });
+
             throw;
         }
         catch (MediaServerException) { throw; }
@@ -624,10 +761,13 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
             metadata.ServerId = mediaServer.Id;
 
             ServerMetadata? existing = await db.ServerMetadata.FindAsync(mediaServer.Id);
+
             if (existing is null)
                 db.ServerMetadata.Add(metadata);
             else
                 db.Entry(existing).CurrentValues.SetValues(metadata);
+
+            await GetProfilesAsync(server);
 
             await db.SaveChangesAsync();
             return existing ?? metadata;
@@ -641,7 +781,10 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
     public async Task UpdateServerStatsAsync(int serverId, Action<MediaServer> update) {
         await using AppDbContext db = await dbFactory.CreateDbContextAsync();
         MediaServer? server = await db.MediaServers.FindAsync(serverId);
-        if (server is null) return;
+
+        if (server is null)
+            return;
+
         update(server);
         db.Entry(server).State = EntityState.Modified;
         await db.SaveChangesAsync();
@@ -660,7 +803,11 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
             if (!forceRefresh) {
                 List<DownloadItem> cached = await db.DownloadQueue.Where(q => q.ServerId == server.Id).ToListAsync();
+
                 if (cached.Count != 0) {
+                    await EnsureQueueParentMediaSummariesAsync(db, server.Id, cached, DateTime.UtcNow);
+                    await db.SaveChangesAsync();
+
                     server.Queue = cached;
                     return cached;
                 }
@@ -691,25 +838,32 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
 
             await db.SaveChangesAsync();
 
+            await EnsureQueueParentMediaSummariesAsync(db, server.Id, items, DateTime.UtcNow);
+            await db.SaveChangesAsync();
+
             await UpdateServerStatsAsync(server.Id,
-            s => {
-                s.LastQueueFetchAt = DateTime.UtcNow;
-                s.LastQueueCount = items.Count;
-            });
+                s => {
+                    s.LastQueueFetchAt = DateTime.UtcNow;
+                    s.LastQueueCount = items.Count;
+                });
 
             logger.LogInformation("Fetched {count} queue items for {name}", items.Count, server.Name);
+
             switch (server.ServiceType) {
                 case ServiceType.Radarr: {
                     foreach (int movieId in items.Select(i => i.MovieId).Where(id => id != 0).Distinct())
                         await GetMovieByIdAsync(server, movieId);
+
                     break;
                 }
 
                 case ServiceType.Sonarr: {
                     foreach (int seriesId in items.Select(i => i.SeriesId).Where(id => id != 0).Distinct())
                         await GetSeriesByIdAsync(server, seriesId);
+
                     foreach (int episodeId in items.Select(i => i.EpisodeId).Where(id => id != 0).Distinct())
                         await GetEpisodeByIdAsync(server, episodeId);
+
                     break;
                 }
 
@@ -782,6 +936,26 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
         catch (MediaServerException) { throw; }
         catch (Exception ex) { throw new MediaServerException($"{server.Name}: Error fetching queue page {page}.", ex); }
     }
+    public async Task RemoveFromQueueAsync(MediaServer server, int queueId, bool blocklist = true, bool removeFromClient = true) {
+        if (string.IsNullOrWhiteSpace(server.ApiKey))
+            throw new MediaServerException($"{server.Name}: API key is required.");
+
+        try {
+            HttpClient client = CreateClient(15);
+            string url = $"{server.BaseUrl}/api/v3/queue/{queueId}?apikey={server.ApiKey}&removeFromClient={removeFromClient.ToString().ToLowerInvariant()}&blocklist={blocklist.ToString().ToLowerInvariant()}&skipRedownload=false";
+
+            using HttpResponseMessage response = await client.DeleteAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+                throw new ApiException(server.Name, $"/api/v3/queue/{queueId}", (int)response.StatusCode);
+
+            logger.LogInformation("Removed queue item {id} from {name}", queueId, server.Name);
+        }
+        catch (MediaServerException) { throw; }
+        catch (TaskCanceledException ex) { throw new ConnectionException(server.Name, ex); }
+        catch (HttpRequestException ex) { throw new ConnectionException(server.Name, ex); }
+        catch (Exception ex) { throw new MediaServerException($"{server.Name}: Unexpected error removing queue item {queueId}.", ex); }
+    }
 
     #endregion
 
@@ -816,79 +990,102 @@ public class MediaServerService(IDbContextFactory<AppDbContext> dbFactory, IHttp
     private static QueueStatus MapQueueStatus(string? status, string? trackedStatus) {
         if (status?.Equals("warning", StringComparison.OrdinalIgnoreCase) == true)
             return QueueStatus.Warning;
+
         if (trackedStatus?.Equals("warning", StringComparison.OrdinalIgnoreCase) == true)
             return QueueStatus.Warning;
+
         if (status?.Equals("completed", StringComparison.OrdinalIgnoreCase) == true)
             return QueueStatus.Completed;
+
         return QueueStatus.Ok;
     }
 
-    private static Episode MapEpisode(MediaServer server, EpisodeRecord x) => new() {
-        RemoteId = x.Id,
-        RemoteSeriesId = x.SeriesId,
-        TvdbId = x.TvdbId,
-        EpisodeFileId = x.EpisodeFileId,
-        SeasonNumber = x.SeasonNumber,
-        EpisodeNumber = x.EpisodeNumber,
-        AbsoluteEpisodeNumber = x.AbsoluteEpisodeNumber,
-        Title = x.Title,
-        AirDate = x.AirDate,
-        AirDateUtc = x.AirDateUtc,
-        Overview = x.Overview,
-        HasFile = x.HasFile,
-        Monitored = x.Monitored,
-        UnverifiedSceneNumbering = x.UnverifiedSceneNumbering,
-        LastSearchTime = x.LastSearchTime,
-        ServerId = server.Id,
-        ImagesJson = JsonSerializer.Serialize(x.Images),
-        EpisodeFileJson = JsonSerializer.Serialize(x.EpisodeFile),
-        RatingsJson = JsonSerializer.Serialize(x.Ratings),
-        LanguagesJson = JsonSerializer.Serialize(x.Languages)
-    };
+    private async Task EnsureMediaHealthSummaryAsync<TMedia>(AppDbContext db, TMedia media, DateTime now) where TMedia : MediaItem {
+        await EnsureMediaHealthSummariesAsync(db, [media], now);
+    }
 
-    private static Series MapSeries(MediaServer server, SeriesRecord x) => new() {
-        RemoteId = x.Id,
-        Title = x.Title,
-        SortTitle = x.SortTitle,
-        Status = x.Status,
-        Ended = x.Ended,
-        Overview = x.Overview,
-        Network = x.Network,
-        AirTime = x.AirTime,
-        Path = x.Path,
-        QualityProfileId = x.QualityProfileId,
-        LanguageProfileId = x.LanguageProfileId,
-        SeasonFolder = x.SeasonFolder,
-        Monitored = x.Monitored,
-        MonitorNewItems = x.MonitorNewItems,
-        UseSceneNumbering = x.UseSceneNumbering,
-        Runtime = x.Runtime,
-        TvdbId = x.TvdbId,
-        TvRageId = x.TvRageId,
-        TvMazeId = x.TvMazeId,
-        TmdbId = x.TmdbId,
-        ImdbId = x.ImdbId,
-        TitleSlug = x.TitleSlug,
-        RootFolderPath = x.RootFolderPath,
-        Certification = x.Certification,
-        SeriesType = x.SeriesType,
-        CleanTitle = x.CleanTitle,
-        Year = x.Year,
-        FirstAired = x.FirstAired,
-        LastAired = x.LastAired,
-        NextAiring = x.NextAiring,
-        PreviousAiring = x.PreviousAiring,
-        Added = x.Added,
-        ServerId = server.Id,
-        AlternateTitlesJson = JsonSerializer.Serialize(x.AlternateTitles),
-        ImagesJson = JsonSerializer.Serialize(x.Images),
-        OriginalLanguageJson = JsonSerializer.Serialize(x.OriginalLanguage),
-        SeasonsJson = JsonSerializer.Serialize(x.Seasons),
-        GenresJson = JsonSerializer.Serialize(x.Genres),
-        TagsJson = JsonSerializer.Serialize(x.Tags),
-        RatingsJson = JsonSerializer.Serialize(x.Ratings),
-        StatisticsJson = JsonSerializer.Serialize(x.Statistics)
-    };
+    private async Task EnsureMediaHealthSummariesAsync<TMedia>(AppDbContext db, IEnumerable<TMedia> mediaItems, DateTime now) where TMedia : MediaItem {
+        List<MediaItem> items = mediaItems
+            .Cast<MediaItem>()
+            .Where(e => e.Id > 0)
+            .Where(e => GetTrackedMediaType(e) is not TrackedMediaType.Unknown)
+            .GroupBy(e => new {
+                Type = GetTrackedMediaType(e),
+                e.Id
+            })
+            .Select(e => e.First())
+            .ToList();
+
+        if (items.Count == 0) {
+            return;
+        }
+
+        foreach (IGrouping<TrackedMediaType, MediaItem> group in items.GroupBy(GetTrackedMediaType)) {
+            List<int> ids = group.Select(e => e.Id).ToList();
+
+            List<int> existingIds = group.Key switch {
+                TrackedMediaType.Movie => await db.MediaHealthSummaries.Where(e => e.MediaType == TrackedMediaType.Movie).Where(e => e.MovieId.HasValue && ids.Contains(e.MovieId.Value)).Select(e => e.MovieId!.Value).ToListAsync(),
+
+                TrackedMediaType.Series => await db.MediaHealthSummaries.Where(e => e.MediaType == TrackedMediaType.Series).Where(e => e.SeriesId.HasValue && ids.Contains(e.SeriesId.Value)).Select(e => e.SeriesId!.Value).ToListAsync(),
+
+                _ => []
+            };
+
+            HashSet<int> existing = existingIds.ToHashSet();
+
+            foreach (MediaItem item in group.Where(e => !existing.Contains(e.Id))) {
+                db.MediaHealthSummaries.Add(CreateMediaHealthSummary(item, group.Key, now));
+            }
+        }
+    }
+
+    private async Task EnsureQueueParentMediaSummariesAsync(AppDbContext db, int serverId, IEnumerable<DownloadItem> downloads, DateTime now) {
+        IEnumerable<DownloadItem> downloadItems = downloads as DownloadItem[] ?? downloads.ToArray();
+        List<int> movieIds = downloadItems.Where(e => e.MovieId > 0).Select(e => e.MovieId).Distinct().ToList();
+
+        List<int> seriesIds = downloadItems.Where(e => e.SeriesId > 0).Select(e => e.SeriesId).Distinct().ToList();
+
+        if (movieIds.Count > 0) {
+            List<Movie> movies = await db.Movies.Where(e => e.ServerId == serverId && movieIds.Contains(e.RemoteId)).ToListAsync();
+
+            await EnsureMediaHealthSummariesAsync(db, movies, now);
+        }
+
+        if (seriesIds.Count > 0) {
+            List<Series> series = await db.Series.Where(e => e.ServerId == serverId && seriesIds.Contains(e.RemoteId)).ToListAsync();
+
+            await EnsureMediaHealthSummariesAsync(db, series, now);
+        }
+    }
+
+    private static MediaHealthSummary CreateMediaHealthSummary(MediaItem item, TrackedMediaType mediaType, DateTime now) {
+        MediaHealthSummary summary = new() {
+            MediaType = mediaType,
+            CreatedAt = now,
+            UpdatedAt = now,
+            CurrentState = HealthState.Unknown
+        };
+
+        switch (item) {
+            case Movie:
+                summary.MovieId = item.Id;
+                break;
+
+            case Series:
+                summary.SeriesId = item.Id;
+                break;
+        }
+
+        return summary;
+    }
+
+    private static TrackedMediaType GetTrackedMediaType(MediaItem item) {
+        return item switch {
+            Movie => TrackedMediaType.Movie,
+            Series => TrackedMediaType.Series,
+            _ => TrackedMediaType.Unknown
+        };
+    }
 
     #endregion
 }

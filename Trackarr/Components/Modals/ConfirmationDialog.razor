@@ -1,20 +1,50 @@
-﻿<div class = "modal fade"
+﻿<div class = "modal fade modal-blur"
      id = "confirmationModal"
      tabindex = "-1"
      aria-labelledby = "confirmationModalLabel"
      aria-hidden = "true">
-    <div class = "modal-dialog">
+    <div class = "modal-dialog ">
         <div class = "modal-content">
             <div class = "modal-header">
                 <h5 class = "modal-title" id = "confirmationModalLabel">@Header</h5>
                 <button type = "button" class = "btn-close" data-bs-dismiss = "modal" aria-label = "Close"></button>
+                <div class = "modal-status bg-danger"></div>
             </div>
-            <div class = "modal-body">
+            <div class = "modal-body text-center py-4">
+                <svg xmlns = "http://www.w3.org/2000/svg"
+                     width = "24"
+                     height = "24"
+                     viewBox = "0 0 24 24"
+                     fill = "none"
+                     stroke = "currentColor"
+                     stroke-width = "2"
+                     stroke-linecap = "round"
+                     stroke-linejoin = "round"
+                     class = "icon mb-2 text-danger icon-lg">
+                    <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
+                    <path d = "M12 9v4" />
+                    <path d = "M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0" />
+                    <path d = "M12 16h.01" />
+                </svg>
+                <h3>Are you sure?</h3>
                 @Text
             </div>
             <div class = "modal-footer">
-                <button type = "button" class = "btn btn-secondary" data-bs-dismiss = "modal">@CancelText</button>
-                <button type = "button" class = "btn btn-primary" @onclick = "OnConfirm">@ConfirmText</button>
+                <div class = "w-100">
+                    <div class = "row">
+                        <div class = "col">
+                            <a href = "#"
+                               class = "btn btn-3 w-100 btn-app-ghost"
+                               data-bs-dismiss = "modal">@CancelText</a>
+                        </div>
+                        <div class = "col">
+                            <a href = "#"
+                               class = "btn btn-danger btn-4 w-100"
+                               data-bs-dismiss = "modal"
+                               @onclick = "OnConfirm">@ConfirmText</a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -23,7 +53,9 @@
 @code {
     [Parameter] public string Header { get; set; } = "Confirm";
     [Parameter] public string Text { get; set; } = "Are you sure?";
-    [Parameter] public string ConfirmText { get; set; } = "Confirm";
-    [Parameter] public string CancelText { get; set; } = "Cancel";
+    [Parameter] public string ConfirmText { get; set; } = "Yes";
+    [Parameter] public string CancelText { get; set; } = "No";
     [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public bool IsDanger { get; set; }
+    [Parameter] public bool IsSuccess { get; set; }
 }

@@ -67,7 +67,7 @@
 
 @code {
     private List<RoutineDefinition> _routines = [];
-    private PeriodicTimer? _refreshTimer;
+    private readonly PeriodicTimer? _refreshTimer = new(TimeSpan.FromSeconds(1));
     private CancellationTokenSource? _cts;
 
     protected override async Task OnInitializedAsync() {

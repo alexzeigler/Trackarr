@@ -63,7 +63,6 @@ public class DownloadItem {
     public DateTime? FailedAtUtc { get; set; }
     public DateTime? CompletedAtUtc { get; set; }
 
-    public ICollection<DownloadStrike> Strikes { get; set; } = [];
     public decimal? LastObservedProgress { get; set; }
     public long? LastObservedSizeLeft { get; set; }
 

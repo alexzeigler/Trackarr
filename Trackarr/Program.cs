@@ -1,12 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Trackarr.Components;
-using Trackarr.Core.Queue;
 using Trackarr.Core.Routine;
 using Trackarr.Data;
 using Trackarr.Services.Diagnostics;
 using Trackarr.Services.Media;
 using Trackarr.Services.Routines;
-using Trackarr.Services.Strikes;
 using Trackarr.Tasks;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -24,17 +22,14 @@ builder.Services.AddHostedService<RoutineHostedService>();
 
 builder.Services.AddSingleton<IRoutine, HeartbeatRoutine>();
 builder.Services.AddSingleton<IRoutine, QueueRefreshRoutine>();
+builder.Services.AddSingleton<IRoutine, QueueEvaluationRoutine>();
 builder.Services.AddSingleton<IRoutine, MissingMediaFetchRoutine>();
-builder.Services.AddSingleton<IRoutine, DownloadStrikeEvaluationRoutine>();
 
 builder.Services.AddSingleton<EventService>();
 builder.Services.AddSingleton<RoutineRunner>();
 builder.Services.AddSingleton<RoutineService>();
 builder.Services.AddSingleton<MediaServerService>();
-
-builder.Services.AddSingleton<DownloadStrikePolicy>();
-builder.Services.AddScoped<DownloadStrikeService>();
-builder.Services.AddScoped<DownloadStrikeEvaluator>();
+builder.Services.AddSingleton<HealthService>();
 
 builder.Services.AddHttpClient();
 

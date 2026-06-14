@@ -44,21 +44,7 @@
 <script src = "_content/Blazor.Bootstrap/blazor.bootstrap.js"></script>
 
 <script>
-    window.initTooltips = () => {
-        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
-            const existingInstance = bootstrap.Tooltip.getInstance(el);
 
-            if (existingInstance) {
-                existingInstance.dispose();
-            }
-
-            bootstrap.Tooltip.getOrCreateInstance(el, {
-                customClass: 'trackarr-tooltip',
-                placement: 'top',
-                container: '#tooltip-container'
-            });
-        });
-    };
 </script>
 
 <script src = "@Assets["_framework/blazor.web.js"]"></script>

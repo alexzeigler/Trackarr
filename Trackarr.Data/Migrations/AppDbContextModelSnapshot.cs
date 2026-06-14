@@ -44,7 +44,632 @@ namespace Trackarr.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("LogLevel");
+
+                    b.HasIndex("Source");
+
+                    b.HasIndex("TimeStamp");
+
                     b.ToTable("LogEvents");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Health.DownloadAttempt", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DownloadClient")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DownloadId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("EpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("FailedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FinalMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FinalReasonKey")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("FirstSeenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Indexer")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsProtected")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("MovieId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("NormalizedTitle")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Protocol")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseKey")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RemoteId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("RemovedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ReplacedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ReplacementAttemptNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ServerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ServiceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("WasImported")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("WasRemovedByTrackarr")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("WasSuccessful")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EpisodeId");
+
+                    b.HasIndex("FirstSeenAt");
+
+                    b.HasIndex("LastSeenAt");
+
+                    b.HasIndex("MovieId");
+
+                    b.HasIndex("SeriesId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("MediaType", "EpisodeId");
+
+                    b.HasIndex("MediaType", "MovieId");
+
+                    b.HasIndex("MediaType", "SeriesId");
+
+                    b.HasIndex("ServerId", "DownloadId");
+
+                    b.HasIndex("ServerId", "ReleaseKey");
+
+                    b.HasIndex("ServerId", "DownloadId", "Status");
+
+                    b.ToTable("DownloadAttempts");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Health.DownloadHealthEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ConfidenceAfter")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ConfidenceBefore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ConfidenceDelta")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("CountsTowardRemoval")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DownloadAttemptId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsBadObservation")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsGoodObservation")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsMeaningfulRecovery")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RawErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RawStatus")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RawTrackedDownloadState")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RawTrackedDownloadStatus")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReasonKey")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecoveryCreditAfter")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RecoveryCreditBefore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RecoveryCreditDelta")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("ScoreAfter")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ScoreBefore")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ScoreDelta")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CountsTowardRemoval");
+
+                    b.HasIndex("DownloadAttemptId");
+
+                    b.HasIndex("EventType");
+
+                    b.HasIndex("IsBadObservation");
+
+                    b.HasIndex("IsGoodObservation");
+
+                    b.HasIndex("IsMeaningfulRecovery");
+
+                    b.HasIndex("OccurredAt");
+
+                    b.HasIndex("ReasonKey");
+
+                    b.HasIndex("Severity");
+
+                    b.ToTable("HealthEvents");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Health.HealthSnapshot", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BadScanCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BadScansInLastTen")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Confidence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ConsecutiveBadScans")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ConsecutiveGoodScans")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DownloadAttemptId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("GoodScanCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("GoodScansInLastTen")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsEligibleForRemoval")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsRemovalRestricted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastBadObservationAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastErrorKey")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastGoodObservationAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastMeaningfulRecoveryAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastObservationAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("LastProgress")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastReasonKey")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastReasonMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("LastScoreChange")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastScoreChangedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LastSize")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LastSizeLeft")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastStatus")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastTrackedDownloadState")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastTrackedDownloadStatus")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("RawScore")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecoveryCredit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RemovalRestrictionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("VisibleScore")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Confidence");
+
+                    b.HasIndex("DownloadAttemptId")
+                        .IsUnique();
+
+                    b.HasIndex("IsEligibleForRemoval");
+
+                    b.HasIndex("LastBadObservationAt");
+
+                    b.HasIndex("LastMeaningfulRecoveryAt");
+
+                    b.HasIndex("LastObservationAt");
+
+                    b.HasIndex("State");
+
+                    b.HasIndex("VisibleScore");
+
+                    b.ToTable("HealthSnapshots");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Health.MediaHealthSummary", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ActiveAttemptCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CurrentBestScore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CurrentState")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CurrentWorstScore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("EpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("FailureCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsStuck")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastAttemptAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastFailureAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastQualityProfile")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastRemovalAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastReplacementAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastSuccessAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LowestQualityTried")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("MovieId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QualityDowngradeCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RemovalCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ReplacementCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SearchAttemptCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StuckReasonKey")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StuckReasonMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("StuckSince")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SuccessCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrentState");
+
+                    b.HasIndex("EpisodeId");
+
+                    b.HasIndex("IsStuck");
+
+                    b.HasIndex("LastAttemptAt");
+
+                    b.HasIndex("LastFailureAt");
+
+                    b.HasIndex("MovieId");
+
+                    b.HasIndex("SeriesId");
+
+                    b.HasIndex("StuckSince");
+
+                    b.HasIndex("MediaType", "EpisodeId")
+                        .IsUnique();
+
+                    b.HasIndex("MediaType", "MovieId")
+                        .IsUnique();
+
+                    b.HasIndex("MediaType", "SeriesId")
+                        .IsUnique();
+
+                    b.ToTable("MediaHealthSummaries");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Health.SourceHealthSummary", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("AverageScore")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("BestScore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DownloadClient")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FailureCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("FirstSeenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Indexer")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastFailureAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastSeenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastSuccessAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Protocol")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReasonKey")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecoveryCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ReleaseKey")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RemovalCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ReputationScore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ServerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ServiceType")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SuccessCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("WorstScore")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LastFailureAt");
+
+                    b.HasIndex("LastSeenAt");
+
+                    b.HasIndex("LastSuccessAt");
+
+                    b.HasIndex("ReputationScore");
+
+                    b.HasIndex("ServerId", "ServiceType", "Indexer", "DownloadClient", "Protocol", "ReleaseKey", "ReasonKey");
+
+                    b.ToTable("SourceHealthSummaries");
                 });
 
             modelBuilder.Entity("Trackarr.Core.Media.Movies.Movie", b =>
@@ -196,6 +821,10 @@ namespace Trackarr.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CleanTitle");
+
+                    b.HasIndex("Title");
+
                     b.HasIndex("ServerId", "RemoteId")
                         .IsUnique();
 
@@ -208,7 +837,7 @@ namespace Trackarr.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("AbsoluteEpisodeNumber")
+                    b.Property<int?>("AbsoluteEpisodeNumber")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("AirDate")
@@ -216,6 +845,9 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("AirDateUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EndTime")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("EpisodeFileId")
@@ -227,13 +859,17 @@ namespace Trackarr.Data.Migrations
                     b.Property<int>("EpisodeNumber")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("FinaleType")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("GrabDate")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("HasFile")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ImagesJson")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LanguagesJson")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("LastSearchTime")
@@ -245,13 +881,24 @@ namespace Trackarr.Data.Migrations
                     b.Property<string>("Overview")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("RatingsJson")
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("RemoteId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("INTEGER")
+                        .HasJsonPropertyName("id");
 
                     b.Property<int>("RemoteSeriesId")
+                        .HasColumnType("INTEGER")
+                        .HasJsonPropertyName("seriesId");
+
+                    b.Property<int?>("Runtime")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SceneAbsoluteEpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SceneEpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SceneSeasonNumber")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("SeasonNumber")
@@ -259,6 +906,9 @@ namespace Trackarr.Data.Migrations
 
                     b.Property<int?>("SeriesDbId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("SeriesJson")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("ServerId")
                         .HasColumnType("INTEGER");
@@ -275,12 +925,16 @@ namespace Trackarr.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("SeriesDbId");
+
                     b.HasIndex("ServerId", "RemoteId")
                         .IsUnique();
 
                     b.HasIndex("ServerId", "RemoteSeriesId");
 
-                    b.HasIndex("SeriesDbId", "SeasonNumber", "EpisodeNumber");
+                    b.HasIndex("ServerId", "SeriesDbId");
+
+                    b.HasIndex("ServerId", "RemoteSeriesId", "SeasonNumber", "EpisodeNumber");
 
                     b.ToTable("Episodes");
                 });
@@ -430,6 +1084,10 @@ namespace Trackarr.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CleanTitle");
+
+                    b.HasIndex("Title");
+
                     b.HasIndex("ServerId", "RemoteId")
                         .IsUnique();
 
@@ -449,6 +1107,7 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("AttemptKey")
+                        .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("CompletedAtUtc")
@@ -461,18 +1120,21 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("DownloadClient")
+                        .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("DownloadClientHasPostImportCategory")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("DownloadId")
+                        .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("EpisodeId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2000)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("EstimatedCompletionTime")
@@ -485,6 +1147,7 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Indexer")
+                        .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("LanguagesJson")
@@ -509,6 +1172,7 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Protocol")
+                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("QualityJson")
@@ -537,6 +1201,7 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Status")
+                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("StatusMessagesJson")
@@ -546,19 +1211,23 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Title")
+                        .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("TotalStrikeCount")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("TrackedDownloadState")
+                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TrackedDownloadStatus")
+                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TrackingState")
                         .IsRequired()
+                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -567,78 +1236,9 @@ namespace Trackarr.Data.Migrations
 
                     b.HasIndex("ServerId", "AttemptKey");
 
+                    b.HasIndex("ServerId", "DownloadId");
+
                     b.ToTable("DownloadQueue");
-                });
-
-            modelBuilder.Entity("Trackarr.Core.Queue.DownloadStrike", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("CountsAgainstDownload")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("DownloadItemId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Fingerprint")
-                        .HasMaxLength(300)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Message")
-                        .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ObservedDownloadClient")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ObservedDownloadId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ObservedErrorMessage")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ObservedIndexer")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal?>("ObservedProgress")
-                        .HasColumnType("TEXT");
-
-                    b.Property<long?>("ObservedSize")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<long?>("ObservedSizeLeft")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ObservedStatus")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Resolution")
-                        .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("ResolvedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Severity")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DownloadItemId");
-
-                    b.HasIndex("DownloadItemId", "Reason", "Fingerprint", "ResolvedAtUtc");
-
-                    b.ToTable("DownloadStrikes");
                 });
 
             modelBuilder.Entity("Trackarr.Core.Routine.RoutineDefinition", b =>
@@ -704,6 +1304,7 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ErrorMessage")
+                        .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("RoutineDefinitionId")
@@ -731,6 +1332,7 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ApiKey")
+                        .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
@@ -740,10 +1342,12 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("FallbackProfile")
+                        .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Host")
                         .IsRequired()
+                        .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsAuthenticated")
@@ -787,13 +1391,16 @@ namespace Trackarr.Data.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Port")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("ServiceType")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("ServiceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("UseHttps")
                         .HasColumnType("INTEGER");
@@ -941,6 +1548,82 @@ namespace Trackarr.Data.Migrations
                     b.ToTable("ServerMetadata");
                 });
 
+            modelBuilder.Entity("Trackarr.Core.Health.DownloadAttempt", b =>
+                {
+                    b.HasOne("Trackarr.Core.Media.Shows.Episode", null)
+                        .WithMany()
+                        .HasForeignKey("EpisodeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Trackarr.Core.Media.Movies.Movie", null)
+                        .WithMany()
+                        .HasForeignKey("MovieId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Trackarr.Core.Media.Shows.Series", null)
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Trackarr.Core.Server.MediaServer", "Server")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Server");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Health.DownloadHealthEvent", b =>
+                {
+                    b.HasOne("Trackarr.Core.Health.DownloadAttempt", "DownloadAttempt")
+                        .WithMany("HealthEvents")
+                        .HasForeignKey("DownloadAttemptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DownloadAttempt");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Health.HealthSnapshot", b =>
+                {
+                    b.HasOne("Trackarr.Core.Health.DownloadAttempt", "DownloadAttempt")
+                        .WithOne("HealthSnapshot")
+                        .HasForeignKey("Trackarr.Core.Health.HealthSnapshot", "DownloadAttemptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DownloadAttempt");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Health.MediaHealthSummary", b =>
+                {
+                    b.HasOne("Trackarr.Core.Media.Shows.Episode", null)
+                        .WithMany()
+                        .HasForeignKey("EpisodeId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("Trackarr.Core.Media.Movies.Movie", null)
+                        .WithMany()
+                        .HasForeignKey("MovieId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("Trackarr.Core.Media.Shows.Series", null)
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Health.SourceHealthSummary", b =>
+                {
+                    b.HasOne("Trackarr.Core.Server.MediaServer", "Server")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Server");
+                });
+
             modelBuilder.Entity("Trackarr.Core.Media.Movies.Movie", b =>
                 {
                     b.HasOne("Trackarr.Core.Server.MediaServer", "ParentServer")
@@ -981,17 +1664,6 @@ namespace Trackarr.Data.Migrations
                     b.Navigation("ParentServer");
                 });
 
-            modelBuilder.Entity("Trackarr.Core.Queue.DownloadStrike", b =>
-                {
-                    b.HasOne("Trackarr.Core.Queue.DownloadItem", "DownloadItem")
-                        .WithMany("Strikes")
-                        .HasForeignKey("DownloadItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("DownloadItem");
-                });
-
             modelBuilder.Entity("Trackarr.Core.Routine.RoutineRun", b =>
                 {
                     b.HasOne("Trackarr.Core.Routine.RoutineDefinition", "Routine")
@@ -1012,9 +1684,11 @@ namespace Trackarr.Data.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Trackarr.Core.Queue.DownloadItem", b =>
+            modelBuilder.Entity("Trackarr.Core.Health.DownloadAttempt", b =>
                 {
-                    b.Navigation("Strikes");
+                    b.Navigation("HealthEvents");
+
+                    b.Navigation("HealthSnapshot");
                 });
 
             modelBuilder.Entity("Trackarr.Core.Routine.RoutineDefinition", b =>

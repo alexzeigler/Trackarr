@@ -1,7 +1,9 @@
 ﻿@page "/"
 @inject IJSRuntime Js
 @inject MediaServerService MediaServerService
+@inject HealthService HealthService
 @using Trackarr.Components.Modals
+@using Trackarr.Core.Health
 @using Trackarr.Core.Media.Movies
 @using Trackarr.Core.Media.Shows
 @using Trackarr.Core.Queue
@@ -394,7 +396,7 @@
                                     <button class = "table-sort col-sort" data-sort = "sort-progress">Progress</button>
                                 </th>
                                 <th class = "text-end">
-                                    <button class = "table-sort col-sort" data-sort = "sort-activity">Last Activity
+                                    <button class = "table-sort col-sort" data-sort = "sort-activity">Last Progress
                                     </button>
                                 </th>
                                 <th class = "text-end" style = "width: 135px;"></th>
@@ -408,19 +410,26 @@
                                 </tr>
                             }
                             @foreach (DownloadItem item in FilteredDownloads) {
-                                int score = GetScore(item);
+                                string key = $"{item.ServerId}_{item.RemoteId}";
+                                HealthSnapshot? snapshot = _snapshots.GetValueOrDefault(key);
+                                MediaHealthSummary? summary = _summaries.GetValueOrDefault(key);
+
                                 int progress = item.DownloadPercent;
                                 string server = GetServerName(item);
                                 string type = GetMediaType(item);
                                 string status = GetStatusText(item);
                                 string statusBadgeClass = GetStatusBadgeClass(status);
-                                string lastActivity = GetRelativeTime(item.LastSeenAtUtc);
+                                string lastActivity = GetRelativeTime(snapshot?.LastGoodObservationAt);
 
-                                <tr @key = "@($"{item.ServerId}_{item.RemoteId}")">
+                                Movie? movie = item.MovieId > 0 && _movies.TryGetValue(item.MovieId, out Movie? resolvedMovie) ? resolvedMovie : null;
+                                Series? series = item.SeriesId > 0 && _seriesMap.TryGetValue(item.SeriesId, out Series? resolvedSeries) ? resolvedSeries : null;
+                                Episode? episode = null;
+
+                                string? posterUrl = movie != null ? GetPosterUrl(movie.ImagesJson) : series != null ? GetPosterUrl(series.ImagesJson) : null;
+                                string title = movie != null ? $"{movie.Title} ({movie.Year})" : series != null ? $"{series.Title} ({series.Year})" : item.Title ?? "—";
+
+                                <tr @key = "@key">
                                     <td class = "sort-name">
-                                        @{
-                                            string? posterUrl = item.MovieId > 0 ? _movies.TryGetValue(item.MovieId, out Movie? m) ? GetPosterUrl(m.ImagesJson) : null : _seriesMap.TryGetValue(item.SeriesId, out Series? s) ? GetPosterUrl(s.ImagesJson) : null;
-                                        }
                                         <div class = "item-title-cell">
                                             @if (posterUrl != null) {
                                                 <img src = "@posterUrl"
@@ -428,11 +437,9 @@
                                                      alt = "" />
                                             }
                                             <div>
-                                                <div class = "item-title">
-                                                    @(item.MovieId > 0 ? _movies.TryGetValue(item.MovieId, out Movie? movie) ? $"{movie.Title} ({movie.Year})" : item.Title : _seriesMap.TryGetValue(item.SeriesId, out Series? series) ? $"{series.Title} ({series.Year})" : item.Title)
-                                                </div>
+                                                <div class = "item-title">@title</div>
                                                 <div class = "item-meta">
-                                                    <span class = "@GetServerBadgeClass(server) app-badge">@server</span>
+                                                    <span class = "app-badge app-badge-muted">@type</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -446,8 +453,10 @@
                                         <span class = "@statusBadgeClass app-badge">@status</span>
                                     </td>
 
-                                    <td class = "sort-score" data-sort = "@score">
-                                        <span class = "@GetScoreBadgeClass(score) score-badge">@score</span>
+                                    <td class = "sort-score" data-sort = "@snapshot?.VisibleScore">
+
+                                        <span class = "@GetScoreBadgeClass(snapshot?.VisibleScore) score-badge">@snapshot?.VisibleScore</span>
+
                                     </td>
 
                                     <td class = "sort-progress" data-sort = "@progress">
@@ -473,7 +482,8 @@
                                     <td class = "text-end">
                                         <div class = "btn-group">
                                             <button class = "btn btn-app-ghost text-white"
-                                                    @onclick = "() => _detailsModal.Open(item, item.ServerId)">View
+                                                    @onclick = "() => _detailsModal.Open(item, item.ServerId, movie, series, episode)">
+                                                View
                                             </button>
                                             <button data-bs-toggle = "dropdown"
                                                     type = "button"

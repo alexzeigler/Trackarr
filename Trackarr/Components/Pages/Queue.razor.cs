@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Trackarr.Components.Modals;
+using Trackarr.Core.Health;
 using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
@@ -18,11 +19,13 @@ public partial class Queue : ComponentBase {
     private List<DownloadItem> _downloads = [];
 
     private int _pageSize = 10;
-    private string? _priorityFilter;
 
     private int? _serverFilter;
     private List<MediaServer> _servers = [];
+
+    private Dictionary<string, HealthSnapshot> _snapshots = new();
     private string? _statusFilter;
+    private Dictionary<string, MediaHealthSummary> _summaries = new();
     private string? _typeFilter;
 
     private IEnumerable<DownloadItem> FilteredDownloads => _downloads.Where(item => (_serverFilter == null || item.ServerId == _serverFilter) && (_typeFilter == null || GetMediaType(item) == _typeFilter) && (_statusFilter == null || GetStatusText(item) == _statusFilter));
@@ -30,10 +33,10 @@ public partial class Queue : ComponentBase {
     private int StuckCount => _downloads.Count(download => IsStatus(download.Status, "stuck", "failed", "warning"));
 
     private int WaitingCount => _downloads.Count(download => IsStatus(download.Status,
-    "waiting",
-    "queued",
-    "pending",
-    "delay"));
+        "waiting",
+        "queued",
+        "pending",
+        "delay"));
 
     private int TotalQueueCount => _downloads.Count;
 
@@ -43,11 +46,6 @@ public partial class Queue : ComponentBase {
         await _refreshCancellation.CancelAsync();
         _refreshCancellation.Dispose();
     }
-
-    private void SetServerFilter(int? id) => _serverFilter = id;
-    private void SetTypeFilter(string? type) => _typeFilter = type;
-    private void SetStatusFilter(string? status) => _statusFilter = status;
-    private void SetPriorityFilter(string? priority) => _priorityFilter = priority;
 
     private static bool IsStatus(string? status, params string[] statuses) {
         if (string.IsNullOrWhiteSpace(status)) {
@@ -62,6 +60,7 @@ public partial class Queue : ComponentBase {
         _servers = await MediaServerService.GetAllServersAsync();
         // LoadRandomData();
         await RefreshQueue();
+        await LoadHealthAsync();
         _ = RefreshLoopAsync();
     }
 
@@ -78,7 +77,7 @@ public partial class Queue : ComponentBase {
             foreach (KeyValuePair<int, Movie> kvp in movieLookup) _movies[kvp.Key] = kvp.Value;
             foreach (KeyValuePair<int, Series> kvp in seriesLookup) _seriesMap[kvp.Key] = kvp.Value;
         }
-        _downloads = _downloads.DistinctBy(d => $"{d.ServerId}_{d.RemoteId}").ToList();
+        _downloads = _downloads.DistinctBy(d => $"{d.ServerId}_{d.DownloadId}").ToList();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
@@ -87,20 +86,20 @@ public partial class Queue : ComponentBase {
         }
 
         await Js.InvokeVoidAsync("trackarrTable.init",
-        "advanced-table",
-        "advanced-table-search",
-        "page-count",
-        _pageSize,
-        new[] {
-            "sort-name",
-            "sort-server",
-            "sort-type",
-            "sort-status",
-            "sort-score",
-            "sort-progress",
-            "sort-activity",
-            "sort-added"
-        });
+            "advanced-table",
+            "advanced-table-search",
+            "page-count",
+            _pageSize,
+            new[] {
+                "sort-name",
+                "sort-server",
+                "sort-type",
+                "sort-status",
+                "sort-score",
+                "sort-progress",
+                "sort-activity",
+                "sort-added"
+            });
     }
     private static string? GetPosterUrl(string? imagesJson) {
         if (string.IsNullOrWhiteSpace(imagesJson)) return null;
@@ -119,82 +118,6 @@ public partial class Queue : ComponentBase {
             await RefreshQueue();
             await InvokeAsync(StateHasChanged);
         }
-    }
-
-    private void LoadRandomData() {
-        DateTime now = DateTime.UtcNow;
-
-        string[] titles = [
-            "The Batman (2022)",
-            "Breaking Bad",
-            "Dune: Part Two (2024)",
-            "The Last of Us",
-            "Interstellar (2014)",
-            "Severance",
-            "Silo",
-            "Alien: Romulus (2024)",
-            "Better Call Saul",
-            "The Penguin",
-            "Fallout",
-            "The Matrix (1999)",
-            "House of the Dragon",
-            "Oppenheimer (2023)",
-            "True Detective"
-        ];
-
-        string[] statuses = [
-            "Downloading",
-            "Queued",
-            "Waiting",
-            "Importing",
-            "Completed",
-            "Warning",
-            "Error",
-            "Stuck",
-            "Ignored",
-            "Unknown"
-        ];
-
-        _downloads = Enumerable
-            .Range(1, 45)
-            .Select(index => {
-                bool isMovie = index % 3 != 0;
-                long size = Random.Shared.NextInt64(2_500_000_000, 80_000_000_000);
-                int percent = Random.Shared.Next(1, 100);
-                long sizeLeft = size - (long)(size * (percent / 100d));
-                DateTime added = now.AddDays(-Random.Shared.Next(0, 30)).AddMinutes(-Random.Shared.Next(0, 1440));
-                DateTime lastSeen = now.AddSeconds(-Random.Shared.Next(5, 7200));
-                string status = statuses[Random.Shared.Next(statuses.Length)];
-
-                return new DownloadItem {
-                    RemoteId = index,
-                    Title = titles[Random.Shared.Next(titles.Length)],
-                    Size = size,
-                    SizeLeft = sizeLeft,
-                    Status = status,
-                    TrackedDownloadStatus = status,
-                    TrackedDownloadState = status,
-                    DownloadId = $"test-download-{index}",
-                    DownloadClient = Random.Shared.Next(0, 2) == 0 ? "qBittorrent" : "SABnzbd",
-                    Indexer = Random.Shared.Next(0, 2) == 0 ? "Prowlarr" : "NZBGeek",
-                    Added = added,
-                    LastSeenAtUtc = lastSeen,
-                    LastProgressAtUtc = lastSeen.AddMinutes(-Random.Shared.Next(0, 60)),
-                    ServerId = isMovie ? 1 : 2,
-                    MovieId = isMovie ? Random.Shared.Next(1, 5000) : 0,
-                    SeriesId = isMovie ? 0 : Random.Shared.Next(1, 5000),
-                    EpisodeId = isMovie ? 0 : Random.Shared.Next(1, 5000),
-                    CustomFormatScore = Random.Shared.Next(0, 101),
-                    QueueStatus = QueueStatus.Pending
-                };
-            })
-            .ToList();
-    }
-
-    private ValueTask SetPageSizeAsync(int pageSize) {
-        _pageSize = pageSize;
-
-        return Js.InvokeVoidAsync("trackarrTable.setPageSize", "advanced-table", "page-count", pageSize);
     }
 
     private static int GetScore(DownloadItem item) => item.CustomFormatScore;
@@ -232,27 +155,28 @@ public partial class Queue : ComponentBase {
 
     private static string NormalizeStatus(string? status) => string.IsNullOrWhiteSpace(status) ? string.Empty : status.Trim().Replace("-", "").Replace("_", "").Replace(" ", "").ToLowerInvariant();
 
-    private static int ClampScore(int score) => Math.Clamp(score, 0, 100);
-
-    private static string GetScoreBadgeClass(int score) {
+    private static string GetScoreBadgeClass(int? score) {
         if (score < 0) {
             return "triage-score-badge triage-score-removed";
         }
 
-        score = Math.Clamp(score, 0, 100);
+        if (score != null) {
+            score = Math.Clamp((int)score, 0, 100);
 
-        return score switch {
-            <= 9 => "triage-score-badge triage-score-red",
-            <= 19 => "triage-score-badge triage-score-red",
-            <= 29 => "triage-score-badge triage-score-red",
-            <= 39 => "triage-score-badge triage-score-red",
-            <= 49 => "triage-score-badge triage-score-orange",
-            <= 59 => "triage-score-badge triage-score-orange",
-            <= 69 => "triage-score-badge triage-score-orange",
-            <= 79 => "triage-score-badge triage-score-yellow",
-            <= 89 => "triage-score-badge triage-score-yellow",
-            _ => "triage-score-badge triage-score-green"
-        };
+            return score switch {
+                <= 9 => "score-badge-red",
+                <= 19 => "score-badge-red",
+                <= 29 => "score-badge-red",
+                <= 39 => "score-badge-red",
+                <= 49 => "score-badge-orange",
+                <= 59 => "score-badge-orange",
+                <= 69 => "score-badge-orange",
+                <= 79 => "score-badge-yellow ",
+                <= 89 => "score-badge-yellow",
+                _ => "score-badge-green"
+            };
+        }
+        return "score-badge-muted";
     }
 
     private static string GetRelativeTime(DateTime? value) {
@@ -275,4 +199,46 @@ public partial class Queue : ComponentBase {
     }
 
     private static long GetSortTicks(DateTime? value) => value?.ToUniversalTime().Ticks ?? 0;
+
+    private async Task LoadHealthAsync() {
+        Dictionary<string, HealthSnapshot> snapshots = new();
+        Dictionary<string, MediaHealthSummary> summaries = new();
+
+        foreach (DownloadItem item in FilteredDownloads) {
+            string key = $"{item.ServerId}_{item.RemoteId}";
+
+            HealthSnapshot? snapshot = await HealthService.GetMostRecentSnapshotAsync(item);
+            if (snapshot != null) {
+                snapshots[key] = snapshot;
+            }
+
+            MediaHealthSummary? summary = await HealthService.GetMediaSummary(item);
+            if (summary != null) {
+                summaries[key] = summary;
+            }
+        }
+
+        _snapshots = snapshots;
+        _summaries = summaries;
+    }
+
+    private static string HealthStateLabel(HealthState state) => state switch {
+        HealthState.Healthy => "Healthy",
+        HealthState.Stable => "Stable",
+        HealthState.Watching => "Watching",
+        HealthState.Degrading => "Degrading",
+        HealthState.Critical => "Critical",
+        HealthState.Remove => "Remove",
+        HealthState.Resolved => "Resolved",
+        HealthState.Failed => "Failed",
+        HealthState.New => "New",
+        _ => "Unknown"
+    };
+
+    private static string HealthStateClass(HealthState state) => state switch {
+        HealthState.Healthy or HealthState.Stable or HealthState.Resolved => "status-badge-success",
+        HealthState.Watching or HealthState.Degrading or HealthState.New => "status-badge-warning",
+        HealthState.Critical or HealthState.Remove or HealthState.Failed => "status-badge-failed",
+        _ => "status-badge-muted"
+    };
 }
