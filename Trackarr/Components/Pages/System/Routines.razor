@@ -1,0 +1,221 @@
+﻿@page "/system/routines"
+@using Trackarr.Core.Routine
+
+<PageTitle>Routines</PageTitle>
+
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <div class="page-pretitle">Trackarr</div>
+                <h2 class="page-title">Routines</h2>
+            </div>
+            <div class="col-auto ms-auto d-print-none">
+                <button type="button" class="btn btn-primary" @onclick="Refresh">
+                    <i class="ti ti-refresh me-2"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row row-cards mb-3">
+            <div class="col-sm-6 col-lg-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader">Enabled</div>
+                        <div class="h1 mb-0">@EnabledCount</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-6 col-lg-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader">Running</div>
+                        <div class="h1 mb-0">@RunningCount</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-6 col-lg-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader">Paused</div>
+                        <div class="h1 mb-0">@PausedCount</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-6 col-lg-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader">Failed</div>
+                        <div class="h1 mb-0">@FailedCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card app-card">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">Routine Status</h3>
+                    <div class="text-muted small">Background jobs and scheduled Trackarr tasks</div>
+                </div>
+
+                <div class="ms-auto d-flex flex-wrap gap-2">
+                    <div class="input-icon">
+                        <span class="input-icon-addon">
+                            <i class="ti ti-search"></i>
+                        </span>
+                        <input class="form-control"
+                               style="width: 260px"
+                               placeholder="Search routines"
+                               @bind="_search"
+                               @bind:event="oninput"/>
+                    </div>
+
+                    <select class="form-select w-auto" @bind="_statusFilter">
+                        <option value="">All statuses</option>
+                        <option value="Running">Running</option>
+                        <option value="Enabled">Enabled</option>
+                        <option value="Paused">Paused</option>
+                        <option value="Disabled">Disabled</option>
+                        <option value="Failed">Failed</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card-table">
+                <div class="table-responsive">
+                    <table class="table table-vcenter table-nowrap card-table">
+                        <thead>
+                        <tr>
+                            <th>Routine</th>
+                            <th>Status</th>
+                            <th>Interval</th>
+                            <th>Last Run</th>
+                            <th>Next Run</th>
+                            <th>Last Result</th>
+                            <th class="w-1"></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @if (IsLoading)
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <div class="spinner-border spinner-border-sm me-2"></div>
+                                    Loading routines
+                                </td>
+                            </tr>
+                        }
+                        else if (!FilteredRoutines.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">No routines found</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var routine in FilteredRoutines)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">@routine.Name</div>
+                                        <div class="text-muted small">@routine.Description</div>
+                                        <div class="text-muted small font-monospace">@routine.Key</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge @StatusBadge(routine)">
+                                            @StatusText(routine)
+                                        </span>
+                                    </td>
+                                    <td>@IntervalText(routine.IntervalSeconds)</td>
+                                    <td>@DateText(routine.LastRun)</td>
+                                    <td>@DateText(routine.NextRun)</td>
+                                    <td>
+                                        <span class="@ResultClass(routine)">
+                                            @ResultText(routine)
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-list flex-nowrap">
+                                            <button type="button"
+                                                    class="btn btn-sm @(routine.IsPaused ? "btn-outline-success" : "btn-outline-warning")"
+                                                    @onclick="() => TogglePaused(routine)">
+                                                @(routine.IsPaused ? "Resume" : "Pause")
+                                            </button>
+
+                                            <button type="button"
+                                                    class="btn btn-sm @(routine.Enabled ? "btn-outline-danger" : "btn-outline-primary")"
+                                                    @onclick="() => ToggleEnabled(routine)">
+                                                @(routine.Enabled ? "Disable" : "Enable")
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card app-card mt-3">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">Recent Runs</h3>
+                    <div class="text-muted small">Latest routine activity</div>
+                </div>
+            </div>
+
+            <div class="card-table">
+                <div class="table-responsive">
+                    <table class="table table-vcenter table-nowrap card-table">
+                        <thead>
+                        <tr>
+                            <th>Routine</th>
+                            <th>Started</th>
+                            <th>Completed</th>
+                            <th>Status</th>
+                            <th>Message</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @if (!RecentRuns.Any())
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">No routine runs found</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var run in RecentRuns)
+                            {
+                                <tr>
+                                    <td class="font-monospace">@run.Routine?.Key</td>
+                                    <td>@DateText(run.StartTime)</td>
+                                    <td>@DateText(run.EndTime)</td>
+                                    <td>
+                                        <span class="badge @(run.State == RoutineState.Success ? "bg-success-lt" : "bg-danger-lt")">
+                                            @(run.State == RoutineState.Success ? "Success" : "Failed")
+                                        </span>
+                                    </td>
+                                    <td class="text-muted text-truncate" style="max-width: 520px">
+                                        @DisplayText(run.ErrorMessage)
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

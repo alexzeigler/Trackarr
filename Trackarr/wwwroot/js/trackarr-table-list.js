@@ -4,33 +4,29 @@
     init(tableId, searchInputId, pageCountId, pageSize, valueNames) {
         const root = document.getElementById(tableId);
         const searchInput = document.getElementById(searchInputId);
-        const pageCount = document.getElementById(pageCountId);
-        const normalizedValueNames = valueNames.map(value => {
-            if (value === "sort-score" ||
-                value === "sort-progress" ||
-                value === "sort-activity" ||
-                value === "sort-added") {
-                return {
-                    name: value,
-                    attr: "data-sort"
-                };
-            }
-
-            return value;
-        });
+        const size = Number(pageSize) || 10;
 
         if (!root || !window.List) {
             return;
         }
 
-        const pagination = root.querySelector(".pagination");
-        const size = Number(pageSize) || 10;
+        const discoveredValueNames = this.discoverValueNames(root, valueNames);
+        const signature = JSON.stringify(discoveredValueNames);
+
+        if (this.instances[tableId] && (this.instances[tableId].root !== root || this.instances[tableId].signature !== signature)) {
+            delete this.instances[tableId];
+        }
 
         if (this.instances[tableId]) {
             const existing = this.instances[tableId];
+
+            this.bindSearch(searchInput, existing);
+            this.bindSort(root, existing);
+
             existing.list.reIndex();
             existing.currentPage = 1;
-            existing.showPage(1);
+            existing.applyFilters();
+
             return;
         }
 
@@ -38,13 +34,20 @@
             sortClass: "table-sort",
             listClass: "table-tbody",
             page: size,
-            valueNames: normalizedValueNames
+            valueNames: discoveredValueNames
         });
 
         const state = {
+            root,
+            signature,
             list,
+            size,
+            tableId,
+            searchInputId,
+            pageCountId,
             currentPage: 1,
             showPage: null,
+            applyFilters: null,
             activeFilters: {}
         };
 
@@ -52,6 +55,10 @@
 
         const prevIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-1" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6l6 6"></path></svg>`;
         const nextIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-1" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6l-6 6"></path></svg>`;
+
+        const getRoot = () => document.getElementById(tableId);
+        const getPagination = () => getRoot()?.querySelector(".pagination");
+        const getPageCount = () => document.getElementById(pageCountId);
 
         const getItemCount = () => {
             if (Array.isArray(list.matchingItems)) {
@@ -72,6 +79,8 @@
         };
 
         const renderPagination = () => {
+            const pagination = getPagination();
+            const pageCount = getPageCount();
             const totalItems = getItemCount();
             const totalPages = getTotalPages();
 
@@ -112,15 +121,20 @@
 
         state.applyFilters = () => {
             const filters = state.activeFilters;
-            const hasFilters = Object.values(filters).some(v => v !== null && v !== undefined);
+            const hasFilters = Object.values(filters).some(value => value !== null && value !== undefined && value !== "");
 
             if (!hasFilters) {
                 list.filter();
             } else {
                 list.filter(item => {
+                    const values = item.values();
+
                     return Object.entries(filters).every(([key, value]) => {
-                        if (value === null || value === undefined) return true;
-                        return item.values()[key] === value;
+                        if (value === null || value === undefined || value === "") {
+                            return true;
+                        }
+
+                        return values[key] === value;
                     });
                 });
             }
@@ -129,23 +143,8 @@
             state.showPage(1);
         };
 
-        if (searchInput) {
-            searchInput.oninput = () => {
-                state.currentPage = 1;
-                list.search(searchInput.value);
-                state.showPage(1);
-            };
-        }
-
-        root.querySelectorAll(".table-sort").forEach(element => {
-            element.addEventListener("click", () => {
-                state.currentPage = 1;
-
-                window.requestAnimationFrame(() => {
-                    state.showPage(1);
-                });
-            }, true);
-        });
+        this.bindSearch(searchInput, state);
+        this.bindSort(root, state);
 
         list.on("sortStart", () => {
             state.currentPage = 1;
@@ -168,17 +167,134 @@
         state.showPage(1);
     },
 
+    discoverValueNames(root, valueNames) {
+        const map = new Map();
+
+        (valueNames || []).forEach(value => {
+            if (typeof value === "string") {
+                map.set(value, value);
+            } else if (value?.name) {
+                map.set(value.name, value);
+            }
+        });
+
+        root.querySelectorAll(".table-sort[data-sort]").forEach(element => {
+            const name = element.dataset.sort;
+
+            if (name) {
+                map.set(name, name);
+            }
+        });
+
+        root.querySelectorAll(".table-tbody [class]").forEach(element => {
+            Array.from(element.classList)
+                .filter(className => className.startsWith("sort-") || className.startsWith("filter-"))
+                .forEach(className => {
+                    if (!map.has(className)) {
+                        map.set(className, className);
+                    }
+                });
+        });
+
+        return Array.from(map.values()).map(value => this.normalizeValueName(root, value));
+    },
+
+    normalizeValueName(root, value) {
+        if (typeof value !== "string") {
+            return value;
+        }
+
+        const header = root.querySelector(`.table-sort[data-sort="${this.escapeAttribute(value)}"]`);
+
+        if (header?.dataset.sortAttr) {
+            return {
+                name: value,
+                attr: header.dataset.sortAttr
+            };
+        }
+
+        if (root.querySelector(`.${this.escapeClass(value)}[data-sort]`)) {
+            return {
+                name: value,
+                attr: "data-sort"
+            };
+        }
+
+        return value;
+    },
+
+    bindSearch(searchInput, state) {
+        if (!searchInput) {
+            return;
+        }
+
+        searchInput.oninput = () => {
+            state.currentPage = 1;
+            state.list.search(searchInput.value);
+            state.showPage(1);
+        };
+    },
+
+    bindSort(root, state) {
+        root.querySelectorAll(".table-sort").forEach(element => {
+            if (element.dataset.trackarrSortBound === state.tableId) {
+                return;
+            }
+
+            element.dataset.trackarrSortBound = state.tableId;
+
+            element.addEventListener("click", () => {
+                state.currentPage = 1;
+
+                window.requestAnimationFrame(() => {
+                    state.showPage(1);
+                });
+            }, true);
+        });
+    },
+
     filter(tableId, key, value) {
         const state = this.instances[tableId];
-        if (!state) return;
+
+        if (!state) {
+            return;
+        }
+
         state.activeFilters[key] = value || null;
         state.applyFilters();
     },
 
     clearFilters(tableId) {
         const state = this.instances[tableId];
-        if (!state) return;
+
+        if (!state) {
+            return;
+        }
+
         state.activeFilters = {};
         state.applyFilters();
+    },
+
+    reindex(tableId) {
+        const state = this.instances[tableId];
+
+        if (!state) {
+            return;
+        }
+
+        state.list.reIndex();
+        state.applyFilters();
+    },
+
+    escapeClass(value) {
+        if (window.CSS?.escape) {
+            return window.CSS.escape(value);
+        }
+
+        return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+    },
+
+    escapeAttribute(value) {
+        return String(value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
     }
 };

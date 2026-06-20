@@ -2,7 +2,8 @@
 
 namespace Trackarr.Core.Queue;
 
-public enum QueueState {
+public enum QueueState
+{
     [EnumMember(Value = "downloading")] Downloading,
 
     [EnumMember(Value = "importing")] Importing,

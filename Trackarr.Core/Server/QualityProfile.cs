@@ -1,6 +1,13 @@
-﻿namespace Trackarr.Core.Server;
+﻿using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
-public class QualityProfile {
-    public int Id { get; set; }
+namespace Trackarr.Core.Server;
+
+public class QualityProfile
+{
+    [JsonIgnore] public int Id { get; set; }
+    [JsonPropertyName("id")] public int RemoteId { get; set; }
     public string? Name { get; set; }
+    public int ServerId { get; set; }
+    [ForeignKey(nameof(ServerId))] public MediaServer? ParentServer { get; set; }
 }

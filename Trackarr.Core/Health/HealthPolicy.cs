@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Health;
 
-public class HealthPolicy {
+public class HealthPolicy
+{
     public int StartingScore { get; set; } = 70;
     public int MaximumScore { get; set; } = 100;
     public int MinimumVisibleScore { get; set; } = 0;
@@ -41,4 +42,7 @@ public class HealthPolicy {
     public int RepeatedErrorPenalty { get; set; } = -10;
     public int PreviousMediaFailurePenalty { get; set; } = -15;
     public int QualityDowngradedStillFailingPenalty { get; set; } = -25;
+    public int ByteProgressProtectionMinutes { get; set; } = 10;
+    public decimal FetchingMetadataPenalty { get; set; } = -20m;
+    public int GoodObservationBadScanDecay { get; set; } = 2;
 }

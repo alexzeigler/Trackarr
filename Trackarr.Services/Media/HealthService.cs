@@ -6,16 +6,18 @@ using Trackarr.Data;
 
 namespace Trackarr.Services.Media;
 
-public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthService {
-
-    private static readonly HealthEventType[] TerminalEventTypes = {
+public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthService
+{
+    private static readonly HealthEventType[] TerminalEventTypes =
+    [
         HealthEventType.QueueMissing,
         HealthEventType.RemovedByTrackarr,
         HealthEventType.ImportedSuccessfully,
         HealthEventType.FailedExternally
-    };
+    ];
 
-    private static readonly HealthEventType[] EventTypePriority = {
+    private static readonly HealthEventType[] EventTypePriority =
+    [
         HealthEventType.StalledNoConnections,
         HealthEventType.Stalled,
         HealthEventType.ErrorRepeated,
@@ -29,28 +31,32 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         HealthEventType.SizeLeftDecreased,
         HealthEventType.ErrorCleared,
         HealthEventType.RecoveryCreditApplied,
-        HealthEventType.FirstSeen
-    };
+        HealthEventType.FirstSeen,
+        HealthEventType.NoProgress,
+        HealthEventType.FetchingMetadata
+    ];
 
     private readonly HealthPolicy _policy = new();
 
-    public async Task<HealthDecision> EvaluateAsync(DownloadItem item, CancellationToken cancellationToken = default) {
-        await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
+    public async Task<HealthDecision> EvaluateAsync(DownloadItem item, CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
-        DateTime now = DateTime.UtcNow;
+        var now = DateTime.UtcNow;
 
-        MediaServer? server = await db.MediaServers.AsNoTracking().FirstOrDefaultAsync(e => e.Id == item.ServerId, cancellationToken);
+        var server = await db.MediaServers.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == item.ServerId, cancellationToken);
 
-        DownloadAttempt attempt = await GetOrCreateAttemptAsync(db,
+        var attempt = await GetOrCreateAttemptAsync(db,
             item,
             server,
             now,
             cancellationToken);
-        HealthSnapshot snapshot = await GetOrCreateSnapshotAsync(db, attempt, now, cancellationToken);
-        MediaHealthSummary? mediaSummary = await GetMediaSummaryAsync(db, attempt, cancellationToken);
+        var snapshot = await GetOrCreateSnapshotAsync(db, attempt, now, cancellationToken);
+        var mediaSummary = await GetMediaSummaryAsync(db, attempt, cancellationToken);
 
-        HealthObservation observation = BuildObservation(item, attempt, snapshot, now);
-        HealthEvaluation evaluation = await EvaluateObservationAsync(db,
+        var observation = BuildObservation(item, attempt, snapshot, now);
+        var evaluation = await EvaluateObservationAsync(db,
             attempt,
             snapshot,
             mediaSummary,
@@ -69,7 +75,7 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         attempt.Protocol = item.Protocol;
         attempt.RemoteId = item.RemoteId;
 
-        DownloadHealthEvent healthEvent = CreateHealthEvent(attempt,
+        var healthEvent = CreateHealthEvent(attempt,
             snapshot,
             before,
             evaluation,
@@ -78,11 +84,12 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
 
         db.HealthEvents.Add(healthEvent);
 
-        HealthDecision decision = BuildDecision(attempt, snapshot, evaluation, now);
+        var decision = BuildDecision(attempt, snapshot, evaluation, now);
 
         snapshot.IsEligibleForRemoval = decision.ShouldRemove;
         snapshot.IsRemovalRestricted = decision.Restrictions.Count > 0;
-        snapshot.RemovalRestrictionReason = decision.Restrictions.Count == 0 ? null : string.Join("; ", decision.Restrictions);
+        snapshot.RemovalRestrictionReason =
+            decision.Restrictions.Count == 0 ? null : string.Join("; ", decision.Restrictions);
 
         await UpdateMediaSummaryAsync(db,
             attempt,
@@ -103,37 +110,52 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         return decision;
     }
 
-    public async Task<DownloadAttempt?> GetAttemptAsync(int attemptId, CancellationToken cancellationToken = default) {
-        await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
+    public async Task<DownloadAttempt?> GetAttemptAsync(int attemptId, CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
-        return await db.DownloadAttempts.AsNoTracking().Include(e => e.HealthSnapshot).FirstOrDefaultAsync(e => e.Id == attemptId, cancellationToken);
+        return await db.DownloadAttempts.AsNoTracking().Include(e => e.HealthSnapshot)
+            .FirstOrDefaultAsync(e => e.Id == attemptId, cancellationToken);
     }
 
-    public async Task<HealthSnapshot?> GetSnapshotAsync(int attemptId, CancellationToken cancellationToken = default) {
-        await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
+    public async Task<HealthSnapshot?> GetSnapshotAsync(int attemptId, CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
-        return await db.HealthSnapshots.AsNoTracking().FirstOrDefaultAsync(e => e.DownloadAttemptId == attemptId, cancellationToken);
+        return await db.HealthSnapshots.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.DownloadAttemptId == attemptId, cancellationToken);
     }
 
-    public async Task<List<DownloadHealthEvent>> GetEventsAsync(int attemptId, int take = 100, CancellationToken cancellationToken = default) {
-        await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
+    public async Task<List<DownloadHealthEvent>> GetEventsAsync(int attemptId, int take = 100,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
-        return await db.HealthEvents.AsNoTracking().Where(e => e.DownloadAttemptId == attemptId).OrderByDescending(e => e.OccurredAt).Take(take).ToListAsync(cancellationToken);
+        return await db.HealthEvents.AsNoTracking().Where(e => e.DownloadAttemptId == attemptId)
+            .OrderByDescending(e => e.OccurredAt).Take(take).ToListAsync(cancellationToken);
     }
 
-    public async Task<List<DownloadAttempt>> GetHistoryAsync(int take = 100, CancellationToken cancellationToken = default) {
-        await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
+    public async Task<List<DownloadAttempt>> GetHistoryAsync(int take = 100,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
-        return await db.DownloadAttempts.AsNoTracking().Include(e => e.HealthSnapshot).OrderByDescending(e => e.LastSeenAt).Take(take).ToListAsync(cancellationToken);
+        return await db.DownloadAttempts.AsNoTracking().Include(e => e.HealthSnapshot)
+            .OrderByDescending(e => e.LastSeenAt).Take(take).ToListAsync(cancellationToken);
     }
 
-    public async Task<List<DownloadAttempt>> GetActiveAttemptsAsync(CancellationToken cancellationToken = default) {
-        await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
+    public async Task<List<DownloadAttempt>> GetActiveAttemptsAsync(CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
-        return await db.DownloadAttempts.AsNoTracking().Include(e => e.HealthSnapshot).Where(e => e.Status == AttemptStatus.Active).OrderByDescending(e => e.LastSeenAt).ToListAsync(cancellationToken);
+        return await db.DownloadAttempts.AsNoTracking().Include(e => e.HealthSnapshot)
+            .Where(e => e.Status == AttemptStatus.Active).OrderByDescending(e => e.LastSeenAt)
+            .ToListAsync(cancellationToken);
     }
 
-    public async Task MarkImportedAsync(int attemptId, string? message = null, CancellationToken cancellationToken = default) {
+    public async Task MarkImportedAsync(int attemptId, string? message = null,
+        CancellationToken cancellationToken = default)
+    {
         await MarkTerminalAsync(attemptId,
             AttemptStatus.Imported,
             HealthEventType.ImportedSuccessfully,
@@ -144,7 +166,9 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
             cancellationToken);
     }
 
-    public async Task MarkRemovedByTrackarrAsync(int attemptId, string? message = null, CancellationToken cancellationToken = default) {
+    public async Task MarkRemovedByTrackarrAsync(int attemptId, string? message = null,
+        CancellationToken cancellationToken = default)
+    {
         await MarkTerminalAsync(attemptId,
             AttemptStatus.RemovedByTrackarr,
             HealthEventType.RemovedByTrackarr,
@@ -155,7 +179,9 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
             cancellationToken);
     }
 
-    public async Task MarkFailedAsync(int attemptId, string reasonKey, string message, CancellationToken cancellationToken = default) {
+    public async Task MarkFailedAsync(int attemptId, string reasonKey, string message,
+        CancellationToken cancellationToken = default)
+    {
         await MarkTerminalAsync(attemptId,
             AttemptStatus.Failed,
             HealthEventType.FailedExternally,
@@ -166,16 +192,23 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
             cancellationToken);
     }
 
-    public async Task<List<DownloadAttempt>> ResolveMissingAttemptsAsync(int serverId, IEnumerable<string> activeDownloadIds, CancellationToken cancellationToken = default) {
-        await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
+    public async Task<List<DownloadAttempt>> ResolveMissingAttemptsAsync(int serverId,
+        IEnumerable<string> activeDownloadIds, CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
-        DateTime now = DateTime.UtcNow;
-        HashSet<string> active = activeDownloadIds.Where(e => !string.IsNullOrWhiteSpace(e)).Select(e => e.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var now = DateTime.UtcNow;
+        var active = activeDownloadIds.Where(e => !string.IsNullOrWhiteSpace(e)).Select(e => e.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        List<DownloadAttempt> missing = await db.DownloadAttempts.Include(e => e.HealthSnapshot).Where(e => e.ServerId == serverId).Where(e => e.Status == AttemptStatus.Active).Where(e => !active.Contains(e.DownloadId)).ToListAsync(cancellationToken);
+        var missing = await db.DownloadAttempts.Include(e => e.HealthSnapshot)
+            .Where(e => e.ServerId == serverId).Where(e => e.Status == AttemptStatus.Active)
+            .Where(e => !active.Contains(e.DownloadId)).ToListAsync(cancellationToken);
 
-        foreach (DownloadAttempt attempt in missing) {
-            HealthSnapshot snapshot = attempt.HealthSnapshot ?? await GetOrCreateSnapshotAsync(db, attempt, now, cancellationToken);
+        foreach (var attempt in missing)
+        {
+            var snapshot = attempt.HealthSnapshot ??
+                           await GetOrCreateSnapshotAsync(db, attempt, now, cancellationToken);
 
             attempt.Status = AttemptStatus.Disappeared;
             attempt.FailedAt = now;
@@ -187,7 +220,8 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
             snapshot.LastReasonMessage = attempt.FinalMessage;
             snapshot.UpdatedAt = now;
 
-            db.HealthEvents.Add(new DownloadHealthEvent {
+            db.HealthEvents.Add(new DownloadHealthEvent
+            {
                 DownloadAttempt = attempt,
                 OccurredAt = now,
                 EventType = HealthEventType.QueueMissing,
@@ -220,87 +254,163 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         return missing;
     }
 
-    private static decimal StreakMultiplier(int streak, decimal escalation, decimal cap) {
-        if (streak <= 1) {
-            return 1m;
-        }
+    private static decimal StreakMultiplier(int streak, decimal escalation, decimal cap)
+    {
+        if (streak <= 1) return 1m;
 
         return Math.Min(cap, 1m + (streak - 1) * escalation);
     }
 
-    public async Task<List<DownloadHealthEvent>> GetEventsForItemAsync(DownloadItem item, int take = 100, CancellationToken cancellationToken = default) {
-        await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
+    public async Task<List<DownloadHealthEvent>> GetEventsForItemAsync(DownloadItem item, int take = 100,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
-        string downloadId = GetDownloadId(item);
+        var downloadId = GetDownloadId(item);
 
-        int? attemptId = await db.DownloadAttempts.AsNoTracking().Where(e => e.ServerId == item.ServerId && e.DownloadId == downloadId && e.Status == AttemptStatus.Active).Select(e => (int?)e.Id).FirstOrDefaultAsync(cancellationToken);
+        var attemptId = await db.DownloadAttempts.AsNoTracking()
+            .Where(e => e.ServerId == item.ServerId && e.DownloadId == downloadId && e.Status == AttemptStatus.Active)
+            .Select(e => (int?)e.Id).FirstOrDefaultAsync(cancellationToken);
 
-        if (attemptId is null) {
-            return [];
+        if (attemptId is null) return [];
+
+        return await db.HealthEvents.AsNoTracking().Where(e => e.DownloadAttemptId == attemptId)
+            .OrderByDescending(e => e.OccurredAt).Take(take).ToListAsync(cancellationToken);
+    }
+
+    public async Task<HealthSnapshot?> GetMostRecentSnapshotAsync(DownloadItem item,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+
+        var downloadId = GetDownloadId(item);
+
+        return await db.DownloadAttempts.AsNoTracking()
+            .Where(e => e.ServerId == item.ServerId && e.DownloadId == downloadId).OrderByDescending(e => e.LastSeenAt)
+            .Select(e => e.HealthSnapshot).FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<DownloadHealthEvent?> GetMostRecentHealthEventAsync(DownloadItem item,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+
+        var downloadId = GetDownloadId(item);
+
+        var attemptId = await db.DownloadAttempts.AsNoTracking()
+            .Where(e => e.ServerId == item.ServerId && e.DownloadId == downloadId && e.Status == AttemptStatus.Active)
+            .Select(e => (int?)e.Id).FirstOrDefaultAsync(cancellationToken);
+
+        if (attemptId is null) return null;
+
+        return await db.HealthEvents.AsNoTracking().Where(e => e.DownloadAttemptId == attemptId)
+            .OrderByDescending(e => e.OccurredAt).FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<MediaHealthSummary?> GetMediaSummary(DownloadItem item,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+
+        var remoteMovieId = item.MovieId;
+        if (remoteMovieId > 0)
+        {
+            var movieId = await db.Movies.AsNoTracking()
+                .Where(e => e.ServerId == item.ServerId && e.RemoteId == remoteMovieId).Select(e => e.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (movieId <= 0) return null;
+
+            return await db.MediaHealthSummaries.AsNoTracking().Where(e => e.MovieId == movieId)
+                .OrderByDescending(e => e.CreatedAt).FirstOrDefaultAsync(cancellationToken);
         }
 
-        return await db.HealthEvents.AsNoTracking().Where(e => e.DownloadAttemptId == attemptId).OrderByDescending(e => e.OccurredAt).Take(take).ToListAsync(cancellationToken);
-    }
-    public async Task<HealthSnapshot?> GetMostRecentSnapshotAsync(DownloadItem item, CancellationToken cancellationToken = default) {
-        await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var remoteSeriesId = item.SeriesId;
+        if (remoteSeriesId > 0)
+        {
+            var seriesId = await db.Series.AsNoTracking()
+                .Where(e => e.ServerId == item.ServerId && e.RemoteId == remoteSeriesId).Select(e => e.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (seriesId <= 0) return null;
 
-        string downloadId = GetDownloadId(item);
-
-        return await db.DownloadAttempts.AsNoTracking().Where(e => e.ServerId == item.ServerId && e.DownloadId == downloadId).OrderByDescending(e => e.LastSeenAt).Select(e => e.HealthSnapshot).FirstOrDefaultAsync(cancellationToken);
-    }
-    public async Task<MediaHealthSummary?> GetMediaSummary(DownloadItem item, CancellationToken cancellationToken = default) {
-        await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
-
-        int remoteMovieId = item.MovieId;
-        if (remoteMovieId > 0) {
-            int movieId = await db.Movies.AsNoTracking().Where(e => e.ServerId == item.ServerId && e.RemoteId == remoteMovieId).Select(e => e.Id).FirstOrDefaultAsync(cancellationToken);
-
-            if (movieId <= 0) {
-                return null;
-            }
-
-            return await db.MediaHealthSummaries.AsNoTracking().Where(e => e.MovieId == movieId).OrderByDescending(e => e.CreatedAt).FirstOrDefaultAsync(cancellationToken);
-        }
-
-        int remoteSeriesId = item.SeriesId;
-        if (remoteSeriesId > 0) {
-            int seriesId = await db.Series.AsNoTracking().Where(e => e.ServerId == item.ServerId && e.RemoteId == remoteSeriesId).Select(e => e.Id).FirstOrDefaultAsync(cancellationToken);
-            if (seriesId <= 0) {
-                return null;
-            }
-            return await db.MediaHealthSummaries.AsNoTracking().Where(e => e.SeriesId == seriesId).OrderByDescending(e => e.CreatedAt).FirstOrDefaultAsync(cancellationToken);
+            return await db.MediaHealthSummaries.AsNoTracking().Where(e => e.SeriesId == seriesId)
+                .OrderByDescending(e => e.CreatedAt).FirstOrDefaultAsync(cancellationToken);
         }
 
         return null;
     }
 
-    public async Task<List<DownloadAttempt>> GetDownloadAttemptsAsync(DownloadItem item, CancellationToken cancellationToken = default) {
-        await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
+    public async Task<List<DownloadAttempt>> GetDownloadAttemptsAsync(DownloadItem item,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
-        return await db.DownloadAttempts.AsNoTracking().Where(x => x.ServerId == item.ServerId && x.DownloadId == item.DownloadId).OrderByDescending(x => x.FirstSeenAt).ToListAsync(cancellationToken);
+        int? remoteMovieId = item.MovieId > 0 ? item.MovieId : null;
+        int? remoteSeriesId = item.SeriesId > 0 ? item.SeriesId : null;
+        int? remoteEpisodeId = item.EpisodeId > 0 ? item.EpisodeId : null;
+        var downloadId = string.IsNullOrWhiteSpace(item.DownloadId) ? null : item.DownloadId;
+
+        int? movieId = null;
+        int? seriesId = null;
+        int? episodeId = null;
+
+        if (remoteMovieId > 0)
+            movieId = await db.Movies.AsNoTracking()
+                .Where(x => x.ServerId == item.ServerId && x.RemoteId == remoteMovieId).Select(x => (int?)x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+        if (remoteSeriesId > 0)
+            seriesId = await db.Series.AsNoTracking()
+                .Where(x => x.ServerId == item.ServerId && x.RemoteId == remoteSeriesId).Select(x => (int?)x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+        if (remoteEpisodeId > 0)
+            episodeId = await db.Episodes.AsNoTracking()
+                .Where(x => x.ServerId == item.ServerId && x.RemoteId == remoteEpisodeId).Select(x => (int?)x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+        return await db.DownloadAttempts.AsNoTracking().Where(x =>
+                x.ServerId == item.ServerId && ((movieId != null && x.MovieId == movieId) ||
+                                                (episodeId != null && x.EpisodeId == episodeId) ||
+                                                (episodeId == null && seriesId != null && x.SeriesId == seriesId) ||
+                                                (downloadId != null && x.DownloadId == downloadId)))
+            .OrderByDescending(x => x.FirstSeenAt).ToListAsync(cancellationToken);
     }
 
     private async Task<DownloadAttempt> GetOrCreateAttemptAsync(
-        AppDbContext db,
-        DownloadItem item,
-        MediaServer? server,
-        DateTime now,
-        CancellationToken cancellationToken) {
-        string downloadId = GetDownloadId(item);
+        AppDbContext db, DownloadItem item, MediaServer? server, DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var downloadId = GetDownloadId(item);
 
-        DownloadAttempt? attempt = await db.DownloadAttempts.Include(e => e.HealthSnapshot).FirstOrDefaultAsync(e => e.ServerId == item.ServerId && e.DownloadId == downloadId && e.Status == AttemptStatus.Active, cancellationToken);
+        var attempt = await db.DownloadAttempts.Include(e => e.HealthSnapshot)
+            .FirstOrDefaultAsync(
+                e => e.ServerId == item.ServerId && e.DownloadId == downloadId && e.Status == AttemptStatus.Active,
+                cancellationToken);
 
-        if (attempt is not null) {
-            return attempt;
-        }
+        if (attempt is not null) return attempt;
 
-        TrackedMediaType mediaType = GetMediaType(item);
-        int replacementAttemptNumber = await GetReplacementAttemptNumberAsync(db, item, mediaType, cancellationToken);
-        int? localMovieId = item.MovieId is > 0 ? await db.Movies.AsNoTracking().Where(e => e.RemoteId == item.MovieId).Select(e => (int?)e.Id).FirstOrDefaultAsync(cancellationToken) : null;
-        int? localSeriesId = item.SeriesId is > 0 ? await db.Series.AsNoTracking().Where(e => e.RemoteId == item.SeriesId).Select(e => (int?)e.Id).FirstOrDefaultAsync(cancellationToken) : null;
-        int? localEpisodeId = item.EpisodeId is > 0 ? await db.Episodes.AsNoTracking().Where(e => e.RemoteId == item.EpisodeId).Select(e => (int?)e.Id).FirstOrDefaultAsync(cancellationToken) : null;
+        var mediaType = GetMediaType(item);
 
-        attempt = new DownloadAttempt {
+        var localMovieId = item.MovieId is > 0
+            ? await db.Movies.AsNoTracking().Where(e => e.RemoteId == item.MovieId).Select(e => (int?)e.Id)
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+        var localSeriesId = item.SeriesId is > 0
+            ? await db.Series.AsNoTracking().Where(e => e.RemoteId == item.SeriesId).Select(e => (int?)e.Id)
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+        var localEpisodeId = item.EpisodeId is > 0
+            ? await db.Episodes.AsNoTracking().Where(e => e.RemoteId == item.EpisodeId).Select(e => (int?)e.Id)
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+
+        var replacementAttemptNumber =
+            await GetReplacementAttemptNumberAsync(db, mediaType, localMovieId, localSeriesId, localEpisodeId,
+                cancellationToken);
+
+        attempt = new DownloadAttempt
+        {
             ServerId = item.ServerId,
             ServiceType = server?.ServiceType ?? InferServiceType(item),
             DownloadId = downloadId,
@@ -326,19 +436,22 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         return attempt;
     }
 
-    private async Task<HealthSnapshot> GetOrCreateSnapshotAsync(AppDbContext db, DownloadAttempt attempt, DateTime now, CancellationToken cancellationToken) {
-        if (attempt.HealthSnapshot is not null) {
-            return attempt.HealthSnapshot;
-        }
+    private async Task<HealthSnapshot> GetOrCreateSnapshotAsync(AppDbContext db, DownloadAttempt attempt, DateTime now,
+        CancellationToken cancellationToken)
+    {
+        if (attempt.HealthSnapshot is not null) return attempt.HealthSnapshot;
 
-        HealthSnapshot? snapshot = await db.HealthSnapshots.FirstOrDefaultAsync(e => e.DownloadAttemptId == attempt.Id, cancellationToken);
+        var snapshot =
+            await db.HealthSnapshots.FirstOrDefaultAsync(e => e.DownloadAttemptId == attempt.Id, cancellationToken);
 
-        if (snapshot is not null) {
+        if (snapshot is not null)
+        {
             attempt.HealthSnapshot = snapshot;
             return snapshot;
         }
 
-        snapshot = new HealthSnapshot {
+        snapshot = new HealthSnapshot
+        {
             DownloadAttempt = attempt,
             RawScore = _policy.StartingScore,
             VisibleScore = _policy.StartingScore,
@@ -355,24 +468,30 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         return snapshot;
     }
 
-    private async Task<MediaHealthSummary?> GetMediaSummaryAsync(AppDbContext db, DownloadAttempt attempt, CancellationToken cancellationToken) {
-        return attempt.MediaType switch {
-            TrackedMediaType.Movie when attempt.MovieId.HasValue => await db.MediaHealthSummaries.FirstOrDefaultAsync(e => e.MediaType == TrackedMediaType.Movie && e.MovieId == attempt.MovieId, cancellationToken),
-            TrackedMediaType.Series when attempt.SeriesId.HasValue => await db.MediaHealthSummaries.FirstOrDefaultAsync(e => e.MediaType == TrackedMediaType.Series && e.SeriesId == attempt.SeriesId, cancellationToken),
-            TrackedMediaType.Episode when attempt.EpisodeId.HasValue => await db.MediaHealthSummaries.FirstOrDefaultAsync(e => e.MediaType == TrackedMediaType.Episode && e.EpisodeId == attempt.EpisodeId, cancellationToken),
+    private async Task<MediaHealthSummary?> GetMediaSummaryAsync(AppDbContext db, DownloadAttempt attempt,
+        CancellationToken cancellationToken)
+    {
+        return attempt.MediaType switch
+        {
+            TrackedMediaType.Movie when attempt.MovieId.HasValue => await db.MediaHealthSummaries.FirstOrDefaultAsync(
+                e => e.MediaType == TrackedMediaType.Movie && e.MovieId == attempt.MovieId, cancellationToken),
+            TrackedMediaType.Series when attempt.SeriesId.HasValue => await db.MediaHealthSummaries.FirstOrDefaultAsync(
+                e => e.MediaType == TrackedMediaType.Series && e.SeriesId == attempt.SeriesId, cancellationToken),
+            TrackedMediaType.Episode when attempt.EpisodeId.HasValue => await
+                db.MediaHealthSummaries.FirstOrDefaultAsync(
+                    e => e.MediaType == TrackedMediaType.Episode && e.EpisodeId == attempt.EpisodeId,
+                    cancellationToken),
             _ => null
         };
     }
 
     private async Task<HealthEvaluation> EvaluateObservationAsync(
-        AppDbContext db,
-        DownloadAttempt attempt,
-        HealthSnapshot snapshot,
-        MediaHealthSummary? mediaSummary,
-        HealthObservation observation,
-        CancellationToken cancellationToken) {
-        if (snapshot.LastObservationAt is null) {
-            return new HealthEvaluation {
+        AppDbContext db, DownloadAttempt attempt, HealthSnapshot snapshot, MediaHealthSummary? mediaSummary,
+        HealthObservation observation, CancellationToken cancellationToken)
+    {
+        if (snapshot.LastObservationAt is null)
+            return new HealthEvaluation
+            {
                 EventType = HealthEventType.FirstSeen,
                 ReasonKey = "first-seen",
                 Message = "First health observation; establishing baseline.",
@@ -380,45 +499,50 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
                 BadScansInWindow = 0,
                 GoodScansInWindow = 0
             };
-        }
 
-        int badStreak = snapshot.ConsecutiveBadScans + (observation.IsBadObservation ? 1 : 0);
-        int goodStreak = snapshot.ConsecutiveGoodScans + (observation.IsGoodObservation ? 1 : 0);
+        var badStreak = snapshot.ConsecutiveBadScans + (observation.IsBadObservation ? 1 : 0);
+        var goodStreak = snapshot.ConsecutiveGoodScans + (observation.IsGoodObservation ? 1 : 0);
 
-        decimal penaltyMultiplier = StreakMultiplier(badStreak, _policy.PenaltyStreakEscalation, _policy.PenaltyStreakCap);
-        decimal rewardMultiplier = StreakMultiplier(goodStreak, _policy.RewardStreakEscalation, _policy.RewardStreakCap);
+        var penaltyMultiplier =
+            StreakMultiplier(badStreak, _policy.PenaltyStreakEscalation, _policy.PenaltyStreakCap);
+        var rewardMultiplier =
+            StreakMultiplier(goodStreak, _policy.RewardStreakEscalation, _policy.RewardStreakCap);
 
-        int recoveryCreditDelta = 0;
+        var recoveryCreditDelta = 0;
 
         List<string> reasons = [];
         List<HealthEventType> eventTypes = [];
-        Severity severity = Severity.Info;
+        var severity = Severity.Info;
 
         decimal coreReward = 0;
         decimal flatReward = 0;
 
-        if (observation.HasProgressIncrease) {
+        if (observation.HasProgressIncrease)
+        {
             coreReward += _policy.ProgressIncreaseReward;
             reasons.Add("Progress increased.");
             eventTypes.Add(HealthEventType.ProgressIncreased);
             severity = Severity.Positive;
         }
 
-        if (observation.HasSizeLeftDecrease) {
+        if (observation.HasSizeLeftDecrease)
+        {
             coreReward += _policy.SizeLeftDecreaseReward;
             reasons.Add("Size left decreased.");
             eventTypes.Add(HealthEventType.SizeLeftDecreased);
             severity = Severity.Positive;
         }
 
-        if (observation.HasErrorCleared) {
+        if (observation.HasErrorCleared)
+        {
             flatReward += _policy.ErrorClearedReward;
             reasons.Add("Error cleared.");
             eventTypes.Add(HealthEventType.ErrorCleared);
             severity = Severity.Positive;
         }
 
-        if (observation.IsMeaningfulRecovery) {
+        if (observation.IsMeaningfulRecovery)
+        {
             flatReward += _policy.RecoveryReward;
             recoveryCreditDelta += 10;
             reasons.Add("Download recovered after bad behavior.");
@@ -429,56 +553,81 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         decimal corePenalty = 0;
         decimal flatPenalty = 0;
 
-        if (observation.IsStalledNoConnections) {
+        if (observation.IsStalledNoConnections)
+        {
             corePenalty += _policy.StalledNoConnectionsPenalty;
             reasons.Add("Download is stalled with no connections.");
             eventTypes.Add(HealthEventType.StalledNoConnections);
             severity = Severity.Critical;
         }
-        else if (observation.IsStalled) {
+
+        if (observation.IsFetchingMetadata)
+        {
+            corePenalty += _policy.FetchingMetadataPenalty;
+            reasons.Add("Fetching metadata.");
+            eventTypes.Add(HealthEventType.FetchingMetadata);
+            severity = Severity.Info;
+        }
+        else if (observation.IsStalledNoConnections)
+        {
+            corePenalty += _policy.StalledNoConnectionsPenalty;
+            reasons.Add("Download is stalled with no connections.");
+            eventTypes.Add(HealthEventType.StalledNoConnections);
+            severity = Severity.Critical;
+        }
+        else if (observation.IsStalled)
+        {
             corePenalty += _policy.StalledPenalty;
             reasons.Add("Download appears stalled.");
             eventTypes.Add(HealthEventType.Stalled);
             severity = Severity.Severe;
         }
-        else if (observation.HasError) {
+        else if (observation.HasError)
+        {
             corePenalty += _policy.ErrorPenalty;
             reasons.Add("Error reported.");
             eventTypes.Add(HealthEventType.ErrorReported);
             severity = Severity.Severe;
         }
-        else if (observation.HasWarning) {
+        else if (observation.HasWarning)
+        {
             corePenalty += _policy.WarningPenalty;
             reasons.Add("Warning reported.");
             eventTypes.Add(HealthEventType.WarningReported);
             severity = Severity.Warning;
         }
-        else if (observation.HasNoProgress) {
+        else if (observation.HasNoProgress)
+        {
             corePenalty += _policy.NoProgressPenalty;
-            reasons.Add(badStreak >= 6 ? "No progress for an extended period." : badStreak >= 3 ? "Repeated lack of progress." : "No progress detected.");
+            reasons.Add(badStreak >= 6 ? "No progress for an extended period." :
+                badStreak >= 3 ? "Repeated lack of progress." : "No progress detected.");
             eventTypes.Add(HealthEventType.NoProgress);
             severity = Severity.Negative;
         }
 
-        if (observation.IsRepeatedError) {
+        if (observation.IsRepeatedError)
+        {
             flatPenalty += _policy.RepeatedErrorPenalty;
             reasons.Add("Same error repeated.");
             eventTypes.Add(HealthEventType.ErrorRepeated);
         }
 
-        if (observation.IsBadObservation && mediaSummary is { QualityDowngradeCount: > 0 }) {
+        if (observation.IsBadObservation && mediaSummary is { QualityDowngradeCount: > 0 })
+        {
             flatPenalty += _policy.QualityDowngradedStillFailingPenalty;
             reasons.Add("Quality was downgraded and the download is still failing.");
             eventTypes.Add(HealthEventType.StatusWorsened);
             severity = Severity.Critical;
         }
-        else if (observation.IsBadObservation && mediaSummary is { FailureCount: > 0 }) {
+        else if (observation.IsBadObservation && mediaSummary is { FailureCount: > 0 })
+        {
             flatPenalty += _policy.PreviousMediaFailurePenalty;
             reasons.Add("This media has previous failed attempts.");
             eventTypes.Add(HealthEventType.StatusWorsened);
         }
 
-        if (observation.HasSustainedProgress) {
+        if (observation.HasSustainedProgress)
+        {
             flatReward += _policy.SustainedProgressReward;
             recoveryCreditDelta += 3;
             reasons.Add("Sustained progress detected.");
@@ -486,38 +635,41 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
             severity = Severity.Positive;
         }
 
-        decimal reward = coreReward * rewardMultiplier + flatReward;
-        decimal penalty = corePenalty * penaltyMultiplier + flatPenalty;
+        var reward = coreReward * rewardMultiplier + flatReward;
+        var penalty = corePenalty * penaltyMultiplier + flatPenalty;
 
-        if (penalty < 0 && snapshot.RecoveryCredit > 0) {
-            int absorbed = Math.Min(snapshot.RecoveryCredit, (int)Math.Ceiling(Math.Abs(penalty)));
+        if (penalty < 0 && snapshot.RecoveryCredit > 0)
+        {
+            var absorbed = Math.Min(snapshot.RecoveryCredit, (int)Math.Ceiling(Math.Abs(penalty)));
             penalty += absorbed;
             recoveryCreditDelta -= absorbed;
             reasons.Add($"Recovery credit absorbed {absorbed} penalty points.");
             eventTypes.Add(HealthEventType.RecoveryCreditApplied);
         }
 
-        decimal scoreDelta = reward + penalty;
+        var scoreDelta = reward + penalty;
 
-        List<DownloadHealthEvent> recentWindow = attempt.Id == 0 ? [] : await db.HealthEvents.AsNoTracking().Where(e => e.DownloadAttemptId == attempt.Id).Where(e => !TerminalEventTypes.Contains(e.EventType)).OrderByDescending(e => e.OccurredAt).Take(Math.Max(0, _policy.RollingWindowSize - 1)).ToListAsync(cancellationToken);
+        var recentWindow = attempt.Id == 0
+            ? []
+            : await db.HealthEvents.AsNoTracking().Where(e => e.DownloadAttemptId == attempt.Id)
+                .Where(e => !TerminalEventTypes.Contains(e.EventType)).OrderByDescending(e => e.OccurredAt)
+                .Take(Math.Max(0, _policy.RollingWindowSize - 1)).ToListAsync(cancellationToken);
 
-        int badInWindow = recentWindow.Count(e => e.IsBadObservation);
-        int goodInWindow = recentWindow.Count(e => e.IsGoodObservation);
+        var badInWindow = recentWindow.Count(e => e.IsBadObservation);
+        var goodInWindow = recentWindow.Count(e => e.IsGoodObservation);
 
-        if (observation.IsBadObservation) {
-            badInWindow++;
-        }
+        if (observation.IsBadObservation) badInWindow++;
 
-        if (observation.IsGoodObservation) {
-            goodInWindow++;
-        }
+        if (observation.IsGoodObservation) goodInWindow++;
 
-        if (reasons.Count == 0) {
+        if (reasons.Count == 0)
+        {
             reasons.Add("No meaningful health change detected.");
             eventTypes.Add(HealthEventType.QueueSeen);
         }
 
-        return new HealthEvaluation {
+        return new HealthEvaluation
+        {
             ScoreDelta = scoreDelta,
             RecoveryCreditDelta = recoveryCreditDelta,
             EventType = SelectEventType(eventTypes),
@@ -533,42 +685,50 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         };
     }
 
-    private void ApplyEvaluation(HealthSnapshot snapshot, HealthEvaluation evaluation, DateTime now) {
-        decimal previousScore = snapshot.RawScore;
-        int previousRecoveryCredit = snapshot.RecoveryCredit;
+    private void ApplyEvaluation(HealthSnapshot snapshot, HealthEvaluation evaluation, DateTime now)
+    {
+        var previousScore = snapshot.RawScore;
+        var previousRecoveryCredit = snapshot.RecoveryCredit;
 
-        snapshot.RawScore = Math.Clamp(previousScore + evaluation.ScoreDelta, -_policy.MaximumScore, _policy.MaximumScore);
-        snapshot.VisibleScore = Math.Clamp((int)Math.Round(snapshot.RawScore), _policy.MinimumVisibleScore, _policy.MaximumScore);
-        snapshot.RecoveryCredit = Math.Clamp(previousRecoveryCredit + evaluation.RecoveryCreditDelta, 0, _policy.RecoveryCreditMax);
+        snapshot.RawScore =
+            Math.Clamp(previousScore + evaluation.ScoreDelta, -_policy.MaximumScore, _policy.MaximumScore);
+        snapshot.VisibleScore = Math.Clamp((int)Math.Round(snapshot.RawScore), _policy.MinimumVisibleScore,
+            _policy.MaximumScore);
+        snapshot.RecoveryCredit = Math.Clamp(previousRecoveryCredit + evaluation.RecoveryCreditDelta, 0,
+            _policy.RecoveryCreditMax);
+        snapshot.BadScansInLastTen = evaluation.BadScansInWindow;
+        snapshot.GoodScansInLastTen = evaluation.GoodScansInWindow;
+
+        if (evaluation.IsGoodObservation && snapshot.BadScansInLastTen > 0)
+            snapshot.BadScansInLastTen = Math.Max(0, snapshot.BadScansInLastTen - _policy.GoodObservationBadScanDecay);
 
         snapshot.LastScoreChange = snapshot.RawScore - previousScore;
 
-        if (snapshot.LastScoreChange != 0) {
-            snapshot.LastScoreChangedAt = now;
-        }
+        if (snapshot.LastScoreChange != 0) snapshot.LastScoreChangedAt = now;
 
-        if (evaluation.IsGoodObservation) {
+        if (evaluation.IsGoodObservation)
+        {
             snapshot.GoodScanCount++;
             snapshot.ConsecutiveGoodScans++;
             snapshot.ConsecutiveBadScans = 0;
             snapshot.LastGoodObservationAt = now;
         }
 
-        if (evaluation.IsBadObservation) {
+        if (evaluation.IsBadObservation)
+        {
             snapshot.BadScanCount++;
             snapshot.ConsecutiveBadScans++;
             snapshot.ConsecutiveGoodScans = 0;
             snapshot.LastBadObservationAt = now;
         }
 
-        if (!evaluation.IsGoodObservation && !evaluation.IsBadObservation) {
+        if (!evaluation.IsGoodObservation && !evaluation.IsBadObservation)
+        {
             snapshot.ConsecutiveGoodScans = 0;
             snapshot.ConsecutiveBadScans = 0;
         }
 
-        if (evaluation.IsMeaningfulRecovery) {
-            snapshot.LastMeaningfulRecoveryAt = now;
-        }
+        if (evaluation.IsMeaningfulRecovery) snapshot.LastMeaningfulRecoveryAt = now;
 
         snapshot.BadScansInLastTen = evaluation.BadScansInWindow;
         snapshot.GoodScansInLastTen = evaluation.GoodScansInWindow;
@@ -580,66 +740,64 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         snapshot.UpdatedAt = now;
     }
 
-    private int ComputeConfidence(HealthSnapshot snapshot) {
-        int observations = snapshot.GoodScanCount + snapshot.BadScanCount;
+    private int ComputeConfidence(HealthSnapshot snapshot)
+    {
+        var observations = snapshot.GoodScanCount + snapshot.BadScanCount;
 
-        if (observations == 0) {
-            return 0;
-        }
+        if (observations == 0) return 0;
 
-        int window = Math.Max(1, _policy.RollingWindowSize);
-        decimal evidence = Math.Min(1m, (decimal)observations / window);
-        decimal recentBadRatio = Math.Min(1m, (decimal)snapshot.BadScansInLastTen / window);
-        decimal consecutiveRatio = Math.Min(1m, (decimal)snapshot.ConsecutiveBadScans / window);
-        decimal signal = Math.Max(recentBadRatio, consecutiveRatio);
+        var window = Math.Max(1, _policy.RollingWindowSize);
+        var evidence = Math.Min(1m, (decimal)observations / window);
+        var recentBadRatio = Math.Min(1m, (decimal)snapshot.BadScansInLastTen / window);
+        var consecutiveRatio = Math.Min(1m, (decimal)snapshot.ConsecutiveBadScans / window);
+        var signal = Math.Max(recentBadRatio, consecutiveRatio);
 
         return Math.Clamp((int)Math.Round(evidence * signal * 100), 0, 100);
     }
 
-    private HealthDecision BuildDecision(DownloadAttempt attempt, HealthSnapshot snapshot, HealthEvaluation evaluation, DateTime now) {
+    private HealthDecision BuildDecision(DownloadAttempt attempt, HealthSnapshot snapshot, HealthEvaluation evaluation,
+        DateTime now)
+    {
         List<string> restrictions = [];
 
-        TimeSpan age = now - attempt.FirstSeenAt;
+        var age = now - attempt.FirstSeenAt;
 
-        if (attempt.IsProtected) {
-            restrictions.Add("Download is protected.");
-        }
+        if (attempt.IsProtected) restrictions.Add("Download is protected.");
 
-        if (attempt.Status != AttemptStatus.Active) {
-            restrictions.Add("Download attempt is no longer active.");
-        }
+        if (attempt.Status != AttemptStatus.Active) restrictions.Add("Download attempt is no longer active.");
 
-        if (age < TimeSpan.FromMinutes(_policy.StartupGracePeriodMinutes)) {
-            restrictions.Add($"Download is inside the {_policy.StartupGracePeriodMinutes} minute startup grace period.");
-        }
+        if (age < TimeSpan.FromMinutes(_policy.StartupGracePeriodMinutes))
+            restrictions.Add(
+                $"Download is inside the {_policy.StartupGracePeriodMinutes} minute startup grace period.");
 
-        if (snapshot.RawScore >= 0) {
-            restrictions.Add("Raw score has not dropped below zero.");
-        }
+        if (snapshot.RawScore >= 0) restrictions.Add("Raw score has not dropped below zero.");
 
-        if (snapshot.Confidence < _policy.RemovalConfidenceThreshold) {
+        if (snapshot.Confidence < _policy.RemovalConfidenceThreshold)
             restrictions.Add($"Confidence is below {_policy.RemovalConfidenceThreshold}.");
-        }
 
-        if (snapshot.BadScanCount < _policy.MinimumBadScansBeforeRemoval) {
+        if (snapshot.BadScanCount < _policy.MinimumBadScansBeforeRemoval)
             restrictions.Add($"Bad scan count is below {_policy.MinimumBadScansBeforeRemoval}.");
+
+        if (snapshot.BadScansInLastTen < _policy.RequiredBadScansInWindow)
+            restrictions.Add(
+                $"Bad scans in the last {_policy.RollingWindowSize} checks are below {_policy.RequiredBadScansInWindow}.");
+
+        if (snapshot.LastByteProgressAt.HasValue && now - snapshot.LastByteProgressAt.Value <
+            TimeSpan.FromMinutes(_policy.ByteProgressProtectionMinutes))
+            restrictions.Add("Download moved bytes recently.");
+
+        if (snapshot.LastMeaningfulRecoveryAt.HasValue)
+        {
+            var protectedUntil =
+                snapshot.LastMeaningfulRecoveryAt.Value.AddMinutes(_policy.RecentRecoveryProtectionScans);
+
+            if (now < protectedUntil) restrictions.Add("Download had recent meaningful recovery.");
         }
 
-        if (snapshot.BadScansInLastTen < _policy.RequiredBadScansInWindow) {
-            restrictions.Add($"Bad scans in the last {_policy.RollingWindowSize} checks are below {_policy.RequiredBadScansInWindow}.");
-        }
+        var shouldRemove = restrictions.Count == 0;
 
-        if (snapshot.LastMeaningfulRecoveryAt.HasValue) {
-            DateTime protectedUntil = snapshot.LastMeaningfulRecoveryAt.Value.AddMinutes(_policy.RecentRecoveryProtectionScans);
-
-            if (now < protectedUntil) {
-                restrictions.Add("Download had recent meaningful recovery.");
-            }
-        }
-
-        bool shouldRemove = restrictions.Count == 0;
-
-        return new HealthDecision {
+        return new HealthDecision
+        {
             DownloadAttemptId = attempt.Id,
             ShouldRemove = shouldRemove,
             ShouldReplace = shouldRemove,
@@ -656,52 +814,50 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
     }
 
     private DownloadHealthEvent CreateHealthEvent(
-        DownloadAttempt attempt,
-        HealthSnapshot snapshot,
-        HealthStateBefore before,
-        HealthEvaluation evaluation,
-        HealthObservation observation,
-        DateTime now) => new() {
-        DownloadAttempt = attempt,
-        OccurredAt = now,
-        EventType = evaluation.EventType,
-        Severity = evaluation.Severity,
-        ReasonKey = evaluation.ReasonKey,
-        Message = evaluation.Message,
-        ScoreBefore = before.Score,
-        ScoreDelta = snapshot.RawScore - before.Score,
-        ScoreAfter = snapshot.RawScore,
-        ConfidenceBefore = before.Confidence,
-        ConfidenceDelta = snapshot.Confidence - before.Confidence,
-        ConfidenceAfter = snapshot.Confidence,
-        RecoveryCreditBefore = before.RecoveryCredit,
-        RecoveryCreditDelta = snapshot.RecoveryCredit - before.RecoveryCredit,
-        RecoveryCreditAfter = snapshot.RecoveryCredit,
-        IsGoodObservation = evaluation.IsGoodObservation,
-        IsBadObservation = evaluation.IsBadObservation,
-        IsMeaningfulRecovery = evaluation.IsMeaningfulRecovery,
-        CountsTowardRemoval = evaluation.CountsTowardRemoval,
-        Source = nameof(HealthService),
-        RawStatus = observation.Status,
-        RawTrackedDownloadStatus = observation.TrackedDownloadStatus,
-        RawTrackedDownloadState = observation.TrackedDownloadState,
-        RawErrorMessage = observation.ErrorMessage
-    };
+        DownloadAttempt attempt, HealthSnapshot snapshot, HealthStateBefore before, HealthEvaluation evaluation,
+        HealthObservation observation, DateTime now)
+    {
+        return new DownloadHealthEvent
+        {
+            DownloadAttempt = attempt,
+            OccurredAt = now,
+            EventType = evaluation.EventType,
+            Severity = evaluation.Severity,
+            ReasonKey = evaluation.ReasonKey,
+            Message = evaluation.Message,
+            ScoreBefore = before.Score,
+            ScoreDelta = snapshot.RawScore - before.Score,
+            ScoreAfter = snapshot.RawScore,
+            ConfidenceBefore = before.Confidence,
+            ConfidenceDelta = snapshot.Confidence - before.Confidence,
+            ConfidenceAfter = snapshot.Confidence,
+            RecoveryCreditBefore = before.RecoveryCredit,
+            RecoveryCreditDelta = snapshot.RecoveryCredit - before.RecoveryCredit,
+            RecoveryCreditAfter = snapshot.RecoveryCredit,
+            IsGoodObservation = evaluation.IsGoodObservation,
+            IsBadObservation = evaluation.IsBadObservation,
+            IsMeaningfulRecovery = evaluation.IsMeaningfulRecovery,
+            CountsTowardRemoval = evaluation.CountsTowardRemoval,
+            Source = nameof(HealthService),
+            RawStatus = observation.Status,
+            RawTrackedDownloadStatus = observation.TrackedDownloadStatus,
+            RawTrackedDownloadState = observation.TrackedDownloadState,
+            RawErrorMessage = observation.ErrorMessage
+        };
+    }
 
     private async Task UpdateMediaSummaryAsync(
-        AppDbContext db,
-        DownloadAttempt attempt,
-        HealthDecision? decision,
-        DateTime now,
-        CancellationToken cancellationToken) {
-        if (attempt.MediaType == TrackedMediaType.Unknown) {
-            return;
-        }
+        AppDbContext db, DownloadAttempt attempt, HealthDecision? decision, DateTime now,
+        CancellationToken cancellationToken)
+    {
+        if (attempt.MediaType == TrackedMediaType.Unknown) return;
 
-        MediaHealthSummary? summary = await GetMediaSummaryAsync(db, attempt, cancellationToken);
+        var summary = await GetMediaSummaryAsync(db, attempt, cancellationToken);
 
-        if (summary is null) {
-            summary = new MediaHealthSummary {
+        if (summary is null)
+        {
+            summary = new MediaHealthSummary
+            {
                 MediaType = attempt.MediaType,
                 MovieId = attempt.MovieId,
                 SeriesId = attempt.SeriesId,
@@ -712,9 +868,10 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
             db.MediaHealthSummaries.Add(summary);
         }
 
-        IQueryable<DownloadAttempt> attempts = db.DownloadAttempts.Where(e => e.MediaType == attempt.MediaType);
+        var attempts = db.DownloadAttempts.Where(e => e.MediaType == attempt.MediaType);
 
-        attempts = attempt.MediaType switch {
+        attempts = attempt.MediaType switch
+        {
             TrackedMediaType.Movie => attempts.Where(e => e.MovieId == attempt.MovieId),
             TrackedMediaType.Series => attempts.Where(e => e.SeriesId == attempt.SeriesId),
             TrackedMediaType.Episode => attempts.Where(e => e.EpisodeId == attempt.EpisodeId),
@@ -722,31 +879,49 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         };
 
         summary.AttemptCount = await attempts.CountAsync(cancellationToken);
-        summary.ActiveAttemptCount = await attempts.CountAsync(e => e.Status == AttemptStatus.Active, cancellationToken);
-        summary.SuccessCount = await attempts.CountAsync(e => e.WasSuccessful || e.Status == AttemptStatus.Imported, cancellationToken);
-        summary.FailureCount = await attempts.CountAsync(e => e.Status == AttemptStatus.Failed || e.Status == AttemptStatus.Disappeared, cancellationToken);
-        summary.RemovalCount = await attempts.CountAsync(e => e.Status == AttemptStatus.RemovedByTrackarr, cancellationToken);
-        summary.ReplacementCount = await attempts.CountAsync(e => e.Status == AttemptStatus.Replaced, cancellationToken);
+        summary.ActiveAttemptCount =
+            await attempts.CountAsync(e => e.Status == AttemptStatus.Active, cancellationToken);
+        summary.SuccessCount = await attempts.CountAsync(e => e.WasSuccessful || e.Status == AttemptStatus.Imported,
+            cancellationToken);
+        summary.FailureCount =
+            await attempts.CountAsync(e => e.Status == AttemptStatus.Failed || e.Status == AttemptStatus.Disappeared,
+                cancellationToken);
+        summary.RemovalCount =
+            await attempts.CountAsync(e => e.Status == AttemptStatus.RemovedByTrackarr, cancellationToken);
+        summary.ReplacementCount =
+            await attempts.CountAsync(e => e.Status == AttemptStatus.Replaced, cancellationToken);
 
         summary.LastAttemptAt = await attempts.MaxAsync(e => (DateTime?)e.FirstSeenAt, cancellationToken);
-        summary.LastSuccessAt = await attempts.Where(e => e.WasSuccessful || e.Status == AttemptStatus.Imported).MaxAsync(e => e.CompletedAt, cancellationToken);
-        summary.LastFailureAt = await attempts.Where(e => e.Status == AttemptStatus.Failed || e.Status == AttemptStatus.Disappeared).MaxAsync(e => e.FailedAt, cancellationToken);
-        summary.LastRemovalAt = await attempts.Where(e => e.Status == AttemptStatus.RemovedByTrackarr).MaxAsync(e => e.RemovedAt, cancellationToken);
-        summary.LastReplacementAt = await attempts.Where(e => e.Status == AttemptStatus.Replaced).MaxAsync(e => e.ReplacedAt, cancellationToken);
+        summary.LastSuccessAt = await attempts.Where(e => e.WasSuccessful || e.Status == AttemptStatus.Imported)
+            .MaxAsync(e => e.CompletedAt, cancellationToken);
+        summary.LastFailureAt = await attempts
+            .Where(e => e.Status == AttemptStatus.Failed || e.Status == AttemptStatus.Disappeared)
+            .MaxAsync(e => e.FailedAt, cancellationToken);
+        summary.LastRemovalAt = await attempts.Where(e => e.Status == AttemptStatus.RemovedByTrackarr)
+            .MaxAsync(e => e.RemovedAt, cancellationToken);
+        summary.LastReplacementAt = await attempts.Where(e => e.Status == AttemptStatus.Replaced)
+            .MaxAsync(e => e.ReplacedAt, cancellationToken);
 
-        List<HealthSnapshot> activeSnapshots = await db
+        var activeSnapshots = await db
             .HealthSnapshots
             .Where(e => e.DownloadAttempt != null)
             .Where(e => e.DownloadAttempt!.MediaType == attempt.MediaType)
             .Where(e => e.DownloadAttempt!.Status == AttemptStatus.Active)
-            .Where(e => attempt.MediaType == TrackedMediaType.Movie && e.DownloadAttempt!.MovieId == attempt.MovieId || attempt.MediaType == TrackedMediaType.Series && e.DownloadAttempt!.SeriesId == attempt.SeriesId || attempt.MediaType == TrackedMediaType.Episode && e.DownloadAttempt!.EpisodeId == attempt.EpisodeId)
+            .Where(e =>
+                (attempt.MediaType == TrackedMediaType.Movie && e.DownloadAttempt!.MovieId == attempt.MovieId) ||
+                (attempt.MediaType == TrackedMediaType.Series &&
+                 e.DownloadAttempt!.SeriesId == attempt.SeriesId) ||
+                (attempt.MediaType == TrackedMediaType.Episode &&
+                 e.DownloadAttempt!.EpisodeId == attempt.EpisodeId))
             .ToListAsync(cancellationToken);
 
         summary.CurrentBestScore = activeSnapshots.Count == 0 ? 0 : activeSnapshots.Max(e => e.VisibleScore);
         summary.CurrentWorstScore = activeSnapshots.Count == 0 ? 0 : activeSnapshots.Min(e => e.VisibleScore);
-        summary.CurrentState = activeSnapshots.Count == 0 ? HealthState.Unknown : activeSnapshots.OrderBy(e => e.VisibleScore).First().State;
+        summary.CurrentState = activeSnapshots.Count == 0
+            ? HealthState.Unknown
+            : activeSnapshots.OrderBy(e => e.VisibleScore).First().State;
 
-        bool isStuck = summary.FailureCount >= 3 || summary.RemovalCount >= 3 || decision?.ShouldRemove == true;
+        var isStuck = summary.FailureCount >= 3 || summary.RemovalCount >= 3 || decision?.ShouldRemove == true;
 
         summary.IsStuck = isStuck;
         summary.StuckSince = isStuck ? summary.StuckSince ?? now : null;
@@ -756,18 +931,19 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
     }
 
     private async Task UpdateSourceSummaryAsync(
-        AppDbContext db,
-        DownloadAttempt attempt,
-        HealthSnapshot snapshot,
-        DownloadHealthEvent healthEvent,
-        DateTime now,
-        CancellationToken cancellationToken) {
-        SourceHealthSummary? summary = await db.SourceHealthSummaries.FirstOrDefaultAsync(e =>
-                e.ServerId == attempt.ServerId && e.ServiceType == attempt.ServiceType && e.Indexer == attempt.Indexer && e.DownloadClient == attempt.DownloadClient && e.Protocol == attempt.Protocol && e.ReleaseKey == attempt.ReleaseKey && e.ReasonKey == healthEvent.ReasonKey,
-            cancellationToken);
+        AppDbContext db, DownloadAttempt attempt, HealthSnapshot snapshot, DownloadHealthEvent healthEvent,
+        DateTime now, CancellationToken cancellationToken)
+    {
+        var summary = await db.SourceHealthSummaries.FirstOrDefaultAsync(
+            e => e.ServerId == attempt.ServerId && e.ServiceType == attempt.ServiceType &&
+                 e.Indexer == attempt.Indexer && e.DownloadClient == attempt.DownloadClient &&
+                 e.Protocol == attempt.Protocol && e.ReleaseKey == attempt.ReleaseKey &&
+                 e.ReasonKey == healthEvent.ReasonKey, cancellationToken);
 
-        if (summary is null) {
-            summary = new SourceHealthSummary {
+        if (summary is null)
+        {
+            summary = new SourceHealthSummary
+            {
                 ServerId = attempt.ServerId,
                 ServiceType = attempt.ServiceType,
                 Indexer = attempt.Indexer,
@@ -785,29 +961,39 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
 
         summary.AttemptCount++;
         summary.LastSeenAt = now;
-        summary.AverageScore = summary.AttemptCount == 1 ? snapshot.VisibleScore : (summary.AverageScore * (summary.AttemptCount - 1) + snapshot.VisibleScore) / summary.AttemptCount;
+        summary.AverageScore = summary.AttemptCount == 1
+            ? snapshot.VisibleScore
+            : (summary.AverageScore * (summary.AttemptCount - 1) + snapshot.VisibleScore) / summary.AttemptCount;
 
-        summary.WorstScore = summary.AttemptCount == 1 ? snapshot.VisibleScore : Math.Min(summary.WorstScore, snapshot.VisibleScore);
-        summary.BestScore = summary.AttemptCount == 1 ? snapshot.VisibleScore : Math.Max(summary.BestScore, snapshot.VisibleScore);
+        summary.WorstScore = summary.AttemptCount == 1
+            ? snapshot.VisibleScore
+            : Math.Min(summary.WorstScore, snapshot.VisibleScore);
+        summary.BestScore = summary.AttemptCount == 1
+            ? snapshot.VisibleScore
+            : Math.Max(summary.BestScore, snapshot.VisibleScore);
 
-        if (healthEvent.IsBadObservation) {
+        if (healthEvent.IsBadObservation)
+        {
             summary.FailureCount++;
             summary.LastFailureAt = now;
             summary.ReputationScore = Math.Max(0, summary.ReputationScore - 3);
         }
 
-        if (healthEvent.IsGoodObservation) {
+        if (healthEvent.IsGoodObservation)
+        {
             summary.SuccessCount++;
             summary.LastSuccessAt = now;
             summary.ReputationScore = Math.Min(100, summary.ReputationScore + 1);
         }
 
-        if (healthEvent.IsMeaningfulRecovery) {
+        if (healthEvent.IsMeaningfulRecovery)
+        {
             summary.RecoveryCount++;
             summary.ReputationScore = Math.Min(100, summary.ReputationScore + 2);
         }
 
-        if (snapshot.State == HealthState.Remove) {
+        if (snapshot.State == HealthState.Remove)
+        {
             summary.RemovalCount++;
             summary.ReputationScore = Math.Max(0, summary.ReputationScore - 5);
         }
@@ -816,25 +1002,20 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
     }
 
     private async Task MarkTerminalAsync(
-        int attemptId,
-        AttemptStatus status,
-        HealthEventType eventType,
-        Severity severity,
-        string reasonKey,
-        string message,
-        bool success,
-        CancellationToken cancellationToken) {
-        await using AppDbContext db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        int attemptId, AttemptStatus status, HealthEventType eventType, Severity severity,
+        string reasonKey, string message, bool success, CancellationToken cancellationToken)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
-        DateTime now = DateTime.UtcNow;
+        var now = DateTime.UtcNow;
 
-        DownloadAttempt? attempt = await db.DownloadAttempts.Include(e => e.HealthSnapshot).FirstOrDefaultAsync(e => e.Id == attemptId, cancellationToken);
+        var attempt = await db.DownloadAttempts.Include(e => e.HealthSnapshot)
+            .FirstOrDefaultAsync(e => e.Id == attemptId, cancellationToken);
 
-        if (attempt is null) {
-            return;
-        }
+        if (attempt is null) return;
 
-        HealthSnapshot snapshot = attempt.HealthSnapshot ?? await GetOrCreateSnapshotAsync(db, attempt, now, cancellationToken);
+        var snapshot = attempt.HealthSnapshot ??
+                       await GetOrCreateSnapshotAsync(db, attempt, now, cancellationToken);
 
         attempt.Status = status;
         attempt.FinalReasonKey = reasonKey;
@@ -843,19 +1024,22 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         attempt.WasImported = status == AttemptStatus.Imported;
         attempt.WasRemovedByTrackarr = status == AttemptStatus.RemovedByTrackarr;
 
-        if (status == AttemptStatus.Imported) {
+        if (status == AttemptStatus.Imported)
+        {
             attempt.CompletedAt = now;
             snapshot.RawScore = _policy.MaximumScore;
             snapshot.VisibleScore = _policy.MaximumScore;
             snapshot.State = HealthState.Resolved;
         }
 
-        if (status == AttemptStatus.RemovedByTrackarr) {
+        if (status == AttemptStatus.RemovedByTrackarr)
+        {
             attempt.RemovedAt = now;
             snapshot.State = HealthState.Remove;
         }
 
-        if (status == AttemptStatus.Failed) {
+        if (status == AttemptStatus.Failed)
+        {
             attempt.FailedAt = now;
             snapshot.State = HealthState.Failed;
         }
@@ -864,7 +1048,8 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         snapshot.LastReasonMessage = message;
         snapshot.UpdatedAt = now;
 
-        db.HealthEvents.Add(new DownloadHealthEvent {
+        db.HealthEvents.Add(new DownloadHealthEvent
+        {
             DownloadAttempt = attempt,
             OccurredAt = now,
             EventType = eventType,
@@ -896,25 +1081,42 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private static HealthObservation BuildObservation(DownloadItem item, DownloadAttempt attempt, HealthSnapshot snapshot, DateTime now) {
-        decimal? progress = CalculateProgress(item.Size, item.SizeLeft);
-        bool isFetchingMetadata = ContainsAny(item.ErrorMessage, "downloading metadata", "fetching metadata");
-        string? errorKey = isFetchingMetadata ? null : NormalizeError(item.ErrorMessage);
-        bool hasError = !isFetchingMetadata && !string.IsNullOrWhiteSpace(item.ErrorMessage);
-        bool hasWarning = ContainsAny(item.Status, "warn", "warning") || ContainsAny(item.TrackedDownloadStatus, "warn", "warning");
-        bool isStalled = isFetchingMetadata || ContainsAny(item.Status, "stalled", "stuck") || ContainsAny(item.TrackedDownloadStatus, "stalled", "stuck") || ContainsAny(item.TrackedDownloadState, "stalled", "stuck") || ContainsAny(item.ErrorMessage, "stalled", "stuck");
+    private static HealthObservation BuildObservation(DownloadItem item, DownloadAttempt attempt,
+        HealthSnapshot snapshot, DateTime now)
+    {
+        var progress = CalculateProgress(item.Size, item.SizeLeft);
 
-        bool isStalledNoConnections = isStalled && ContainsAny(item.ErrorMessage, "no connections", "no peers", "0 peers") || isFetchingMetadata;
-        bool progressIncreased = progress.HasValue && snapshot.LastProgress.HasValue && progress.Value > snapshot.LastProgress.Value;
-        bool sizeLeftDecreased = snapshot.LastSizeLeft.HasValue && item.SizeLeft < snapshot.LastSizeLeft.Value;
-        bool errorCleared = !hasError && !isFetchingMetadata && !string.IsNullOrWhiteSpace(snapshot.LastErrorMessage);
-        bool repeatedError = !string.IsNullOrWhiteSpace(errorKey) && errorKey == snapshot.LastErrorKey;
-        bool hasPreviousObservation = snapshot.LastObservationAt.HasValue;
-        bool hasNoProgress = hasPreviousObservation && !progressIncreased && !sizeLeftDecreased;
-        bool isGood = progressIncreased || sizeLeftDecreased || errorCleared;
-        bool isBad = hasNoProgress || hasError || hasWarning || isStalled || isStalledNoConnections || repeatedError;
-        bool meaningfulRecovery = isGood && (snapshot.ConsecutiveBadScans > 0 || snapshot.State is HealthState.Watching or HealthState.Degrading or HealthState.Critical);
-        bool sustainedProgress = isGood && snapshot.ConsecutiveGoodScans >= 3;
+        var progressIncreased = progress.HasValue && snapshot.LastProgress.HasValue &&
+                                progress.Value > snapshot.LastProgress.Value;
+        var sizeLeftDecreased = snapshot.LastSizeLeft.HasValue && item.SizeLeft < snapshot.LastSizeLeft.Value;
+        var isActivelyProgressing = progressIncreased || sizeLeftDecreased;
+
+        var isFetchingMetadata = !isActivelyProgressing &&
+                                 ContainsAny(item.ErrorMessage, "downloading metadata", "fetching metadata");
+        var errorKey = isFetchingMetadata ? null : NormalizeError(item.ErrorMessage);
+        var hasError = !isActivelyProgressing && !isFetchingMetadata && !string.IsNullOrWhiteSpace(item.ErrorMessage);
+        var hasWarning = !isActivelyProgressing && (ContainsAny(item.Status, "warn", "warning") ||
+                                                    ContainsAny(item.TrackedDownloadStatus, "warn", "warning"));
+
+        var isStalled = !isActivelyProgressing && (ContainsAny(item.Status, "stalled", "stuck") ||
+                                                   ContainsAny(item.TrackedDownloadStatus, "stalled", "stuck") ||
+                                                   ContainsAny(item.TrackedDownloadState, "stalled", "stuck") ||
+                                                   ContainsAny(item.ErrorMessage, "stalled", "stuck"));
+        var isStalledNoConnections = !isActivelyProgressing && isStalled &&
+                                     ContainsAny(item.ErrorMessage, "no connections", "no peers", "0 peers");
+
+        var errorCleared = !hasError && !isFetchingMetadata && !string.IsNullOrWhiteSpace(snapshot.LastErrorMessage);
+        var repeatedError = !string.IsNullOrWhiteSpace(errorKey) && errorKey == snapshot.LastErrorKey;
+        var hasPreviousObservation = snapshot.LastObservationAt.HasValue;
+        var hasNoProgress = hasPreviousObservation && !isActivelyProgressing && !isFetchingMetadata && !hasError &&
+                            !hasWarning && !isStalled;
+        var isGood = isActivelyProgressing || errorCleared;
+        var isBad = !isActivelyProgressing && (hasNoProgress || hasError || hasWarning || isStalled ||
+                                               isStalledNoConnections || isFetchingMetadata || repeatedError);
+        var meaningfulRecovery = isGood && (snapshot.ConsecutiveBadScans > 0 ||
+                                            snapshot.State is HealthState.Watching or HealthState.Degrading
+                                                or HealthState.Critical);
+        var sustainedProgress = isGood && snapshot.ConsecutiveGoodScans >= 3;
 
         snapshot.LastProgress = progress;
         snapshot.LastSizeLeft = item.SizeLeft;
@@ -925,7 +1127,10 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         snapshot.LastErrorKey = errorKey;
         snapshot.LastErrorMessage = isFetchingMetadata ? null : item.ErrorMessage;
 
-        return new HealthObservation {
+        if (isActivelyProgressing) snapshot.LastByteProgressAt = now;
+
+        return new HealthObservation
+        {
             DownloadAttemptId = attempt.Id,
             ObservedAt = now,
             DownloadId = attempt.DownloadId,
@@ -940,7 +1145,7 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
             ErrorKey = errorKey,
             HasProgressIncrease = progressIncreased,
             HasSizeLeftDecrease = sizeLeftDecreased,
-            HasPositiveSpeed = progressIncreased || sizeLeftDecreased,
+            HasPositiveSpeed = isActivelyProgressing,
             HasError = hasError,
             HasWarning = hasWarning,
             IsStalled = isStalled,
@@ -959,189 +1164,160 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory) : IHealthS
         };
     }
 
-    private HealthState GetState(decimal rawScore) {
-        if (rawScore < 0) {
-            return HealthState.Remove;
-        }
+    private HealthState GetState(decimal rawScore)
+    {
+        if (rawScore < 0) return HealthState.Remove;
 
-        if (rawScore >= _policy.HealthyThreshold) {
-            return HealthState.Healthy;
-        }
+        if (rawScore >= _policy.HealthyThreshold) return HealthState.Healthy;
 
-        if (rawScore >= _policy.StableThreshold) {
-            return HealthState.Stable;
-        }
+        if (rawScore >= _policy.StableThreshold) return HealthState.Stable;
 
-        if (rawScore >= _policy.WatchingThreshold) {
-            return HealthState.Watching;
-        }
+        if (rawScore >= _policy.WatchingThreshold) return HealthState.Watching;
 
-        if (rawScore >= _policy.DegradingThreshold) {
-            return HealthState.Degrading;
-        }
+        if (rawScore >= _policy.DegradingThreshold) return HealthState.Degrading;
 
         return HealthState.Critical;
     }
 
-    private static string GetDownloadId(DownloadItem item) {
-        if (!string.IsNullOrWhiteSpace(item.DownloadId)) {
-            return item.DownloadId.Trim();
-        }
+    private static string GetDownloadId(DownloadItem item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.DownloadId)) return item.DownloadId.Trim();
 
-        if (!string.IsNullOrWhiteSpace(item.AttemptKey)) {
-            return item.AttemptKey.Trim();
-        }
+        if (!string.IsNullOrWhiteSpace(item.AttemptKey)) return item.AttemptKey.Trim();
 
         return $"{item.ServerId}:{item.RemoteId}:{NormalizeTitle(item.Title)}";
     }
 
-    private static TrackedMediaType GetMediaType(DownloadItem item) {
-        if (item.MovieId > 0) {
-            return TrackedMediaType.Movie;
-        }
-        if (item.SeriesId > 0 || item.EpisodeId > 0) {
-            return TrackedMediaType.Series;
-        }
+    private static TrackedMediaType GetMediaType(DownloadItem item)
+    {
+        if (item.MovieId > 0) return TrackedMediaType.Movie;
+
+        if (item.SeriesId > 0 || item.EpisodeId > 0) return TrackedMediaType.Series;
+
         return TrackedMediaType.Unknown;
     }
 
-    private static ServiceType InferServiceType(DownloadItem item) {
-        if (item.EpisodeId > 0 || item.SeriesId > 0) {
-            return ServiceType.Sonarr;
-        }
+    private static ServiceType InferServiceType(DownloadItem item)
+    {
+        if (item.EpisodeId > 0 || item.SeriesId > 0) return ServiceType.Sonarr;
 
         return ServiceType.Radarr;
     }
 
-    private async Task<int> GetReplacementAttemptNumberAsync(AppDbContext db, DownloadItem item, TrackedMediaType mediaType, CancellationToken cancellationToken) {
-        IQueryable<DownloadAttempt> query = db.DownloadAttempts.Where(e => e.MediaType == mediaType);
+    private async Task<int> GetReplacementAttemptNumberAsync(AppDbContext db, TrackedMediaType mediaType,
+        int? movieId, int? seriesId, int? episodeId, CancellationToken cancellationToken)
+    {
+        var query = db.DownloadAttempts.Where(e => e.MediaType == mediaType);
 
-        query = mediaType switch {
-            TrackedMediaType.Movie => query.Where(e => e.MovieId == item.MovieId),
-            TrackedMediaType.Series => query.Where(e => e.SeriesId == item.SeriesId),
-            TrackedMediaType.Episode => query.Where(e => e.EpisodeId == item.EpisodeId),
+        query = mediaType switch
+        {
+            TrackedMediaType.Movie => query.Where(e => e.MovieId == movieId),
+            TrackedMediaType.Series => query.Where(e => e.SeriesId == seriesId),
+            TrackedMediaType.Episode => query.Where(e => e.EpisodeId == episodeId),
             _ => query.Where(e => false)
         };
 
         return await query.CountAsync(cancellationToken) + 1;
     }
 
-    private static string BuildReleaseKey(DownloadItem item) {
-        string title = NormalizeTitle(item.Title);
-        string indexer = NormalizeTitle(item.Indexer);
-        string protocol = NormalizeTitle(item.Protocol);
+    private static string BuildReleaseKey(DownloadItem item)
+    {
+        var title = NormalizeTitle(item.Title);
+        var indexer = NormalizeTitle(item.Indexer);
+        var protocol = NormalizeTitle(item.Protocol);
 
         return string.Join(":", new[] { title, indexer, protocol }.Where(e => !string.IsNullOrWhiteSpace(e)));
     }
 
-    private static HealthEventType SelectEventType(List<HealthEventType> eventTypes) {
-        foreach (HealthEventType type in EventTypePriority) {
-            if (eventTypes.Contains(type)) {
+    private static HealthEventType SelectEventType(List<HealthEventType> eventTypes)
+    {
+        foreach (var type in EventTypePriority)
+            if (eventTypes.Contains(type))
                 return type;
-            }
-        }
 
         return HealthEventType.QueueSeen;
     }
 
-    private static string BuildReasonKey(HealthObservation observation, List<HealthEventType> eventTypes) {
-        if (observation.IsFetchingMetadata) {
-            return "stalled-fetching-metadata";
-        }
-        if (observation.IsStalledNoConnections) {
-            return "stalled-no-connections";
-        }
+    private static string BuildReasonKey(HealthObservation observation, List<HealthEventType> eventTypes)
+    {
+        if (observation.IsFetchingMetadata) return "stalled-fetching-metadata";
 
-        if (observation.IsStalled) {
-            return "stalled";
-        }
+        if (observation.IsStalledNoConnections) return "stalled-no-connections";
 
-        if (observation.IsRepeatedError) {
-            return "repeated-error";
-        }
+        if (observation.IsStalled) return "stalled";
 
-        if (observation.HasError) {
-            return observation.ErrorKey ?? "download-error";
-        }
+        if (observation.IsRepeatedError) return "repeated-error";
 
-        if (observation.HasWarning) {
-            return "download-warning";
-        }
+        if (observation.HasError) return observation.ErrorKey ?? "download-error";
 
-        if (observation.IsMeaningfulRecovery) {
-            return "meaningful-recovery";
-        }
+        if (observation.HasWarning) return "download-warning";
 
-        if (observation.HasProgressIncrease || observation.HasSizeLeftDecrease) {
-            return "progress-detected";
-        }
+        if (observation.IsMeaningfulRecovery) return "meaningful-recovery";
 
-        if (observation.HasNoProgress) {
-            return "no-progress";
-        }
+        if (observation.HasProgressIncrease || observation.HasSizeLeftDecrease) return "progress-detected";
+
+        if (observation.HasNoProgress) return "no-progress";
+
+        if (observation.IsFetchingMetadata) return "fetching-metadata";
 
         return eventTypes.Count == 0 ? "health-observed" : NormalizeTitle(eventTypes.Last().ToString());
     }
 
-    private static decimal? CalculateProgress(long size, long sizeLeft) {
-        if (size <= 0) {
-            return null;
-        }
+    private static decimal? CalculateProgress(long size, long sizeLeft)
+    {
+        if (size <= 0) return null;
 
-        long downloaded = Math.Max(0, size - sizeLeft);
+        var downloaded = Math.Max(0, size - sizeLeft);
 
         return Math.Round((decimal)downloaded / size * 100, 2);
     }
 
-    private static string NormalizeTitle(string? value) {
-        if (string.IsNullOrWhiteSpace(value)) {
-            return string.Empty;
-        }
+    private static string NormalizeTitle(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
 
-        return string.Join("-", value.Trim().ToLowerInvariant().Where(e => char.IsLetterOrDigit(e) || char.IsWhiteSpace(e) || e == '-' || e == '_').Select(e => char.IsWhiteSpace(e) ? '-' : e));
+        var chars = value.Trim().ToLowerInvariant()
+            .Where(e => char.IsLetterOrDigit(e) || char.IsWhiteSpace(e) || e == '-' || e == '_')
+            .Select(e => char.IsWhiteSpace(e) ? '-' : e)
+            .ToArray();
+
+        var normalized = new string(chars);
+
+        while (normalized.Contains("--")) normalized = normalized.Replace("--", "-");
+
+        return normalized.Trim('-');
     }
 
-    private static string? NormalizeError(string? value) {
-        if (string.IsNullOrWhiteSpace(value)) {
-            return null;
-        }
+    private static string? NormalizeError(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
 
-        string normalized = NormalizeTitle(value);
+        var normalized = NormalizeTitle(value);
 
-        if (normalized.Contains("no-connections") || normalized.Contains("no-peers")) {
-            return "stalled-no-connections";
-        }
+        if (normalized.Contains("no-connections") || normalized.Contains("no-peers")) return "stalled-no-connections";
 
-        if (normalized.Contains("stalled")) {
-            return "stalled";
-        }
+        if (normalized.Contains("stalled")) return "stalled";
 
-        if (normalized.Contains("not-found")) {
-            return "not-found";
-        }
+        if (normalized.Contains("not-found")) return "not-found";
 
-        if (normalized.Contains("unpack")) {
-            return "unpack-failed";
-        }
+        if (normalized.Contains("unpack")) return "unpack-failed";
 
-        if (normalized.Contains("import")) {
-            return "import-failed";
-        }
+        if (normalized.Contains("import")) return "import-failed";
 
         return normalized.Length > 255 ? normalized[..255] : normalized;
     }
 
-    private static bool ContainsAny(string? value, params string[] terms) {
-        if (string.IsNullOrWhiteSpace(value)) {
-            return false;
-        }
+    private static bool ContainsAny(string? value, params string[] terms)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
 
         return terms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase));
     }
 
     private readonly record struct HealthStateBefore(decimal Score, int Confidence, int RecoveryCredit);
 
-    private sealed class HealthEvaluation {
+    private sealed class HealthEvaluation
+    {
         public decimal ScoreDelta { get; set; }
         public int RecoveryCreditDelta { get; set; }
         public HealthEventType EventType { get; set; }

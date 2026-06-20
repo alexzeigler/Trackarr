@@ -2,7 +2,8 @@
 
 namespace Trackarr.Core.Health;
 
-public class SourceHealthSummary {
+public class SourceHealthSummary
+{
     public int Id { get; set; }
 
     public int? ServerId { get; set; }

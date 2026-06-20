@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Health;
 
-public class HealthObservation {
+public class HealthObservation
+{
     public int DownloadAttemptId { get; set; }
 
     public DateTime ObservedAt { get; set; }

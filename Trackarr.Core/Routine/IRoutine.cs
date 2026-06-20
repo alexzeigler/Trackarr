@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Routine;
 
-public interface IRoutine {
+public interface IRoutine
+{
     public int Id { get; set; }
     public string Key { get; }
     public string Name { get; set; }

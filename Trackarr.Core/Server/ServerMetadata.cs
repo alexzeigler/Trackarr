@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Server;
 
-public class ServerMetadata {
+public class ServerMetadata
+{
     public int ServerId { get; set; }
     public string AppName { get; set; } = "";
     public string InstanceName { get; set; } = "";

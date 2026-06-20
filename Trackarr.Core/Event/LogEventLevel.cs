@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Event;
 
-public enum LogEventLevel {
+public enum LogEventLevel
+{
     Debug,
     Information,
     Warning,

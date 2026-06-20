@@ -1,0 +1,22 @@
+﻿@namespace Trackarr.Components.Tables
+@typeparam TItem
+
+<button type="button" class="@ButtonClass" @onclick="Sort">
+    <span>@ChildContent</span>
+    <span class="ms-1">@Table?.SortMarker(SortKey)</span>
+</button>
+
+@code {
+    [CascadingParameter] public AppTable<TItem>? Table { get; set; }
+    [Parameter] public string SortKey { get; set; } = string.Empty;
+    [Parameter] public string Class { get; set; } = "table-sort d-flex justify-content-between";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string ButtonClass => $"{Class} {Table?.SortClass(SortKey)}";
+
+    private void Sort()
+    {
+        Table?.SortBy(SortKey);
+    }
+
+}

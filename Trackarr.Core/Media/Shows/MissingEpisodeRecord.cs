@@ -2,7 +2,8 @@
 
 namespace Trackarr.Core.Media.Shows;
 
-public class MissingEpisodeRecord {
+public class MissingEpisodeRecord
+{
     public int Id { get; set; }
     public int SeriesId { get; set; }
     public int TvdbId { get; set; }

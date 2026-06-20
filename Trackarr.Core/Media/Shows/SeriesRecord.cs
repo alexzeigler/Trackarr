@@ -2,7 +2,8 @@
 
 namespace Trackarr.Core.Media.Shows;
 
-public class SeriesRecord {
+public class SeriesRecord
+{
     public int Id { get; set; }
     public string? Title { get; set; }
     public JsonElement? AlternateTitles { get; set; }

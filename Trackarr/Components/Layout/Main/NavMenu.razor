@@ -1,0 +1,98 @@
+﻿@inject NavigationManager Nav
+@implements IDisposable
+
+<div class="collapse navbar-collapse">
+    <ul class="navbar-nav pt-lg-3">
+        @foreach (var item in NavItems)
+        {
+            var active = IsActive(item.Prefix);
+
+            @if (item.Children.Any())
+            {
+                <li class="nav-item">
+                    <a class="nav-link dropdown-toggle @(active ? "" : "collapsed")"
+                       data-bs-toggle="collapse"
+                       href="#nav-@item.Prefix.Trim('/')"
+                       role="button"
+                       aria-expanded="@active.ToString().ToLower()">
+                        <span class="nav-link-icon d-md-none d-lg-inline-block">
+                            <i class="@item.Icon"></i>
+                        </span>
+                        <span class="nav-link-title"> @item.Label</span>
+                    </a>
+                    <div class="collapse @(active ? "show" : "")" id="nav-@item.Prefix.Trim('/')">
+                        <ul class="nav nav-sm flex-column ms-4">
+                            @foreach (var child in item.Children)
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link" href="@child.Href">@child.Label</a>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </li>
+            }
+            else
+            {
+                <li class="nav-item">
+                    <a class="nav-link" href="@item.Href">
+                        <span class="nav-link-icon d-md-none d-lg-inline-block">
+                            <i class="@item.Icon"></i>
+                        </span>
+                        <span class="nav-link-title"> @item.Label</span>
+                    </a>
+                </li>
+            }
+        }
+    </ul>
+</div>
+
+@code {
+
+    private record NavChild(string Label, string Href);
+
+    private record NavItem(string Label, string Href, string Prefix, string Icon, List<NavChild> Children);
+
+    private static readonly List<NavItem> NavItems =
+    [
+        new("Track", "", "/", "ti ti-stack-2", []),
+        new("Servers", "/servers", "/servers", "ti ti-server", []),
+        new("History", "/history", "/history", "ti ti-history", []),
+        new("Settings", "/settings", "/settings", "bi bi-gear-fill",
+        [
+            new NavChild("General", "/settings/general"),
+            new NavChild("Services", "/settings/services")
+        ]),
+        new("System", "/system/status", "/system", "bi bi-laptop",
+        [
+            new NavChild("Status", "/system/status"),
+            new NavChild("Routines", "/system/routines"),
+            new NavChild("Events", "/system/events")
+        ])
+    ];
+
+    private bool IsActive(string href)
+    {
+        var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimEnd('/');
+        var target = "/" + href.Trim('/');
+        return target == "/"
+            ? path == "/"
+            : path.StartsWith(target, StringComparison.OrdinalIgnoreCase);
+    }
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+
+}

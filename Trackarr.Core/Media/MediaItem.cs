@@ -5,20 +5,12 @@ using Trackarr.Core.Server;
 
 namespace Trackarr.Core.Media;
 
-public record QualityModel(QualityDetail Quality);
-
-public record QualityDetail(int Id, string Name, string Source, int Resolution);
-
-public record StatusMessage(string Title, List<string> Messages);
-
 public record MediaImage(string CoverType, string Url, string RemoteUrl);
 
 public record MediaLanguage(int Id, string Name);
 
-public record MediaRating(int Votes, double Value);
-
-public abstract class MediaItem {
-
+public abstract class MediaItem
+{
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     [JsonIgnore] public int Id { get; set; }
     [JsonPropertyName("id")] public int RemoteId { get; set; }
@@ -49,36 +41,34 @@ public abstract class MediaItem {
     [ForeignKey(nameof(ServerId))] public MediaServer? ParentServer { get; set; }
 
 
-    [NotMapped]
-    public int SeasonNumber { get; set; }
+    [NotMapped] public int SeasonNumber { get; set; }
 
-    [NotMapped]
-    public int EpisodeNumber { get; set; }
+    [NotMapped] public int EpisodeNumber { get; set; }
 
-    [NotMapped]
-    public IReadOnlyList<MediaImage> Images => Deserialize<List<MediaImage>>(ImagesJson) ?? [];
+    [NotMapped] public IReadOnlyList<MediaImage> Images => Deserialize<List<MediaImage>>(ImagesJson) ?? [];
 
-    [NotMapped]
-    public IReadOnlyList<string> Genres => Deserialize<List<string>>(GenresJson) ?? [];
+    [NotMapped] public IReadOnlyList<string> Genres => Deserialize<List<string>>(GenresJson) ?? [];
 
-    [NotMapped]
-    public IReadOnlyList<int> Tags => Deserialize<List<int>>(TagsJson) ?? [];
+    [NotMapped] public IReadOnlyList<int> Tags => Deserialize<List<int>>(TagsJson) ?? [];
 
-    [NotMapped]
-    public MediaLanguage? OriginalLanguage => Deserialize<MediaLanguage>(OriginalLanguageJson);
+    [NotMapped] public MediaLanguage? OriginalLanguage => Deserialize<MediaLanguage>(OriginalLanguageJson);
 
-    [NotMapped]
-    public string? PosterUrl => Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl;
+    [NotMapped] public string? PosterUrl => Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl;
 
-    [NotMapped]
-    public string? FanartUrl => Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl;
+    [NotMapped] public string? FanartUrl => Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl;
 
-    [NotMapped]
-    public string? BannerUrl => Images.FirstOrDefault(i => i.CoverType == "banner")?.RemoteUrl;
+    [NotMapped] public string? BannerUrl => Images.FirstOrDefault(i => i.CoverType == "banner")?.RemoteUrl;
 
-    private static T? Deserialize<T>(string? json) {
+    private static T? Deserialize<T>(string? json)
+    {
         if (string.IsNullOrEmpty(json)) return default;
-        try { return JsonSerializer.Deserialize<T>(json, JsonOptions); }
-        catch { return default; }
+        try
+        {
+            return JsonSerializer.Deserialize<T>(json, JsonOptions);
+        }
+        catch
+        {
+            return default;
+        }
     }
 }

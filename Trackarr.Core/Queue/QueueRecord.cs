@@ -2,7 +2,8 @@
 
 namespace Trackarr.Core.Queue;
 
-public class QueueRecord {
+public class QueueRecord
+{
     public int Id { get; set; }
     public int MovieId { get; set; }
     public int SeriesId { get; set; }

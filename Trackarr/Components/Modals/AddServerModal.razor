@@ -3,48 +3,51 @@
 @inject IJSRuntime Js
 @inject MediaServerService ServerService
 
-<div id = "serverModal" class = "modal modal-blur fade" tabindex = "-1">
-    <div class = "modal-dialog modal-dialog-centered">
-        <div class = "modal-content">
-            <div class = "modal-header px-4 pt-4 pb-3 border-0">
+<div id="serverModal" class="modal modal-blur fade" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header px-4 pt-4 pb-3 border-0">
                 <div>
-                    <h5 class = "modal-title fw-bold mb-0 h1">@(IsEditing ? "Edit" : "Add") Server</h5>
+                    <h5 class="modal-title fw-bold mb-0 h1">@(IsEditing ? "Edit" : "Add") Server</h5>
                 </div>
-                <button type = "button" class = "btn-close" @onclick = "Close"></button>
+                <button type="button" class="btn-close" @onclick="Close"></button>
             </div>
 
-            <div class = "modal-body px-4 pb-2">
+            <div class="modal-body px-4 pb-2">
 
-                @if (TestResult is not null) {
-                    <div class = "alert @(TestResult.Value.Item1 ? "alert-success" : "alert-danger") alert-important alert-dismissible d-flex align-items-start mb-4"
-                         role = "alert">
-                        <div class = "alert-icon h1">
-                            @if (TestResult.Value.Item1) {
-                                <svg xmlns = "http://www.w3.org/2000/svg"
-                                     width = "24"
-                                     height = "24"
-                                     viewBox = "0 0 24 24"
-                                     fill = "currentColor"
-                                     class = "icon icon-tabler icons-tabler-filled icon-tabler-circle-check">
-                                    <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                                    <path d = "M17 3.34a10 10 0 1 1 -14.995 8.984l-.005 -.324l.005 -.324a10 10 0 0 1 14.995 -8.336zm-1.293 5.953a1 1 0 0 0 -1.32 -.083l-.094 .083l-3.293 3.292l-1.293 -1.292l-.094 -.083a1 1 0 0 0 -1.403 1.403l.083 .094l2 2l.094 .083a1 1 0 0 0 1.226 0l.094 -.083l4 -4l.083 -.094a1 1 0 0 0 -.083 -1.32z" />
+                @if (TestResult is not null)
+                {
+                    <div class="alert @(TestResult.Value.Item1 ? "alert-success" : "alert-danger") alert-important alert-dismissible d-flex align-items-start mb-4"
+                         role="alert">
+                        <div class="alert-icon h1">
+                            @if (TestResult.Value.Item1)
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg"
+                                     width="24"
+                                     height="24"
+                                     viewBox="0 0 24 24"
+                                     fill="currentColor"
+                                     class="icon icon-tabler icons-tabler-filled icon-tabler-circle-check">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <path d="M17 3.34a10 10 0 1 1 -14.995 8.984l-.005 -.324l.005 -.324a10 10 0 0 1 14.995 -8.336zm-1.293 5.953a1 1 0 0 0 -1.32 -.083l-.094 .083l-3.293 3.292l-1.293 -1.292l-.094 -.083a1 1 0 0 0 -1.403 1.403l.083 .094l2 2l.094 .083a1 1 0 0 0 1.226 0l.094 -.083l4 -4l.083 -.094a1 1 0 0 0 -.083 -1.32z"/>
                                 </svg>
                             }
-                            else {
-                                <svg xmlns = "http://www.w3.org/2000/svg"
-                                     width = "24"
-                                     height = "24"
-                                     viewBox = "0 0 24 24"
-                                     fill = "currentColor"
-                                     class = "icon icon-tabler icons-tabler-filled icon-tabler-exclamation-circle">
-                                    <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                                    <path d = "M17 3.34a10 10 0 1 1 -15 8.66l.005 -.324a10 10 0 0 1 14.995 -8.336m-5 11.66a1 1 0 0 0 -1 1v.01a1 1 0 0 0 2 0v-.01a1 1 0 0 0 -1 -1m0 -7a1 1 0 0 0 -1 1v4a1 1 0 0 0 2 0v-4a1 1 0 0 0 -1 -1" />
+                            else
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg"
+                                     width="24"
+                                     height="24"
+                                     viewBox="0 0 24 24"
+                                     fill="currentColor"
+                                     class="icon icon-tabler icons-tabler-filled icon-tabler-exclamation-circle">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <path d="M17 3.34a10 10 0 1 1 -15 8.66l.005 -.324a10 10 0 0 1 14.995 -8.336m-5 11.66a1 1 0 0 0 -1 1v.01a1 1 0 0 0 2 0v-.01a1 1 0 0 0 -1 -1m0 -7a1 1 0 0 0 -1 1v4a1 1 0 0 0 2 0v-4a1 1 0 0 0 -1 -1"/>
                                 </svg>
                             }
                         </div>
 
-                        <div class = "flex-fill">
-                            <div class = "fw-bold mb-1">
+                        <div class="flex-fill">
+                            <div class="fw-bold mb-1">
                                 @(TestResult.Value.Item1 ? "Connection successful" : "Connection failed")
                             </div>
                             <div>
@@ -52,176 +55,197 @@
                             </div>
                         </div>
 
-                        <a class = "btn-close" data-bs-dismiss = "alert" aria-label = "close"></a>
+                        <a class="btn-close" data-bs-dismiss="alert" aria-label="close"></a>
                     </div>
                 }
 
-                @* ── Application + Name ── *@
-                <div class = "row g-3 mb-3">
-                    <div class = "col-6">
-                        <label class = "form-label">Application</label>
-                        <div class = "d-flex align-items-center gap-2">
-                            <img src = "./img/@(SelectedService).svg" style = "max-width: 30px" />
-                            <select class = "form-select" @bind = "SelectedService">
-                                <option value = "Radarr">Radarr</option>
-                                <option value = "Sonarr">Sonarr</option>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">Application</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <img src="./img/@(Model.ServiceType).svg" style="max-width: 40px"/>
+                            <select class="form-select" @bind="Model.ServiceType" @bind:after="UpdatePort">
+                                <option value="@ServiceType.Radarr">Radarr</option>
+                                <option value="@ServiceType.Sonarr">Sonarr</option>
                             </select>
                         </div>
-                        <div class = "form-text">Select the *arr application to connect.</div>
+                        <div class="form-text">Select the *arr application to connect.</div>
                     </div>
-                    <div class = "col-6">
-                        <label class = "form-label">Name</label>
-                        <input class = "form-control @(string.IsNullOrWhiteSpace(Model.Name) ? "is-invalid" : "")"
-                               placeholder = "e.g. Radarr"
-                               @bind = "Model.Name" />
-                        <div class = "form-text">A friendly name for this server.</div>
+                    <div class="col-6">
+                        <label class="form-label">Name</label>
+                        <input class="form-control @(string.IsNullOrWhiteSpace(Model.Name) ? "is-invalid" : "")"
+                               placeholder="e.g. Radarr"
+                               @bind="Model.Name"/>
+                        <div class="form-text">A friendly name for this server.</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-check form-switch form-switch-3"> <input class="form-check-input"
+                                                                                        type="checkbox"
+                                                                                        @bind="Model.IsEnabled">
+                                <span class="form-check-label">Enabled</span>
+                            </label>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-check form-switch form-switch-3"> <input class="form-check-input"
+                                                                                        type="checkbox"
+                                                                                        @bind="Model.UseHttps"
+                                                                                        @bind:after="UpdatePort">
+                                <span class="form-check-label">Use SSL</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
-                @* ── Base URL ── *@
-                <div class = "mb-3">
-                    <label class = "form-label">Base URL</label>
-                    <div class = "input-group">
-                        <span class = "input-group-text text-secondary">@(Model.UseHttps ? "https://" : "http://")</span>
-                        <input class = "form-control @(string.IsNullOrWhiteSpace(Model.Host) ? "is-invalid" : "")"
-                               placeholder = "hostname or IP"
-                               @bind = "Model.Host" />
-                        <span class = "input-group-text">:</span>
-                        <input type = "number"
-                               class = "form-control @(Model.Port <= 0 ? "is-invalid" : "")"
-                               style = "max-width: 90px;"
-                               @bind = "Model.Port" />
+                <div class="mb-3">
+                    <label class="form-label">Base URL</label>
+                    <div class="input-group">
+                        <span class="input-group-text text-secondary">@(Model.UseHttps ? "https://" : "http://")</span>
+                        <input class="form-control @(string.IsNullOrWhiteSpace(Model.Host) ? "is-invalid" : "")"
+                               placeholder="hostname or IP"
+                               @bind="Model.Host"/>
+                        <span class="input-group-text">:</span>
+                        <input type="number"
+                               class="form-control @(Model.Port <= 0 ? "is-invalid" : "")"
+                               style="max-width: 90px;"
+                               @bind="Model.Port"/>
                     </div>
-                    <div class = "form-text">The full URL to your @ServiceType instance.</div>
+                    <div class="form-text">The full URL to your @Model.ServiceType instance.</div>
                 </div>
 
-                @* ── API Key ── *@
-                <div class = "mb-3">
-                    <label class = "form-label">API Key</label>
-                    <div class = "input-group">
-                        <input class = "form-control @(string.IsNullOrWhiteSpace(Model.ApiKey) ? "is-invalid" : "")"
-                               type = "@(_showApiKey ? "text" : "password")"
-                               @bind = "Model.ApiKey" />
-                        <button class = "btn btn-outline-secondary" type = "button" @onclick = "ToggleApiKey">
-                            @if (_showApiKey) {
-                                <svg xmlns = "http://www.w3.org/2000/svg"
-                                     width = "16"
-                                     height = "16"
-                                     fill = "currentColor"
-                                     viewBox = "0 0 24 24">
-                                    <path d = "M12 5c-5 0-9.27 3.11-11 7 1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7zm0 12a5 5 0 110-10 5 5 0 010 10z" />
-                                    <path d = "M12 9a3 3 0 100 6 3 3 0 000-6z" />
+                <div class="mb-3">
+                    <label class="form-label">API Key</label>
+                    <div class="input-group">
+                        <input class="form-control @(string.IsNullOrWhiteSpace(Model.ApiKey) ? "is-invalid" : "")"
+                               type="@(_showApiKey ? "text" : "password")"
+                               @bind="Model.ApiKey"/>
+                        <button class="btn btn-outline-secondary" type="button" @onclick="ToggleApiKey">
+                            @if (_showApiKey)
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg"
+                                     width="16"
+                                     height="16"
+                                     fill="currentColor"
+                                     viewBox="0 0 24 24">
+                                    <path d="M12 5c-5 0-9.27 3.11-11 7 1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7zm0 12a5 5 0 110-10 5 5 0 010 10z"/>
+                                    <path d="M12 9a3 3 0 100 6 3 3 0 000-6z"/>
                                 </svg>
                             }
-                            else {
-                                <svg xmlns = "http://www.w3.org/2000/svg"
-                                     width = "16"
-                                     height = "16"
-                                     fill = "currentColor"
-                                     viewBox = "0 0 24 24">
-                                    <path d = "M3.53 2.47a.75.75 0 00-1.06 1.06l18 18a.75.75 0 101.06-1.06l-18-18z" />
-                                    <path d = "M22.676 12.553a11.249 11.249 0 01-2.631 4.31l-3.099-3.099a5.25 5.25 0 00-6.71-6.71L7.759 4.577a11.217 11.217 0 014.242-.827c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113z" />
-                                    <path d = "M15.75 12c0 .18-.013.357-.037.53l-4.244-4.243A3.75 3.75 0 0115.75 12z" />
-                                    <path d = "M12.53 15.713l-4.243-4.244a3.75 3.75 0 004.243 4.243z" />
-                                    <path d = "M6.75 12c0-.619.107-1.213.304-1.764l-3.1-3.1a11.25 11.25 0 00-2.63 4.31c-.12.362-.12.752 0 1.114 1.489 4.467 5.704 7.69 10.675 7.69 1.5 0 2.933-.294 4.242-.827l-2.477-2.477A5.25 5.25 0 016.75 12z" />
+                            else
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg"
+                                     width="16"
+                                     height="16"
+                                     fill="currentColor"
+                                     viewBox="0 0 24 24">
+                                    <path d="M3.53 2.47a.75.75 0 00-1.06 1.06l18 18a.75.75 0 101.06-1.06l-18-18z"/>
+                                    <path d="M22.676 12.553a11.249 11.249 0 01-2.631 4.31l-3.099-3.099a5.25 5.25 0 00-6.71-6.71L7.759 4.577a11.217 11.217 0 014.242-.827c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113z"/>
+                                    <path d="M15.75 12c0 .18-.013.357-.037.53l-4.244-4.243A3.75 3.75 0 0115.75 12z"/>
+                                    <path d="M12.53 15.713l-4.243-4.244a3.75 3.75 0 004.243 4.243z"/>
+                                    <path d="M6.75 12c0-.619.107-1.213.304-1.764l-3.1-3.1a11.25 11.25 0 00-2.63 4.31c-.12.362-.12.752 0 1.114 1.489 4.467 5.704 7.69 10.675 7.69 1.5 0 2.933-.294 4.242-.827l-2.477-2.477A5.25 5.25 0 016.75 12z"/>
                                 </svg>
                             }
                         </button>
                     </div>
-                    <div class = "form-text">Your @ServiceType API key (Settings &gt; General).</div>
+                    <div class="form-text">Your @Model.ServiceType API key (Settings &gt; General).</div>
                 </div>
 
-                @* ── API Path + Timeout ── *@
-                <div class = "row g-3 mb-3">
-                    <div class = "col-6">
-                        <label class = "form-label">API Path
-                            <span class = "text-secondary fw-normal">(optional)</span>
-                        </label> <input class = "form-control" placeholder = "/api/v3" />
-                        <div class = "form-text">Leave blank for default.</div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">API Path
+                            <span class="text-secondary fw-normal">(optional)</span>
+                        </label> <input class="form-control" placeholder="/api/v3"/>
+                        <div class="form-text">Leave blank for default.</div>
                     </div>
-                    <div class = "col-6">
-                        <label class = "form-label">Timeout (seconds)</label> <input type = "number"
-                                                                                     class = "form-control" />
-                        <div class = "form-text">Request timeout in seconds.</div>
+                    <div class="col-6">
+                        <label class="form-label">Timeout (seconds)</label> <input type="number" class="form-control"/>
+                        <div class="form-text">Request timeout in seconds.</div>
                     </div>
                 </div>
 
-                @* ── SSL + Priority ── *@
-                <div class = "row g-3 mb-3">
-                    <div class = "col-6">
-                        <label class = "form-label">Use SSL</label>
-                        <select class = "form-select" @bind = "Model.UseHttps">
-                            <option value = "false">No</option>
-                            <option value = "true">Yes</option>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">Use SSL</label> <select class="form-select" @bind="Model.UseHttps">
+                            <option value="false">No</option>
+                            <option value="true">Yes</option>
                         </select>
-                        <div class = "form-text">Enable if your server uses HTTPS.</div>
+                        <div class="form-text">Enable if your server uses HTTPS.</div>
                     </div>
-                    <div class = "col-6">
-                        <label class = "form-label">Priority</label> <input type = "number" class = "form-control" />
-                        <div class = "form-text">Lower numbers have higher priority.</div>
+                    <div class="col-6">
+                        <label class="form-label">Priority</label> <input type="number" class="form-control"/>
+                        <div class="form-text">Lower numbers have higher priority.</div>
                     </div>
                 </div>
 
-                @* ── Sync Interval ── *@
-                <div class = "mb-3">
-                    <label class = "form-label">Sync Interval</label>
-                    <select class = "form-select">
-                        <option value = "5">5 minutes</option>
-                        <option value = "15">15 minutes</option>
-                        <option value = "30">30 minutes</option>
-                        <option value = "60">60 minutes</option>
-                    </select>
-                    <div class = "form-text">How often Trackarr should sync with this server.</div>
+                <div class="mb-3">
+                    <label class="form-label">Fallback Profile</label>
+                    <span class="d-block"
+                          id="fallbackTooltip"
+                          data-bs-toggle="@(HasProfiles ? null : "tooltip")"
+                          title="Test connection to load profiles">
+                        <select class="form-select" id="fallbackProfileSelect" disabled="@(!HasProfiles)">
+                            <option value="">None</option>
+                            @foreach (var p in Profiles ?? [])
+                            {
+                                <option value="@p.Name"
+                                        selected="@(p.Name == Model.FallbackProfile?.Name)">@p.Name</option>
+                            } </select>
+                    </span>
+                    <div class="form-text">The fallback profile to apply to repeated missing items.</div>
                 </div>
 
-                @* ── Test Connection Banner ── *@
-                @if (IsValid) {
-                    <div class = "alert alert-success d-flex align-items-center justify-content-between gap-3 mb-1"
-                         role = "alert">
-                        <div class = "d-flex align-items-center gap-3">
-                            <svg xmlns = "http://www.w3.org/2000/svg"
-                                 width = "40"
-                                 height = "40"
-                                 style = "width: 40px; height: 40px;"
-                                 viewBox = "0 0 24 24"
-                                 fill = "none"
-                                 stroke = "currentColor"
-                                 stroke-width = "2"
-                                 stroke-linecap = "round"
-                                 stroke-linejoin = "round">
-                                <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                                <path d = "M12 18l.01 0" />
-                                <path d = "M9.172 15.172a4 4 0 0 1 5.656 0" />
-                                <path d = "M6.343 12.343a8 8 0 0 1 11.314 0" />
-                                <path d = "M3.515 9.515c4.686 -4.687 12.284 -4.687 17 0" />
+
+                @if (IsValid)
+                {
+                    <div class="alert alert-success d-flex align-items-center justify-content-between gap-3 mb-1"
+                         role="alert">
+                        <div class="d-flex align-items-center gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 width="40"
+                                 height="40"
+                                 style="width: 40px; height: 40px;"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <path d="M12 18l.01 0"/>
+                                <path d="M9.172 15.172a4 4 0 0 1 5.656 0"/>
+                                <path d="M6.343 12.343a8 8 0 0 1 11.314 0"/>
+                                <path d="M3.515 9.515c4.686 -4.687 12.284 -4.687 17 0"/>
                             </svg>
                             <div>
-                                <div class = "fw-semibold">Ready to Test</div>
+                                <div class="fw-semibold">Ready to Test</div>
                                 <div>Ensure Trackarr can connect and authenticate with this server.</div>
                             </div>
                         </div>
-                        <button class = "btn btn-ghost btn-app-ghost flex-shrink-0"
-                                @onclick = "TestConnection"
-                                disabled = "@IsBusy">
-                            @if (IsTesting) {
-                                <span class = "spinner-border spinner-border-sm me-1"></span>
+                        <button class="btn btn-ghost btn-app-ghost flex-shrink-0"
+                                @onclick="TestConnection"
+                                disabled="@IsBusy">
+                            @if (IsTesting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
                             }
                             Test Connection
                         </button>
                     </div>
-
                 }
             </div>
 
-            <div class = "modal-footer px-4 border-top border-secondary-subtle">
-                <button class = "btn btn-outline-secondary me-auto" @onclick = "Close" disabled = "@IsBusy">
+            <div class="modal-footer px-4 border-top border-secondary-subtle">
+                <button class="btn btn-outline-secondary me-auto" @onclick="Close" disabled="@IsBusy">
                     Cancel
                 </button>
-                <button class = "btn app-btn-primary " @onclick = "Save" disabled = "@(!CanSave)">
-                    @if (IsSaving) {
-                        <span class = "spinner-border spinner-border-sm me-1"></span>
+                <button class="btn app-btn-primary " @onclick="Save" disabled="@(!CanSave)">
+                    @if (IsSaving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
                     }
-                    <i class = "bi bi-floppy me-1"></i>Save Server
+                    <i class="bi bi-floppy me-1"></i>Save Server
                 </button>
             </div>
 
@@ -230,136 +254,5 @@
 </div>
 
 @code {
-    [Parameter] public ServiceType ServiceType { get; set; }
-    [Parameter] public EventCallback OnSaved { get; set; }
-
-    private MediaServer Model { get; set; } = new();
-    private bool IsEditing => Model.Id != 0;
-    private bool IsTesting { get; set; }
-    private bool IsSaving { get; set; }
-    private bool IsBusy => IsTesting || IsSaving;
-    private bool IsValid => !string.IsNullOrWhiteSpace(Model.Name) && !string.IsNullOrWhiteSpace(Model.Host) && Model.Port > 0 && !string.IsNullOrWhiteSpace(Model.ApiKey);
-    private bool CanSave => IsValid && TestResult is { Item1: true } && !IsBusy;
-    private List<QualityProfile>? Profiles { get; set; } = [];
-
-    private (bool, long ElapsedMilliseconds, string? ReasonPhrase)? TestResult { get; set; }
-    private bool _showApiKey;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender) {
-        if (firstRender) {
-            await Js.InvokeVoidAsync("initTooltips");
-        }
-    }
-
-    private void ToggleApiKey() {
-        _showApiKey = !_showApiKey;
-    }
-
-    public async Task OpenForAdd(ServiceType type = ServiceType.Radarr) {
-        ServiceType = type;
-
-        Model = new MediaServer {
-            IsEnabled = true,
-            ServiceType = type,
-            Port = type switch {
-                ServiceType.Radarr => 7878,
-                ServiceType.Sonarr => 8989,
-                _ => 80
-            },
-            CreatedAt = DateTime.UtcNow
-        };
-
-        TestResult = null;
-        _showApiKey = false;
-
-        await InvokeAsync(StateHasChanged);
-
-        await Js.InvokeVoidAsync("modalHelper.show", "serverModal");
-    }
-
-    public async Task OpenForEdit(MediaServer server) {
-        ServiceType = server.ServiceType;
-        Model = server.Clone();
-        if (!string.IsNullOrWhiteSpace(Model.FallbackProfile)) {
-            Profiles = server.Profiles;
-            QualityProfile? selected = Profiles?.FirstOrDefault(p => string.Equals(p.Name, Model.FallbackProfile, StringComparison.OrdinalIgnoreCase));
-            if (selected == null) {
-                TestResult = new ValueTuple<bool, long, string?>(false, 0, $"Profile does not exist on the server: \"{Model.FallbackProfile}\".");
-            }
-        }
-        else {
-            Profiles?.Clear();
-            TestResult = null;
-        }
-
-        _showApiKey = false;
-        await InvokeAsync(StateHasChanged);
-
-        await Js.InvokeVoidAsync("modalHelper.show", "serverModal");
-    }
-
-    private async Task TestConnection() {
-        IsTesting = true;
-        TestResult = null;
-        Model.ServiceType = ServiceType;
-
-        try {
-            TestResult = await ServerService.TestConnectionAsync(Model);
-
-            if (TestResult is { Item1: true }) {
-                Model.LastPingMs = TestResult.Value.ElapsedMilliseconds;
-                Model.IsOnline = true;
-                TestResult = TestResult.Value with { ReasonPhrase = $"{TestResult.Value.ReasonPhrase} Last ping time: {TestResult.Value.ElapsedMilliseconds}ms" };
-                Profiles = await ServerService.GetProfilesAsync(Model);
-            }
-            else {
-                Profiles?.Clear();
-            }
-        }
-        catch (Exception ex) {
-            TestResult = (false, 0, GetStatusDescription(ex.Message));
-            Profiles?.Clear();
-        }
-        finally {
-            IsTesting = false;
-        }
-    }
-
-    private async Task Save() {
-        IsSaving = true;
-        Model.ServiceType = ServiceType;
-
-        if (IsEditing) {
-            await ServerService.UpdateServerAsync(Model);
-        }
-        else {
-            await ServerService.CreateServerAsync(Model);
-        }
-
-        IsSaving = false;
-        await InvokeAsync(StateHasChanged);
-        await Task.Delay(300);
-        await InvokeAsync(StateHasChanged);
-        await OnSaved.InvokeAsync();
-        await Js.InvokeVoidAsync("modalHelper.hide", "serverModal");
-    }
-
-    private async Task Close() {
-        await InvokeAsync(StateHasChanged);
-        await Task.Delay(300);
-        TestResult = null;
-        await InvokeAsync(StateHasChanged);
-        await Js.InvokeVoidAsync("modalHelper.hide", "serverModal");
-    }
-    private static string GetStatusDescription(string? reasonPhrase) => reasonPhrase switch {
-        not null when reasonPhrase.Contains("401") => "401: Unauthorized — check your API key.",
-        not null when reasonPhrase.Contains("403") => "403: Forbidden — insufficient permissions.",
-        not null when reasonPhrase.Contains("404") => "404: Not Found — check your host and API path.",
-        not null when reasonPhrase.Contains("408") => "408: Request Timeout — server took too long to respond.",
-        not null when reasonPhrase.Contains("500") => "500: Internal Server Error — something went wrong on the server.",
-        not null when reasonPhrase.Contains("502") => "502: Bad Gateway — server may be behind a proxy.",
-        not null when reasonPhrase.Contains("503") => "503: Service Unavailable — server may be starting up.",
-        _ => reasonPhrase ?? "Unknown error."
-    };
 
 }

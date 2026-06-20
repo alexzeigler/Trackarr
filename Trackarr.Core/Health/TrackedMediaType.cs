@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Health;
 
-public enum TrackedMediaType {
+public enum TrackedMediaType
+{
     Unknown,
     Movie,
     Series,

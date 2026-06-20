@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Health;
 
-public class MediaHealthSummary {
+public class MediaHealthSummary
+{
     public int Id { get; set; }
 
     public TrackedMediaType MediaType { get; set; } = TrackedMediaType.Unknown;

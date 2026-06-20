@@ -1,0 +1,84 @@
+﻿@namespace Trackarr.Components.Tables
+
+<th class="@ThClass" style="@ThStyle">
+    @if (Sortable)
+    {
+        <button type="button" class="@ButtonClassValue" @onclick="Sort">
+            <span>@ChildContent</span>
+            <i class="@IconClass"></i>
+        </button>
+    }
+    else
+    {
+        @ChildContent
+    }
+</th>
+
+@code {
+    [CascadingParameter] public IAppTableState? Table { get; set; }
+
+    [Parameter] public string? SortKey { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public string ButtonClass { get; set; } = "table-sort d-flex justify-content-between w-100";
+    [Parameter] public string? Width { get; set; }
+    [Parameter] public string? MinWidth { get; set; }
+    [Parameter] public string? Style { get; set; }
+    [Parameter] public bool TextEnd { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool Sortable => !string.IsNullOrWhiteSpace(SortKey);
+    private bool IsActive => Sortable && Table?.IsSorted(SortKey!) == true;
+    private bool IsDescending => Sortable && Table?.IsDescending(SortKey!) == true;
+
+    private string ThClass => string.Join(" ", new[]
+    {
+        Class,
+        TextEnd ? "text-end" : null
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string ButtonClassValue => string.Join(" ", new[]
+    {
+        ButtonClass,
+        IsActive ? Table?.SortClass(SortKey!) : null
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string IconClass => IsActive
+        ? IsDescending
+            ? "ti ti-chevron-down ms-1"
+            : "ti ti-chevron-up ms-1"
+        : "ti ti-selector ms-1 opacity-50";
+
+    private string? ThStyle
+    {
+        get
+        {
+            var styles = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(Width))
+            {
+                styles.Add($"width: {Width}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(MinWidth))
+            {
+                styles.Add($"min-width: {MinWidth}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Style))
+            {
+                styles.Add(Style);
+            }
+
+            return styles.Count == 0 ? null : string.Join("; ", styles);
+        }
+    }
+
+    private void Sort()
+    {
+        if (!string.IsNullOrWhiteSpace(SortKey))
+        {
+            Table?.SortBy(SortKey);
+        }
+    }
+
+}

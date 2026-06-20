@@ -1,0 +1,19 @@
+﻿@inherits LayoutComponentBase
+
+<div class="page">
+    <AppSidebar/>
+    <main class="page-wrapper">
+        <AppTopbar/>
+        <section class="page-body p-3">
+            @Body
+        </section>
+    </main>
+</div>
+
+<div id="blazor-error-ui" class="blazor-error-modal" data-nosnippet>
+    <div class="blazor-error-card">
+        <h3>An unhandled error has occurred</h3>
+        <p>The application needs to reload to continue.</p>
+        <a href="." class="reload btn btn-primary">Reload</a>
+    </div>
+</div>

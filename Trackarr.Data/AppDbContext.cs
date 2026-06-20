@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Trackarr.Core.Event;
 using Trackarr.Core.Health;
+using Trackarr.Core.Media.Missing;
 using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
@@ -10,7 +11,8 @@ using Trackarr.Core.Server;
 namespace Trackarr.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options)
-    : DbContext(options) {
+    : DbContext(options)
+{
     public DbSet<MediaServer> MediaServers { get; set; }
     public DbSet<ServerMetadata> ServerMetadata { get; set; }
     public DbSet<DownloadItem> DownloadQueue { get; set; }
@@ -26,24 +28,34 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DownloadHealthEvent> HealthEvents { get; set; }
     public DbSet<MediaHealthSummary> MediaHealthSummaries { get; set; }
     public DbSet<SourceHealthSummary> SourceHealthSummaries { get; set; }
+    public DbSet<QualityProfile> QualityProfiles { get; set; }
+    public DbSet<MissingMediaRecord> MissingMedia { get; set; }
+    public DbSet<MissingSearchEvent> SearchEvents { get; set; }
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder) {
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<MediaServer>(entity => {
+        modelBuilder.Entity<MediaServer>(entity =>
+        {
             entity.HasKey(e => e.Id);
-
             entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
             entity.Property(e => e.ServiceType).IsRequired().HasConversion<string>().HasMaxLength(50);
             entity.Property(e => e.Host).IsRequired().HasMaxLength(1000);
             entity.Property(e => e.Port).IsRequired();
             entity.Property(e => e.ApiKey).HasMaxLength(1000);
-            entity.Property(e => e.FallbackProfile).HasMaxLength(255);
+            entity.Property(e => e.FallBackProfileId);
 
-            entity.HasOne(e => e.Metadata).WithOne().HasForeignKey<ServerMetadata>(m => m.ServerId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Metadata).WithOne().HasForeignKey<ServerMetadata>(m => m.ServerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.FallbackProfile).WithMany()
+                .HasForeignKey(e => e.FallBackProfileId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
-        modelBuilder.Entity<ServerMetadata>(entity => {
+        modelBuilder.Entity<ServerMetadata>(entity =>
+        {
             entity.HasKey(e => e.ServerId);
 
             entity.Property(e => e.AppName).HasMaxLength(255);
@@ -64,7 +76,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(e => e.PackageUpdateMechanism).HasMaxLength(50);
         });
 
-        modelBuilder.Entity<DownloadItem>(entity => {
+        modelBuilder.Entity<DownloadItem>(entity =>
+        {
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.Title).HasMaxLength(1000);
@@ -82,10 +95,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasIndex(e => e.AttemptKey);
             entity.HasIndex(e => new { e.ServerId, e.AttemptKey });
             entity.HasIndex(e => new { e.ServerId, e.DownloadId });
-
         });
 
-        modelBuilder.Entity<RoutineDefinition>(entity => {
+        modelBuilder.Entity<RoutineDefinition>(entity =>
+        {
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.Key).IsRequired().HasMaxLength(100);
@@ -95,14 +108,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasIndex(e => e.Key).IsUnique();
         });
 
-        modelBuilder.Entity<RoutineRun>(entity => {
+        modelBuilder.Entity<RoutineRun>(entity =>
+        {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.State).HasConversion<string>().HasMaxLength(50);
             entity.Property(e => e.ErrorMessage).HasMaxLength(1000);
-            entity.HasOne(e => e.Routine).WithMany(e => e.Runs).HasForeignKey(e => e.RoutineDefinitionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Routine).WithMany(e => e.Runs).HasForeignKey(e => e.RoutineDefinitionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<LogEvent>(entity => {
+        modelBuilder.Entity<LogEvent>(entity =>
+        {
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.Message).IsRequired().HasMaxLength(500);
@@ -115,7 +131,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasIndex(e => e.Source);
         });
 
-        modelBuilder.Entity<Movie>(entity => {
+        modelBuilder.Entity<Movie>(entity =>
+        {
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.RemoteId).IsRequired();
@@ -149,10 +166,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasIndex(e => e.Title);
             entity.HasIndex(e => e.CleanTitle);
 
-            entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<Series>(entity => {
+        modelBuilder.Entity<Series>(entity =>
+        {
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.RemoteId).IsRequired();
@@ -184,10 +203,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasIndex(e => e.Title);
             entity.HasIndex(e => e.CleanTitle);
 
-            entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<Episode>(entity => {
+        modelBuilder.Entity<Episode>(entity =>
+        {
             entity.HasKey(e => e.Id);
 
             entity.HasIndex(e => new { e.ServerId, e.RemoteId }).IsUnique();
@@ -206,10 +227,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
             entity.HasOne(e => e.Series).WithMany().HasForeignKey(e => e.SeriesDbId).OnDelete(DeleteBehavior.SetNull);
 
-            entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<DownloadAttempt>(entity => {
+        modelBuilder.Entity<DownloadAttempt>(entity =>
+        {
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.ServiceType).HasConversion<string>().HasMaxLength(50);
@@ -244,7 +267,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasOne<Episode>().WithMany().HasForeignKey(e => e.EpisodeId).OnDelete(DeleteBehavior.SetNull);
         });
 
-        modelBuilder.Entity<HealthSnapshot>(entity => {
+        modelBuilder.Entity<HealthSnapshot>(entity =>
+        {
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.RawScore).HasPrecision(8, 2);
@@ -269,10 +293,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasIndex(e => e.LastBadObservationAt);
             entity.HasIndex(e => e.LastMeaningfulRecoveryAt);
 
-            entity.HasOne(e => e.DownloadAttempt).WithOne(e => e.HealthSnapshot).HasForeignKey<HealthSnapshot>(e => e.DownloadAttemptId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.DownloadAttempt).WithOne(e => e.HealthSnapshot)
+                .HasForeignKey<HealthSnapshot>(e => e.DownloadAttemptId).OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<DownloadHealthEvent>(entity => {
+        modelBuilder.Entity<DownloadHealthEvent>(entity =>
+        {
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.EventType).HasConversion<string>().HasMaxLength(100);
@@ -299,10 +325,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasIndex(e => e.IsMeaningfulRecovery);
             entity.HasIndex(e => e.CountsTowardRemoval);
 
-            entity.HasOne(e => e.DownloadAttempt).WithMany(e => e.HealthEvents).HasForeignKey(e => e.DownloadAttemptId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.DownloadAttempt).WithMany(e => e.HealthEvents).HasForeignKey(e => e.DownloadAttemptId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<MediaHealthSummary>(entity => {
+        modelBuilder.Entity<MediaHealthSummary>(entity =>
+        {
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.MediaType).HasConversion<string>().HasMaxLength(50);
@@ -328,7 +356,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasOne<Episode>().WithMany().HasForeignKey(e => e.EpisodeId).OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<SourceHealthSummary>(entity => {
+        modelBuilder.Entity<SourceHealthSummary>(entity =>
+        {
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.ServiceType).HasConversion<string>().HasMaxLength(50);
@@ -339,7 +368,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(e => e.ReasonKey).HasMaxLength(255);
             entity.Property(e => e.AverageScore).HasPrecision(8, 2);
 
-            entity.HasIndex(e => new {
+            entity.HasIndex(e => new
+            {
                 e.ServerId,
                 e.ServiceType,
                 e.Indexer,
@@ -355,6 +385,37 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasIndex(e => e.LastSuccessAt);
 
             entity.HasOne(e => e.Server).WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<QualityProfile>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.ParentServer).WithMany()
+                .HasForeignKey(e => e.ServerId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MissingMediaRecord>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Tier).HasConversion<string>().HasMaxLength(50);
+            entity.Property(e => e.SearchState).HasConversion<string>().HasMaxLength(50);
+
+            entity.HasIndex(e => new { e.ServerId, e.RemoteId, e.EpisodeId }).IsUnique();
+            entity.HasIndex(e => e.ServerId);
+        });
+
+        modelBuilder.Entity<MissingSearchEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.EventType).HasConversion<string>().HasMaxLength(50);
+            entity.Property(e => e.Tier).HasConversion<string>().HasMaxLength(50);
+            entity.Property(e => e.Detail).HasMaxLength(2000);
+
+            entity.HasIndex(e => new { e.ServerId, e.RemoteId, e.EpisodeId });
+            entity.HasIndex(e => e.OccurredAt);
         });
     }
 }

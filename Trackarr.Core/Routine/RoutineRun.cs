@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Routine;
 
-public sealed class RoutineRun {
+public sealed class RoutineRun
+{
     public int Id { get; set; }
 
     public int RoutineDefinitionId { get; init; }

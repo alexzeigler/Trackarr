@@ -7,59 +7,65 @@
 @inject RoutineService RoutineService
 @inject RoutineRunner RoutineRunner
 
-<h3 class = "text-white mb-2">Scheduled</h3>
-<p class = "text-muted mb-4">Manage and monitor background tasks</p>
+<h3 class="text-white mb-2">Scheduled</h3>
+<p class="text-muted mb-4">Manage and monitor background tasks</p>
 
-<div class = "table-responsive">
-    <table class = "table table-dark table-hover align-middle">
-        <thead class = "border-secondary">
-            <tr>
-                <th style = "width:35%">Name</th>
-                <th style = "width:10%">Status</th>
-                <th style = "width:20%">Next Run</th>
-                <th style = "width:35%" class = "text-end">Actions</th>
-            </tr>
+<div class="table-responsive">
+    <table class="table table-dark table-hover align-middle">
+        <thead class="border-secondary">
+        <tr>
+            <th style="width:35%">Name</th>
+            <th style="width:10%">Status</th>
+            <th style="width:20%">Next Run</th>
+            <th style="width:35%" class="text-end">Actions</th>
+        </tr>
         </thead>
         <tbody>
-            @foreach (RoutineDefinition routine in _routines) {
-                <tr>
-                    <td>
-                        <div class = "fw-semibold">@routine.Name</div>
-                        <div class = "small text-muted">@routine.Description</div>
-                    </td>
-                    <td>
-                        @if (routine.IsRunning) {
-                            <span class = "badge bg-primary d-inline-flex align-items-center gap-1">
-                                <span class = "spinner-border spinner-border-sm"></span>
-                                Running
-                            </span>
-                        }
-                        else if (routine.LastRun.HasValue) {
-                            <span class = "badge @(routine.LastRunSuccess ? "bg-success" : "bg-danger")">
-                                @(routine.LastRunSuccess ? "Success" : "Failed")
-                            </span>
-                        }
-                        else {
-                            <span class = "badge bg-secondary">Idle</span>
-                        }
-                    </td>
-                    <td>
-                        @if (routine.IsRunning) {
-                            <span class = "text-muted">Running now</span>
-                        }
-                        else if (routine.NextRun.HasValue) {
-                            <span>@FormatNextRun(routine.NextRun.Value)</span>
-                        }
-                    </td>
-                    <td class = "text-end">
-                        <button class = "btn btn-sm btn-primary me-2"
-                                disabled = "@routine.IsRunning"
-                                @onclick = "() => RunRoutine(routine.Key)">
-                            <i class = "bi bi-play-fill h6"></i> Run Now
-                        </button>
-                    </td>
-                </tr>
-            }
+        @foreach (var routine in _routines)
+        {
+            <tr>
+                <td>
+                    <div class="fw-semibold">@routine.Name</div>
+                    <div class="small text-muted">@routine.Description</div>
+                </td>
+                <td>
+                    @if (routine.IsRunning)
+                    {
+                        <span class="badge bg-primary d-inline-flex align-items-center gap-1">
+                            <span class="spinner-border spinner-border-sm"></span>
+                            Running
+                        </span>
+                    }
+                    else if (routine.LastRun.HasValue)
+                    {
+                        <span class="badge @(routine.LastRunSuccess ? "bg-success" : "bg-danger")">
+                            @(routine.LastRunSuccess ? "Success" : "Failed")
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">Idle</span>
+                    }
+                </td>
+                <td>
+                    @if (routine.IsRunning)
+                    {
+                        <span class="text-muted">Running now</span>
+                    }
+                    else if (routine.NextRun.HasValue)
+                    {
+                        <span>@FormatNextRun(routine.NextRun.Value)</span>
+                    }
+                </td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-primary me-2"
+                            disabled="@routine.IsRunning"
+                            @onclick="() => RunRoutine(routine.Key)">
+                        <i class="bi bi-play-fill h6"></i> Run Now
+                    </button>
+                </td>
+            </tr>
+        }
         </tbody>
     </table>
 </div>
@@ -70,34 +76,40 @@
     private readonly PeriodicTimer? _refreshTimer = new(TimeSpan.FromSeconds(1));
     private CancellationTokenSource? _cts;
 
-    protected override async Task OnInitializedAsync() {
+    protected override async Task OnInitializedAsync()
+    {
         _cts = new CancellationTokenSource();
         await RefreshAsync();
         _ = RunRefreshLoopAsync(_cts.Token);
     }
 
-    private async Task RunRefreshLoopAsync(CancellationToken token) {
+    private async Task RunRefreshLoopAsync(CancellationToken token)
+    {
         PeriodicTimer timer = new(TimeSpan.FromSeconds(2));
-        while (await timer.WaitForNextTickAsync(token)) {
+        while (await timer.WaitForNextTickAsync(token))
+        {
             await RefreshAsync();
             await InvokeAsync(StateHasChanged);
         }
     }
 
-    private async Task RefreshAsync() {
+    private async Task RefreshAsync()
+    {
         _routines = await RoutineService.GetAllAsync();
     }
 
-    private async Task RunRoutine(string key) {
-        RoutineDefinition? routine = _routines.FirstOrDefault(r => r.Key == key);
+    private async Task RunRoutine(string key)
+    {
+        var routine = _routines.FirstOrDefault(r => r.Key == key);
         if (routine is null) return;
 
-        DateTime? lastRun = routine.LastRun;
+        var lastRun = routine.LastRun;
         routine.IsRunning = true;
         RoutineRunner.RunAsync(key);
         await InvokeAsync(StateHasChanged);
 
-        for (int i = 0; i < 20; i++) {
+        for (var i = 0; i < 20; i++)
+        {
             await Task.Delay(300);
             await RefreshAsync();
             await InvokeAsync(StateHasChanged);
@@ -106,9 +118,11 @@
         }
     }
 
-    private static string FormatNextRun(DateTime nextRun) {
-        TimeSpan span = nextRun - DateTime.UtcNow;
-        return span.TotalSeconds switch {
+    private static string FormatNextRun(DateTime nextRun)
+    {
+        var span = nextRun - DateTime.UtcNow;
+        return span.TotalSeconds switch
+        {
             < 0 => "Overdue",
             < 60 => "Less than a minute",
             < 3600 => $"in {(int)span.TotalMinutes}m",
@@ -117,8 +131,10 @@
         };
     }
 
-    public async ValueTask DisposeAsync() {
-        if (_cts is not null) {
+    public async ValueTask DisposeAsync()
+    {
+        if (_cts is not null)
+        {
             await _cts.CancelAsync();
             _cts.Dispose();
         }

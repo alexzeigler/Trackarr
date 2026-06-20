@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Routine;
 
-public interface IRoutineRun {
+public interface IRoutineRun
+{
     public int Id { get; set; }
     public IRoutine? Routine { get; set; }
     public DateTime StartTime { get; set; }
@@ -9,7 +10,8 @@ public interface IRoutineRun {
     public string? ErrorMessage { get; set; }
 }
 
-public enum RoutineState {
+public enum RoutineState
+{
     Created,
     WaitingToRun,
     Running,

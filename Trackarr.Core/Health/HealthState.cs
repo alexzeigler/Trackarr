@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Health;
 
-public enum HealthState {
+public enum HealthState
+{
     New,
     Monitoring,
     Healthy,

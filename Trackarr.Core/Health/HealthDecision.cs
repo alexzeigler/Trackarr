@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Health;
 
-public class HealthDecision {
+public class HealthDecision
+{
     public int DownloadAttemptId { get; set; }
 
     public bool ShouldRemove { get; set; }

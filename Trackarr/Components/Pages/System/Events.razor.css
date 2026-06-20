@@ -1,27 +1,27 @@
 ﻿.logs-table {
-	font-size : .9rem;
+    font-size: .9rem;
 }
 
 .logs-table thead th {
-	background    : var(--bs-body-bg);
-	border-bottom : 1px solid var(--bs-border-color);
-	font-weight   : 600;
-	position      : sticky;
-	top           : 0;
-	white-space   : nowrap;
-	z-index       : 1;
+    background: var(--bs-body-bg);
+    border-bottom: 1px solid var(--bs-border-color);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    white-space: nowrap;
+    z-index: 1;
 }
 
 .logs-table tbody tr {
-	height : 42px;
+    height: 42px;
 }
 
 .logs-table td,
 .logs-table th {
-	padding        : .65rem .75rem;
-	vertical-align : middle;
+    padding: .65rem .75rem;
+    vertical-align: middle;
 }
 
 .logs-table tbody tr:hover {
-	background-color : rgba(255, 255, 255, .03);
+    background-color: rgba(255, 255, 255, .03);
 }

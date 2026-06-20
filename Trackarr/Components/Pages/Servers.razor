@@ -2,250 +2,202 @@
 @inject IJSRuntime Js
 @inject MediaServerService MediaServerService
 @using Trackarr.Components.Modals
-@using Trackarr.Core.Server
 @using Trackarr.Services.Media
+@using static Utils
 @implements IAsyncDisposable
-<AddServerModal @ref = "_serverModal" />
-<ConfirmationDialog @ref = "_confirmModal"
-                    Text = "@_confirmText"
-                    OnConfirm = "@(() => SendDeleteToDb(_selectedServerId))" />
-<div class = "d-flex flex-column gap-3">
-    <div class = "d-flex align-items-end justify-content-between gap-3 mb-1">
-        <div>
-            <h1 class = "h1 fw-bold mb-0">Servers</h1>
-            <div class = "text-secondary small">Manage and monitor your connected *arr applications.</div>
-        </div>
-
-        <button class = "btn btn-app-primary" @onclick = "AddServer">
-            <svg xmlns = "http://www.w3.org/2000/svg"
-                 width = "24"
-                 height = "24"
-                 viewBox = "0 0 24 24"
-                 fill = "none"
-                 stroke = "currentColor"
-                 stroke-width = "2"
-                 stroke-linecap = "round"
-                 stroke-linejoin = "round"
-                 class = "icon icon-tabler icons-tabler-outline icon-tabler-plus">
-                <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                <path d = "M12 5l0 14" />
-                <path d = "M5 12l14 0" />
-            </svg>
-            Add Server
-        </button>
-    </div>
-
-    <div class = "row g-3">
-        <div class = "col-12 col-sm-6 col-xl-3">
-            <div class = "card stat-card">
-                <div class = "card-body">
-                    <div class = "stat-icon stat-icon-purple">
-                        <svg xmlns = "http://www.w3.org/2000/svg"
-                             width = "24"
-                             height = "24"
-                             viewBox = "0 0 24 24"
-                             fill = "none"
-                             stroke = "currentColor"
-                             stroke-width = "2"
-                             stroke-linecap = "round"
-                             stroke-linejoin = "round"
-                             class = "icon icon-tabler icons-tabler-outline icon-tabler-server">
-                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                            <path d = "M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3" />
-                            <path d = "M3 15a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -2" />
-                            <path d = "M7 8l0 .01" />
-                            <path d = "M7 16l0 .01" />
+<AddServerModal @ref="_serverModal"/>
+<ConfirmationDialog @ref="_confirmModal" Text="@_confirmText" OnConfirm="@(() => SendDeleteToDb(_selectedServerId))"/>
+<div class="d-flex flex-column gap-3">
+    <div class="row g-3">
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon stat-icon-purple">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="2"
+                             stroke-linecap="round"
+                             stroke-linejoin="round"
+                             class="icon icon-tabler icons-tabler-outline icon-tabler-server">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                            <path d="M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3"/>
+                            <path d="M3 15a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -2"/>
+                            <path d="M7 8l0 .01"/>
+                            <path d="M7 16l0 .01"/>
                         </svg>
                     </div>
                     <div>
-                        <div class = "stat-label">Total Servers</div>
-                        <div class = "stat-value">@TotalServers</div>
-                        <div class = "stat-subtitle">All connected servers</div>
+                        <div class="stat-label">Total Servers</div>
+                        <div class="stat-value">@_servers.Count</div>
+                        <div class="stat-subtitle">All connected servers</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class = "col-12 col-sm-6 col-xl-3">
-            <div class = "card stat-card">
-                <div class = "card-body">
-                    <div class = "stat-icon stat-icon-success">
-                        <svg xmlns = "http://www.w3.org/2000/svg"
-                             width = "24"
-                             height = "24"
-                             viewBox = "0 0 24 24"
-                             fill = "none"
-                             stroke = "currentColor"
-                             stroke-width = "2"
-                             stroke-linecap = "round"
-                             stroke-linejoin = "round"
-                             class = "icon icon-tabler icons-tabler-outline icon-tabler-checks">
-                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                            <path d = "M7 12l5 5l10 -10" />
-                            <path d = "M2 12l5 5m5 -5l5 -5" />
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon stat-icon-success">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="2"
+                             stroke-linecap="round"
+                             stroke-linejoin="round"
+                             class="icon icon-tabler icons-tabler-outline icon-tabler-checks">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                            <path d="M7 12l5 5l10 -10"/>
+                            <path d="M2 12l5 5m5 -5l5 -5"/>
                         </svg>
                     </div>
                     <div>
-                        <div class = "stat-label">Online</div>
-                        <div class = "stat-value">@OnlineCount</div>
-                        <div class = "stat-subtitle">All servers are online</div>
+                        <div class="stat-label">Online</div>
+                        <div class="stat-value">@_servers.Count(x => x.IsOnline)</div>
+                        <div class="stat-subtitle">All servers are online</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class = "col-12 col-sm-6 col-xl-3">
-            <div class = "card stat-card">
-                <div class = "card-body">
-                    <div class = "stat-icon stat-icon-warning">
-                        <svg xmlns = "http://www.w3.org/2000/svg"
-                             width = "24"
-                             height = "24"
-                             viewBox = "0 0 24 24"
-                             fill = "none"
-                             stroke = "currentColor"
-                             stroke-width = "2"
-                             stroke-linecap = "round"
-                             stroke-linejoin = "round"
-                             class = "icon icon-tabler icons-tabler-outline icon-tabler-activity">
-                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                            <path d = "M3 12h4l3 8l4 -16l3 8h4" />
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon stat-icon-warning">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="2"
+                             stroke-linecap="round"
+                             stroke-linejoin="round"
+                             class="icon icon-tabler icons-tabler-outline icon-tabler-activity">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                            <path d="M3 12h4l3 8l4 -16l3 8h4"/>
                         </svg>
                     </div>
                     <div>
-                        <div class = "stat-label">Sync OK</div>
-                        <div class = "stat-value">@AuthenticatedServers</div>
-                        <div class = "stat-subtitle">All servers are healthy</div>
+                        <div class="stat-label">Sync OK</div>
+                        <div class="stat-value">@_servers.Count(x => x.IsAuthenticated)</div>
+                        <div class="stat-subtitle">All servers are healthy</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class = "col-12 col-sm-6 col-xl-3">
-            <div class = "card stat-card">
-                <div class = "card-body">
-                    <div class = "stat-icon stat-icon-primary">
-                        <svg xmlns = "http://www.w3.org/2000/svg"
-                             width = "24"
-                             height = "24"
-                             viewBox = "0 0 24 24"
-                             fill = "none"
-                             stroke = "currentColor"
-                             stroke-width = "2"
-                             stroke-linecap = "round"
-                             stroke-linejoin = "round"
-                             class = "icon icon-tabler icons-tabler-outline icon-tabler-refresh">
-                            <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                            <path d = "M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
-                            <path d = "M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon stat-icon-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="2"
+                             stroke-linecap="round"
+                             stroke-linejoin="round"
+                             class="icon icon-tabler icons-tabler-outline icon-tabler-refresh">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                            <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+                            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
                         </svg>
                     </div>
                     <div>
-                        <div class = "stat-label">Last Sync</div>
-                        <div class = "stat-value">@LastSyncText</div>
-                        <div class = "stat-subtitle">@LastSyncSubtitle</div>
+                        <div class="stat-label">Last Sync</div>
+                        <div class="stat-value">@(_servers.Count == 0 ? "Never" : TimeAgo(_servers.Max(x => x.LastAuthenticatedAt)))</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class = "card app-card">
-        <div class = "card-table">
-            <div class = "app-table-toolbar">
-                <div class = "p-3 border-bottom">
-                    <div class = "row g-3 align-items-start">
-                        <div class = "col-12 col-md-5 col-xl-4">
-                            <div class = "input-group input-group-flat">
-                                <span class = "input-group-text">
-                                    <svg xmlns = "http://www.w3.org/2000/svg"
-                                         width = "24"
-                                         height = "24"
-                                         viewBox = "0 0 24 24"
-                                         fill = "none"
-                                         stroke = "currentColor"
-                                         stroke-width = "2"
-                                         stroke-linecap = "round"
-                                         stroke-linejoin = "round"
-                                         class = "icon icon-tabler icons-tabler-outline icon-tabler-search">
-                                        <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                                        <path d = "M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" />
-                                        <path d = "M21 21l-6 -6" />
+    <div class="card app-card">
+        <div class="card-table">
+            <div class="app-table-toolbar">
+                <div class="p-3 border-bottom">
+                    <div class="row g-3 align-items-start">
+                        <div class="col-12 col-md-5 col-xl-4">
+                            <div class="input-group input-group-flat">
+                                <span class="input-group-text">
+                                    <svg xmlns="http://www.w3.org/2000/svg"
+                                         width="24"
+                                         height="24"
+                                         viewBox="0 0 24 24"
+                                         fill="none"
+                                         stroke="currentColor"
+                                         stroke-width="2"
+                                         stroke-linecap="round"
+                                         stroke-linejoin="round"
+                                         class="icon icon-tabler icons-tabler-outline icon-tabler-search">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                        <path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"/>
+                                        <path d="M21 21l-6 -6"/>
                                     </svg>
                                 </span>
-                                <input id = "servers-table-search"
-                                       type = "text"
-                                       class = "form-control"
-                                       placeholder = "Search servers..."
-                                       autocomplete = "off">
+                                <input id="servers-table-search"
+                                       type="text"
+                                       class="form-control"
+                                       placeholder="Search servers..."
+                                       autocomplete="off">
                             </div>
                         </div>
 
-                        <div class = "col-12 col-md-auto">
-                            <div class = "d-flex flex-wrap gap-2">
-                                <div class = "dropdown">
-                                    <button class = "btn btn-app-ghost dropdown-toggle"
-                                            type = "button"
-                                            data-bs-toggle = "dropdown">
-                                        All Types
-                                    </button>
-                                    <ul class = "dropdown-menu">
-                                        <li>
-                                            <a class = "dropdown-item active"
-                                               href = "#"
-                                               onclick = "trackarrTable.filter('servers-table', 'sort-type', null); return false;">
-                                                All Types
-                                            </a>
-                                        </li>
-                                        @foreach (string type in _serverTypes) {
-                                            <li>
-                                                <a class = "dropdown-item"
-                                                   href = "#"
-                                                   onclick = "trackarrTable.filter('servers-table', 'sort-type', '@type'); return false;">
-                                                    @type
-                                                </a>
-                                            </li>
-                                        }
-                                    </ul>
-                                </div>
+                        <div class="col-12 col-md-auto">
+                            <div class="d-flex flex-wrap gap-2"></div>
+                        </div>
 
-                                <div class = "dropdown">
-                                    <button class = "btn btn-app-ghost dropdown-toggle"
-                                            type = "button"
-                                            data-bs-toggle = "dropdown">
-                                        All Statuses
-                                    </button>
-                                    <ul class = "dropdown-menu">
-                                        <li>
-                                            <a class = "dropdown-item active"
-                                               href = "#"
-                                               onclick = "trackarrTable.filter('servers-table', 'sort-status', null); return false;">
-                                                All Statuses
-                                            </a>
-                                        </li>
-                                        @foreach (string status in _statuses) {
-                                            <li>
-                                                <a class = "dropdown-item"
-                                                   href = "#"
-                                                   onclick = "trackarrTable.filter('servers-table', 'sort-status', '@status'); return false;">
-                                                    @status
-                                                </a>
-                                            </li>
-                                        }
-                                    </ul>
-                                </div>
-                                <button class = "btn btn-app-ghost text-warning"
-                                        title = "Clear filters"
-                                        onclick = "trackarrTable.clearFilters('servers-table'); return false;">
-                                    Clear Filters
+                        <div class="col-12 col-xl">
+                            <div class="d-flex flex-wrap justify-content-start justify-content-xl-end gap-2">
+                                <button class="btn btn-app-primary" @onclick="AddServer">
+                                    <svg xmlns="http://www.w3.org/2000/svg"
+                                         width="24"
+                                         height="24"
+                                         viewBox="0 0 24 24"
+                                         fill="none"
+                                         stroke="currentColor"
+                                         stroke-width="2"
+                                         stroke-linecap="round"
+                                         stroke-linejoin="round"
+                                         class="icon icon-tabler icons-tabler-outline icon-tabler-plus">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                        <path d="M12 5l0 14"/>
+                                        <path d="M5 12l14 0"/>
+                                    </svg>
+                                    Add Server
                                 </button>
-                            </div>
-                        </div>
-
-                        <div class = "col-12 col-xl">
-                            <div class = "d-flex flex-wrap justify-content-start justify-content-xl-end gap-2">
-                                <button class = "btn btn-app-ghost" @onclick = "SyncAll">
-                                    Sync All
+                                <button class="btn btn-app-ghost" @onclick="SyncAll" disabled="@IsRefreshing">
+                                    @if (IsRefreshing)
+                                    {
+                                        <svg xmlns="http://www.w3.org/2000/svg"
+                                             width="20"
+                                             height="20"
+                                             viewBox="0 0 24 24"
+                                             fill="none"
+                                             stroke="currentColor"
+                                             stroke-width="2"
+                                             stroke-linecap="round"
+                                             stroke-linejoin="round"
+                                             class="icon icon-tabler icon-tabler-refresh m-0 @(IsRefreshing ? "spinner" : "")">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+                                            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+                                        </svg>
+                                    }
+                                    else
+                                    {
+                                        <span>Sync All</span>
+                                    }
                                 </button>
                             </div>
                         </div>
@@ -254,291 +206,183 @@
 
             </div>
 
-            <div id = "servers-table">
-                <div class = "table-responsive">
-                    <table class = "table table-vcenter card-table app-table">
+            <div id="servers-table">
+                <div class="table table-responsive">
+                    <table class="table table-vcenter card-table ">
                         <thead>
-                            <tr>
-                                <th>
-                                    <button class = "table-sort desc col-sort" data-sort = "sort-name">Name</button>
-                                </th>
-                                <th>
-                                    <button class = "table-sort col-sort" data-sort = "sort-type">Type</button>
-                                </th>
-                                <th>
-                                    <button class = "table-sort col-sort" data-sort = "sort-url">URL</button>
-                                </th>
-                                <th>
-                                    <button class = "table-sort col-sort" data-sort = "sort-status">Status</button>
-                                </th>
-                                <th>
-                                    <button class = "table-sort col-sort" data-sort = "sort-sync">Sync Status</button>
-                                </th>
-                                <th>
-                                    <button class = "table-sort col-sort" data-sort = "sort-last-sync">Last Sync
-                                    </button>
-                                </th>
-                                <th>
-                                    <button class = "table-sort col-sort" data-sort = "sort-version">Version</button>
-                                </th>
-                                <th class = "text-end" style = "width: 140px;">Actions</th>
-                            </tr>
+                        <tr>
+                            <th style="min-width: 500px;">
+                                <button class="table-sort d-flex justify-content-between" data-sort="sort-name">Name
+                                </button>
+                            </th>
+                            <th style="width: 100px;">
+                                <button class="table-sort d-flex justify-content-between" data-sort="sort-type">Type
+                                </button>
+                            </th>
+                            <th>
+                                <button class="table-sort d-flex justify-content-between" data-sort="sort-url">URL
+                                </button>
+                            </th>
+                            <th>
+                                <button class="table-sort d-flex justify-content-between" data-sort="sort-status">
+                                    Added
+                                </button>
+                            </th>
+                            <th>
+                                <button class="table-sort d-flex justify-content-between" data-sort="sort-status">
+                                    Fallback Profile
+                                </button>
+                            </th>
+                            <th style="width: 75px;">
+                                <button class="table-sort d-flex justify-content-between" data-sort="sort-sync">Enabled
+                                </button>
+                            </th>
+                            <th style="width: 75px;">
+                                <button class="table-sort d-flex justify-content-between" data-sort="sort-sync">Online
+                                </button>
+                            </th>
+                            <th style="width: 75px;">
+                                <button class="table-sort d-flex justify-content-between" data-sort="sort-sync">Verified
+                                </button>
+                            </th>
+
+                            <th style="width: 75px;">
+                                <button class="table-sort d-flex justify-content-between" data-sort="sort-sync">Queue
+                                </button>
+                            </th>
+                            <th style="width: 75px;">
+                                <button class="table-sort d-flex justify-content-between" data-sort="sort-sync">Missing
+                                </button>
+                            </th>
+                            <th>
+                                <button class="table-sort d-flex justify-content-between" data-sort="sort-last-sync">
+                                    Last Sync
+                                </button>
+                            </th>
+                            <th>
+                                <button class="table-sort d-flex justify-content-between" data-sort="sort-version">
+                                    Version
+                                </button>
+                            </th>
+                            <th class="text-end" style="width: 130px;"></th>
+                        </tr>
                         </thead>
 
-                        <tbody class = "table-tbody">
-                            @if (_servers.Count == 0) {
-                                <tr>
-                                    <td colspan = "8" class = "text-center text-muted py-4">No servers configured</td>
-                                </tr>
-                            }
+                        <tbody class="table-tbody">
+                        @if (_servers.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">No servers configured</td>
+                            </tr>
+                        }
 
-                            @foreach (MediaServer row in _servers) {
-                                <tr @key = "row.Id">
-                                    <td class = "sort-name border-secondary-subtle border overflow-hidden">
-                                        <div class = "item-title-cell">
-                                            @GetServerIcon(row.ServiceType)
-                                            <div>
-                                                <div class = "item-title">@row.Name</div>
-                                            </div>
+                        @foreach (var row in _servers)
+                        {
+                            <tr @key="row.Id">
+                                <td class="sort-name fw-semibold border-secondary-subtle bordeoverflow-hidden">
+                                    <div class="item-title-cell">
+                                        @GetServerIcon(row.ServiceType)
+                                        <div>
+                                            <div class="item-title h3 m-0">@row.Name</div>
                                         </div>
-                                    </td>
+                                    </div>
+                                </td>
 
-                                    <td class = "sort-type border-secondary-subtle border">
-                                        <span class = "@GetTypeBadgeClass(row.ServiceType)">@row.ServiceType.ToString()</span>
-                                    </td>
+                                <td class="sort-type border-secondary-subtle border">
+                                    <span class="@GetTypeBadgeClass(row.ServiceType)">@row.ServiceType.ToString()</span>
+                                </td>
 
-                                    <td class = "sort-url text-nowrap border-secondary-subtle border">
-                                        <a href = "@row.BaseUrl" target = "_blank" class = "server-url">
-                                            @row.BaseUrl
-                                            <svg xmlns = "http://www.w3.org/2000/svg"
-                                                 width = "24"
-                                                 height = "24"
-                                                 viewBox = "0 0 24 24"
-                                                 fill = "none"
-                                                 stroke = "currentColor"
-                                                 stroke-width = "2"
-                                                 stroke-linecap = "round"
-                                                 stroke-linejoin = "round"
-                                                 class = "icon icon-tabler icons-tabler-outline icon-tabler-external-link">
-                                                <path stroke = "none" d = "M0 0h24v24H0z" fill = "none" />
-                                                <path d = "M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6" />
-                                                <path d = "M11 13l9 -9" />
-                                                <path d = "M15 4h5v5" />
-                                            </svg>
-                                        </a>
-                                    </td>
+                                <td class="sort-url fw-semibold border-secondary-subtle border">
+                                    <a href="@row.BaseUrl" target="_blank" class="text-decoration-none text-white">
+                                        @row.BaseUrl
+                                        <svg xmlns="http://www.w3.org/2000/svg"
+                                             width="24"
+                                             height="24"
+                                             viewBox="0 0 24 24"
+                                             fill="none"
+                                             stroke="currentColor"
+                                             stroke-width="2"
+                                             stroke-linecap="round"
+                                             stroke-linejoin="round"
+                                             class="icon icon-tabler icons-tabler-outline icon-tabler-external-link">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6"/>
+                                            <path d="M11 13l9 -9"/>
+                                            <path d="M15 4h5v5"/>
+                                        </svg>
+                                    </a>
+                                </td>
 
-                                    <td class = "sort-status border-secondary-subtle border">
-                                        <div class = "d-flex align-items-center gap-2">
-                                            <span class = "">
-                                                @if (row.Metadata != null) {
-                                                    @row.Metadata.StartTime
-                                                }
-                                            </span>
-                                        </div>
-                                    </td>
+                                <td class="sort-status fw-semibold border-secondary-subtle border">
+                                    <span class="">@TimeAgo(row.CreatedAt)</span>
+                                </td>
+                                <td class="sort-status fw-semibold border-secondary-subtle border">
+                                    <span class="">@TextDisplay(row.FallbackProfile?.Name)</span>
+                                </td>
 
-                                    <td class = "sort-sync border-secondary-subtle border">
-                                        <span class = "">@row.IsAuthenticated</span>
-                                    </td>
+                                <td class="sort-sync fw-semibold border border-secondary-subtle">
+                                    <span class="">@GetChecked(row.IsEnabled)</span>
+                                </td>
 
-                                    <td class = "sort-last-sync fw-semibold small text-nowrap border-secondary-subtle border"
-                                        data-sort = "@row.LastAuthenticatedAt">
-                                        @GetRelativeTime(row.LastAuthenticatedAt)
-                                    </td>
+                                <td class="sort-sync fw-semibold border border-secondary-subtle">
+                                    <span class="">@GetChecked(row.IsOnline)</span>
+                                </td>
 
-                                    <td class = "sort-version text-nowrap border-secondary-subtle border">@row.Metadata?.Version</td>
+                                <td class="sort-sync fw-semibold border border-secondary-subtle">
+                                    <span class="">@GetChecked(row.IsAuthenticated)</span>
+                                </td>
+                                <td class="sort-sync fw-semibold border border-secondary-subtle">
+                                    <span class="">@IntDisplay(row.LastQueueCount)</span>
+                                </td>
+                                <td class="sort-sync fw-semibold border border-secondary-subtle">
+                                    <span class="">@IntDisplay(row.LastMissingCount)</span>
+                                </td>
 
-                                    <td class = "text-end border-secondary-subtle border">
-                                        <div class = "btn-group" @onclick:stopPropagation = "true">
-                                            <button class = "btn btn-app-ghost text-white"
-                                                    @onclick = "() => TestConnection(row)">Test
+
+                                <td class="sort-last-sync fw-semibold border-secondary-subtle border"
+                                    data-sort="@row.LastAuthenticatedAt">
+                                    @TimeAgo(row.LastQueueFetchAt)
+                                </td>
+
+                                <td class="sort-version text-nowrap border-secondary-subtle border">@row.Metadata?.Version</td>
+
+                                <td class="text-end border-secondary-subtle border">
+                                    <div class="btn-group" @onclick:stopPropagation="true">
+                                        <button class="btn btn-app-ghost text-white" @onclick="() => EditServer(row)">
+                                            Edit
+                                        </button>
+                                        <button data-bs-toggle="dropdown"
+                                                data-bs-strategy="fixed"
+                                                type="button"
+                                                class="btn btn-app-ghost dropdown-toggle dropdown-toggle-split text-white"
+                                                aria-expanded="false"></button>
+                                        <div class="dropdown-menu dropdown-menu-end">
+                                            <button class="dropdown-item"
+                                                    type="button"
+                                                    @onclick="() => SyncServer(row)">Sync Now
                                             </button>
-                                            <button data-bs-toggle = "dropdown"
-                                                    data-bs-strategy = "fixed"
-                                                    type = "button"
-                                                    class = "btn btn-app-ghost dropdown-toggle dropdown-toggle-split text-white"
-                                                    aria-expanded = "false"></button>
-                                            <div class = "dropdown-menu dropdown-menu-end">
-                                                <button class = "dropdown-item"
-                                                        type = "button"
-                                                        @onclick = "() => SyncServer(row)">Sync Now
-                                                </button>
-                                                <button class = "dropdown-item"
-                                                        type = "button"
-                                                        @onclick = "() => EditServer(row)">Edit
-                                                </button>
-                                                <button class = "dropdown-item text-status-failed"
-                                                        type = "button"
-                                                        @onclick = "() => RemoveServer(row)">Remove
-                                                </button>
-                                            </div>
+                                            <button class="dropdown-item"
+                                                    type="button"
+                                                    @onclick="() => TestConnection(row)">Test
+                                            </button>
+                                            <button class="dropdown-item text-status-failed"
+                                                    type="button"
+                                                    @onclick="() => RemoveServer(row)">Remove
+                                            </button>
                                         </div>
-                                    </td>
-                                </tr>
-                            }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
                         </tbody>
                     </table>
                 </div>
 
-                <div class = "card-footer d-flex align-items-center justify-content-between gap-4">
-                    <div id = "servers-page-count" class = "fw-semibold"></div>
-                    <ul class = "pagination mb-0 gap-2"></ul>
+                <div class="card-footer d-flex align-items-center justify-content-between gap-4">
+                    <div id="servers-page-count" class="fw-semibold"></div>
+                    <ul class="pagination mb-0 gap-2"></ul>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-@code {
-    private AddServerModal _serverModal = new();
-    private readonly int _pageSize = 10;
-    private readonly string[] _serverTypes = ["Radarr", "Sonarr", "Prowlarr", "Lidarr"];
-    private readonly string[] _statuses = ["Online", "Offline", "Warning", "Error"];
-    private List<MediaServer> _servers = [];
-
-    private int TotalServers => _servers.Count;
-    private int OnlineCount => _servers.Count(x => x.IsOnline);
-    private int AuthenticatedServers => _servers.Count(x => x.IsAuthenticated);
-
-    private string LastSyncText => _servers.Count == 0 ? "Never" : GetRelativeTime(_servers.Max(x => x.LastAuthenticatedAt));
-
-    private string LastSyncSubtitle => _servers.Count == 0 ? "No servers synced yet" : "All servers synced recently";
-    private readonly CancellationTokenSource _refreshCancellation = new();
-    private ConfirmationDialog? _confirmModal;
-    private string? _confirmText = "Are you sure you want to delete this server?";
-    private int _selectedServerId;
-
-    protected override async void OnInitialized() {
-        _servers = await MediaServerService.GetAllServersAsync();
-        _ = RefreshLoopAsync();
-    }
-    private async Task RefreshLoopAsync() {
-        using PeriodicTimer timer = new(TimeSpan.FromSeconds(1));
-
-        while (await timer.WaitForNextTickAsync(_refreshCancellation.Token)) {
-            _servers = await MediaServerService.GetAllServersAsync();
-            await InvokeAsync(StateHasChanged);
-        }
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender) {
-        if (!firstRender) {
-            return;
-        }
-
-        await Js.InvokeVoidAsync("trackarrTable.init",
-        "servers-table",
-        "servers-table-search",
-        "servers-page-count",
-        _pageSize,
-        new[] {
-            "sort-name",
-            "sort-type",
-            "sort-url",
-            "sort-status",
-            "sort-sync",
-            "sort-last-sync",
-            "sort-version"
-        });
-    }
-
-    private async void AddServer() {
-        await _serverModal.OpenForAdd();
-    }
-
-    private void SyncAll() {
-    }
-
-    private void TestConnection(MediaServer row) {
-
-    }
-
-    private void SyncServer(MediaServer row) {
-    }
-
-    private async Task EditServer(MediaServer row) {
-        await _serverModal.OpenForEdit(row);
-    }
-
-    private async void SendDeleteToDb(int id) {
-        await MediaServerService.DeleteServerAsync(id);
-        await Js.InvokeVoidAsync("modalHelper.hide", "confirmationModal");
-    }
-    private async Task RemoveServer(MediaServer row) {
-        _selectedServerId = row.Id;
-        _confirmText = $"Are you sure you want to remove '{row.Name}'?";
-        await Js.InvokeVoidAsync("modalHelper.show", "confirmationModal");
-
-    }
-
-    private static string GetRelativeTime(DateTime dateTime) {
-        TimeSpan span = DateTime.UtcNow - dateTime;
-
-        if (span.TotalSeconds < 60) {
-            return "Just now";
-        }
-
-        if (span.TotalMinutes < 60) {
-            return $"{(int)span.TotalMinutes}m ago";
-        }
-
-        if (span.TotalHours < 24) {
-            return $"{(int)span.TotalHours}h ago";
-        }
-
-        return $"{(int)span.TotalDays}d ago";
-    }
-
-
-    private static MarkupString GetServerIcon(ServiceType type, bool large = false) {
-        string size = large ? "32" : "20";
-
-        string src = type switch {
-            ServiceType.Radarr => "img/Radarr.svg",
-            ServiceType.Sonarr => "img/Sonarr.svg",
-            _ => ""
-        };
-
-        return (MarkupString)$"<img src=\"{src}\" width=\"{size}\" height=\"{size}\" alt=\"{type}\" />";
-    }
-
-    private static string GetTypeBadgeClass(ServiceType type) {
-        return type switch {
-            ServiceType.Radarr => "app-badge app-badge-radarr",
-            ServiceType.Sonarr => "app-badge app-badge-sonarr",
-            _ => "app-badge app-badge-muted"
-        };
-    }
-
-    private static string GetStatusBadgeClass(string status) {
-        return status.ToLowerInvariant() switch {
-            "online" => "app-badge app-badge-online",
-            "warning" => "app-badge app-badge-warning",
-            "error" => "app-badge app-badge-error",
-            _ => "app-badge app-badge-muted"
-        };
-    }
-
-    private static string GetStatusDotClass(string status) {
-        return status.ToLowerInvariant() switch {
-            "online" => "server-status-dot server-status-dot-online",
-            "warning" => "server-status-dot server-status-dot-warning",
-            "error" => "server-status-dot server-status-dot-error",
-            _ => "server-status-dot server-status-dot-muted"
-        };
-    }
-
-    private static string GetSyncBadgeClass(string status) {
-        return status.ToLowerInvariant() switch {
-            "ok" => "app-badge app-badge-online",
-            "warning" => "app-badge app-badge-warning",
-            "error" => "app-badge app-badge-error",
-            _ => "app-badge app-badge-muted"
-        };
-    }
-
-    public async ValueTask DisposeAsync() {
-        await ValueTask.CompletedTask;
-    }
-}

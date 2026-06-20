@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Health;
 
-public enum Severity {
+public enum Severity
+{
     Trace,
     Info,
     Positive,

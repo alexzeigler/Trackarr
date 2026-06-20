@@ -2,7 +2,8 @@
 
 namespace Trackarr.Core.Health;
 
-public class DownloadAttempt {
+public class DownloadAttempt
+{
     public int Id { get; set; }
 
     public int ServerId { get; set; }

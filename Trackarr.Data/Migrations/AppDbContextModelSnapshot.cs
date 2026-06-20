@@ -202,8 +202,8 @@ namespace Trackarr.Data.Migrations
                     b.Property<int>("ConfidenceBefore")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("ConfidenceDelta")
-                        .HasColumnType("INTEGER");
+                    b.Property<decimal>("ConfidenceDelta")
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("CountsTowardRemoval")
                         .HasColumnType("INTEGER");
@@ -350,6 +350,9 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastBadObservationAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastByteProgressAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("LastErrorKey")
@@ -670,6 +673,100 @@ namespace Trackarr.Data.Migrations
                     b.HasIndex("ServerId", "ServiceType", "Indexer", "DownloadClient", "Protocol", "ReleaseKey", "ReasonKey");
 
                     b.ToTable("SourceHealthSummaries");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Media.Missing.MissingMediaRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("EpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("FailedSearchCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("FirstSeenMissingAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("LastEvaluatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastSearchPushedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("LoweredToFallback")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RemoteId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SearchState")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ServerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServerId");
+
+                    b.HasIndex("ServerId", "RemoteId", "EpisodeId")
+                        .IsUnique();
+
+                    b.ToTable("MissingMedia");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Media.Missing.MissingSearchEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("EpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FailedSearchCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RemoteId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ServerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAt");
+
+                    b.HasIndex("ServerId", "RemoteId", "EpisodeId");
+
+                    b.ToTable("SearchEvents");
                 });
 
             modelBuilder.Entity("Trackarr.Core.Media.Movies.Movie", b =>
@@ -1341,9 +1438,8 @@ namespace Trackarr.Data.Migrations
                     b.Property<int>("DownloadsProcessed")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("FallbackProfile")
-                        .HasMaxLength(255)
-                        .HasColumnType("TEXT");
+                    b.Property<int?>("FallBackProfileId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Host")
                         .IsRequired()
@@ -1386,7 +1482,7 @@ namespace Trackarr.Data.Migrations
                     b.Property<int?>("LastQueueCount")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime?>("LastQueueFetchAt")
+                    b.Property<DateTime>("LastQueueFetchAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -1407,7 +1503,32 @@ namespace Trackarr.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FallBackProfileId");
+
                     b.ToTable("MediaServers");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Server.QualityProfile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RemoteId")
+                        .HasColumnType("INTEGER")
+                        .HasJsonPropertyName("id");
+
+                    b.Property<int>("ServerId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServerId");
+
+                    b.ToTable("QualityProfiles");
                 });
 
             modelBuilder.Entity("Trackarr.Core.Server.ServerMetadata", b =>
@@ -1673,6 +1794,27 @@ namespace Trackarr.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Routine");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Server.MediaServer", b =>
+                {
+                    b.HasOne("Trackarr.Core.Server.QualityProfile", "FallbackProfile")
+                        .WithMany()
+                        .HasForeignKey("FallBackProfileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("FallbackProfile");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Server.QualityProfile", b =>
+                {
+                    b.HasOne("Trackarr.Core.Server.MediaServer", "ParentServer")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ParentServer");
                 });
 
             modelBuilder.Entity("Trackarr.Core.Server.ServerMetadata", b =>

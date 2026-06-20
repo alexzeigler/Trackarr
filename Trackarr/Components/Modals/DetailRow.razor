@@ -1,24 +1,34 @@
-﻿<div class = "detail-row border-bottom border-secondary-subtle">
-    <span class = "data-label">@Label</span>
-    <div class = "data-value">
-        @if (IsMonitored.HasValue) {
-            @if (IsMonitored.Value) {
-                <span class = "text-success"><i class = "bi bi-check2 me-1"></i>Yes</span>
+﻿<div class="detail-row border-bottom border-secondary-subtle">
+    <span class="data-label">@Label</span>
+    <div class="data-value">
+        @if (IsMonitored.HasValue)
+        {
+            @if (IsMonitored.Value)
+            {
+                <span class="text-success"><i class="bi bi-check2 me-1"></i>Yes</span>
             }
-            else {
-                <span class = "text-muted">No</span>
+            else
+            {
+                <span class="text-muted">No</span>
             }
         }
-        else if (!string.IsNullOrWhiteSpace(LinkUrl)) {
-            <a href = "@LinkUrl" target = "@LinkTarget" rel = "@LinkRel" class = "@LinkClass">
+        else if (!string.IsNullOrWhiteSpace(LinkUrl))
+        {
+            <a href="@LinkUrl" target="@LinkTarget" rel="@LinkRel" class="@LinkClass">
                 @(string.IsNullOrWhiteSpace(LinkText) ? Value : LinkText)
             </a>
         }
-        else if (IsBadge) {
-            <span class = "badge @BadgeClass">@Value</span>
+        else if (IsBadge)
+        {
+            <span class="badge @BadgeClass">@Value</span>
         }
-        else {
-            <span class = "@(Mono ? "font-monospace small" : "")">@Value</span>
+        else if (MarkupString.HasValue)
+        {
+            @MarkupString.Value
+        }
+        else
+        {
+            <span class="@(Mono ? "font-monospace small" : "")">@Value</span>
         }
     </div>
 </div>
@@ -26,6 +36,7 @@
 @code {
     [Parameter] public string Label { get; set; } = string.Empty;
     [Parameter] public string? Value { get; set; }
+    [Parameter] public MarkupString? MarkupString { get; set; }
     [Parameter] public bool? IsMonitored { get; set; }
     [Parameter] public bool IsBadge { get; set; }
     [Parameter] public string? BadgeClass { get; set; }

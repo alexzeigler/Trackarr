@@ -2,7 +2,8 @@
 
 namespace Trackarr.Core.Queue;
 
-public enum QueueStatus {
+public enum QueueStatus
+{
     [EnumMember(Value = "ok")] Ok,
 
     [EnumMember(Value = "warning")] Warning,

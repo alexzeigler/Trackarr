@@ -1,0 +1,115 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+main {
+    flex: 1;
+}
+
+
+.top-row {
+    align-items: center;
+    background-color: #f7f7f7;
+    display: flex;
+    height: 3.5rem;
+    justify-content: flex-end;
+}
+
+.top-row ::deep a, .top-row ::deep .btn-link {
+    margin-left: 1.5rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
+    text-decoration: underline;
+}
+
+.top-row ::deep a:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 640.98px) {
+    .top-row {
+        justify-content: space-between;
+    }
+
+    .top-row ::deep a, .top-row ::deep .btn-link {
+        margin-left: 0;
+    }
+}
+
+@media (min-width: 641px) {
+    .page {
+        flex-direction: row;
+    }
+
+    .sidebar {
+        height: 100vh;
+        position: sticky;
+        top: 0;
+        width: 250px;
+    }
+
+    .top-row {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    .top-row.auth ::deep a:first-child {
+        flex: 1;
+        text-align: right;
+        width: 0;
+    }
+
+    .top-row, article {
+        padding-left: 2rem !important;
+        padding-right: 1.5rem !important;
+    }
+}
+
+
+.app-sidebar {
+    background: #121b2a;
+    border-right: 1px solid rgba(255, 255, 255, .08);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.app-main {
+    display: grid;
+    grid-template-rows: 70px minmax(0, 1fr);
+    min-height: 100vh;
+    min-width: 0;
+}
+
+.app-topbar {
+    align-items: center;
+    background: #111a29;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+    display: flex;
+    height: 70px;
+    padding: 0 1.5rem;
+}
+
+.app-menu-button {
+    color: var(--bs-secondary-color);
+    font-size: 1.35rem;
+    padding: 0;
+    text-decoration: none;
+}
+
+.app-menu-button:hover {
+    color: var(--bs-body-color);
+}
+
+.app-content {
+    min-width: 0;
+    overflow: auto;
+    padding: 1.5rem;
+}

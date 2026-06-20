@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Queue;
 
-public enum DownloadItemTrackingState {
+public enum DownloadItemTrackingState
+{
     Active = 0,
     Watching = 1,
     Struck = 2,

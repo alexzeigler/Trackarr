@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Media.Movies;
 
-public class Movie : MediaItem {
+public class Movie : MediaItem
+{
     public string? OriginalTitle { get; set; }
     public string? Website { get; set; }
     public string? YouTubeTrailerId { get; set; }

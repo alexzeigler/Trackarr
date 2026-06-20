@@ -1,10 +1,12 @@
 ﻿namespace Trackarr.Core.Health;
 
-public class HealthSnapshot {
+public class HealthSnapshot
+{
     public int Id { get; set; }
 
     public int DownloadAttemptId { get; set; }
     public DownloadAttempt? DownloadAttempt { get; set; }
+    public DateTime? LastByteProgressAt { get; set; }
 
     public decimal RawScore { get; set; } = 70;
     public int VisibleScore { get; set; } = 70;

@@ -6,80 +6,84 @@
 @inject MediaServerService ServerService
 @inject IJSRuntime Js
 @* @inject MediaServerService ServerService *@
-<AddServerModal @ref = "_modal" OnSaved = "LoadServers" />
-<ConfirmationDialog @ref = "_confirmDialog"
-                    Header = "@_confirmHeader"
-                    Text = "@_confirmText"
-                    OnConfirm = "ExecuteConfirm"
-                    ConfirmText = "Yes"
-                    CancelText = "No" />
+<AddServerModal @ref="_modal" OnSaved="LoadServers"/>
+<ConfirmationDialog @ref="_confirmDialog"
+                    Header="@_confirmHeader"
+                    Text="@_confirmText"
+                    OnConfirm="ExecuteConfirm"
+                    ConfirmText="Yes"
+                    CancelText="No"/>
 
-@foreach (SectionInfo svc in _sections) {
-    <h3 class = "text-white mb-2">@svc.Title Settings</h3>
-    <p class = "text-muted mb-4">@svc.Description</p>
+@foreach (var svc in _sections)
+{
+    <h3 class="text-white mb-2">@svc.Title Settings</h3>
+    <p class="text-muted mb-4">@svc.Description</p>
 
-    <ul class = "list-unstyled row g-3 mb-5 w-100">
-        @foreach (MediaServer server in _servers.Where(s => s.ServiceType == svc.Type)) {
-            <li class = "col-12 col-md-6 col-xl-5">
-                <div class = "rounded-3 bg-dark border border-secondary shadow">
-                    <div class = "d-flex align-items-start justify-content-between p-3 gap-3">
-                        <div class = "flex-grow-1 overflow-hidden">
-                            <div class = "d-flex align-items-center gap-2 mb-2">
-                                <h6 class = "mb-0 text-white text-truncate fw-semibold">
-                                    <a href = "@server.BaseUrl"
-                                       target = "_blank"
-                                       rel = "noopener noreferrer"
-                                       class = "text-white text-decoration-none link-hover h5 fw-bold"> @server.Name
+    <ul class="list-unstyled row g-3 mb-5 w-100">
+        @foreach (var server in _servers.Where(s => s.ServiceType == svc.Type))
+        {
+            <li class="col-12 col-md-6 col-xl-5">
+                <div class="rounded-3 bg-dark border border-secondary shadow">
+                    <div class="d-flex align-items-start justify-content-between p-3 gap-3">
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <h6 class="mb-0 text-white text-truncate fw-semibold">
+                                    <a href="@server.BaseUrl"
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       class="text-white text-decoration-none link-hover h5 fw-bold"> @server.Name
                                     </a>
                                 </h6>
-                                @if (server.IsDefault) {
-                                    <span class = "badge rounded-pill text-bg-indigo border border-indigo px-2 py-1 small text-nowrap">
+                                @if (server.IsDefault)
+                                {
+                                    <span class="badge rounded-pill text-bg-indigo border border-indigo px-2 py-1 small text-nowrap">
                                         Default
                                     </span>
                                 }
                             </div>
-                            <div class = "mb-1 text-secondary small text-truncate w-100">
-                                <span class = "data-label">Address</span>
-                                <a href = "@server.BaseUrl"
-                                   target = "_blank"
-                                   rel = "noopener noreferrer"
-                                   class = "data-value text-secondary text-decoration-none link-hover"> @server.BaseUrl
+                            <div class="mb-1 text-secondary small text-truncate w-100">
+                                <span class="data-label">Address</span>
+                                <a href="@server.BaseUrl"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="data-value text-secondary text-decoration-none link-hover"> @server.BaseUrl
                                 </a>
                             </div>
-                            @if (!string.IsNullOrEmpty(server.FallbackProfile)) {
-                                <div class = "mb-1 text-secondary small text-truncate w-100">
-                                    <span class = "data-label">Fallback Profile</span>
-                                    <span class = "data-value">@server.FallbackProfile</span>
+                            @if (!string.IsNullOrEmpty(server.FallbackProfile?.Name))
+                            {
+                                <div class="mb-1 text-secondary small text-truncate w-100">
+                                    <span class="data-label">Fallback Profile</span>
+                                    <span class="data-value">@server.FallbackProfile</span>
                                 </div>
                             }
                         </div>
-                        <a href = "@server.BaseUrl"
-                           target = "_blank"
-                           rel = "noopener noreferrer"
-                           class = "opacity-50 opacity-hover flex-shrink-0"> @svc.Icon
+                        <a href="@server.BaseUrl"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="opacity-50 opacity-hover flex-shrink-0"> @svc.Icon
                         </a>
                     </div>
 
-                    <div class = "border-top border-secondary d-flex">
-                        <button @onclick = "() => EditServer(server)"
-                                class = "btn btn-link text-secondary text-decoration-none flex-fill py-3 rounded-0 rounded-bottom-end d-flex align-items-center justify-content-center gap-2 hover-white border-end">
-                            <svg xmlns = "http://www.w3.org/2000/svg"
-                                 viewBox = "0 0 24 24"
-                                 fill = "currentColor"
-                                 style = "height:1.1rem;width:1.1rem;">
-                                <path d = "M21.731 2.269a2.625 2.625 0 00-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 000-3.712zM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 00-1.32 2.214l-.8 2.685a.75.75 0 00.933.933l2.685-.8a5.25 5.25 0 002.214-1.32L19.513 8.2z" />
+                    <div class="border-top border-secondary d-flex">
+                        <button @onclick="() => EditServer(server)"
+                                class="btn btn-link text-secondary text-decoration-none flex-fill py-3 rounded-0 rounded-bottom-end d-flex align-items-center justify-content-center gap-2 hover-white border-end">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 viewBox="0 0 24 24"
+                                 fill="currentColor"
+                                 style="height:1.1rem;width:1.1rem;">
+                                <path d="M21.731 2.269a2.625 2.625 0 00-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 000-3.712zM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 00-1.32 2.214l-.8 2.685a.75.75 0 00.933.933l2.685-.8a5.25 5.25 0 002.214-1.32L19.513 8.2z"/>
                             </svg>
                             Edit
                         </button>
-                        <button @onclick = "() => ConfirmDelete(server.Id)"
-                                class = "btn btn-link text-secondary text-decoration-none flex-fill py-3 rounded-0 rounded-bottom-end d-flex align-items-center justify-content-center gap-2 hover-white">
-                            <svg xmlns = "http://www.w3.org/2000/svg"
-                                 viewBox = "0 0 24 24"
-                                 fill = "currentColor"
-                                 style = "height:1.1rem;width:1.1rem;">
-                                <path fill-rule = "evenodd"
-                                      d = "M16.5 4.478v.227a48.816 48.816 0 013.878.512.75.75 0 11-.256 1.478l-.209-.035-1.005 13.07a3 3 0 01-2.991 2.77H8.084a3 3 0 01-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 01-.256-1.478A48.567 48.567 0 017.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 013.369 0c1.603.051 2.815 1.387 2.815 2.951zm-6.136-1.452a51.196 51.196 0 013.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 00-6 0v-.113c0-.794.609-1.428 1.364-1.452zm-.355 5.945a.75.75 0 10-1.5.058l.347 9a.75.75 0 101.499-.058l-.346-9zm5.48.058a.75.75 0 10-1.498-.058l-.347 9a.75.75 0 001.5.058l.345-9z"
-                                      clip-rule = "evenodd" />
+                        <button @onclick="() => ConfirmDelete(server.Id)"
+                                class="btn btn-link text-secondary text-decoration-none flex-fill py-3 rounded-0 rounded-bottom-end d-flex align-items-center justify-content-center gap-2 hover-white">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 viewBox="0 0 24 24"
+                                 fill="currentColor"
+                                 style="height:1.1rem;width:1.1rem;">
+                                <path fill-rule="evenodd"
+                                      d="M16.5 4.478v.227a48.816 48.816 0 013.878.512.75.75 0 11-.256 1.478l-.209-.035-1.005 13.07a3 3 0 01-2.991 2.77H8.084a3 3 0 01-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 01-.256-1.478A48.567 48.567 0 017.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 013.369 0c1.603.051 2.815 1.387 2.815 2.951zm-6.136-1.452a51.196 51.196 0 013.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 00-6 0v-.113c0-.794.609-1.428 1.364-1.452zm-.355 5.945a.75.75 0 10-1.5.058l.347 9a.75.75 0 101.499-.058l-.346-9zm5.48.058a.75.75 0 10-1.498-.058l-.347 9a.75.75 0 001.5.058l.345-9z"
+                                      clip-rule="evenodd"/>
                             </svg>
                             Delete
                         </button>
@@ -87,17 +91,17 @@
                 </div>
             </li>
         }
-        <li class = "col-12 col-md-6 col-xl-4">
-            <button @onclick = "() => AddServer(svc.Type)"
-                    class = "w-100 h-100 rounded-3 border border-secondary border-dashed bg-transparent text-secondary d-flex align-items-center justify-content-center gap-2 py-4 hover-white"
-                    style = "min-height:7rem; border-style:dashed !important;">
-                <svg xmlns = "http://www.w3.org/2000/svg"
-                     viewBox = "0 0 24 24"
-                     fill = "currentColor"
-                     style = "height:1.25rem;width:1.25rem;">
-                    <path fill-rule = "evenodd"
-                          d = "M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z"
-                          clip-rule = "evenodd" />
+        <li class="col-12 col-md-6 col-xl-4">
+            <button @onclick="() => AddServer(svc.Type)"
+                    class="w-100 h-100 rounded-3 border border-secondary border-dashed bg-transparent text-secondary d-flex align-items-center justify-content-center gap-2 py-4 hover-white"
+                    style="min-height:7rem; border-style:dashed !important;">
+                <svg xmlns="http://www.w3.org/2000/svg"
+                     viewBox="0 0 24 24"
+                     fill="currentColor"
+                     style="height:1.25rem;width:1.25rem;">
+                    <path fill-rule="evenodd"
+                          d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z"
+                          clip-rule="evenodd"/>
                 </svg>
                 Add @svc.Title Server
             </button>
@@ -107,36 +111,36 @@
 
 <style>
     .link-hover:hover {
-        color           : white !important;
-        text-decoration : underline !important;
+        color: white !important;
+        text-decoration: underline !important;
     }
 
     .opacity-hover:hover {
-        opacity : 1 !important;
+        opacity: 1 !important;
     }
 
     .hover-white:hover {
-        color : white !important;
+        color: white !important;
     }
 
     .text-bg-indigo {
-        background-color : rgba(99, 102, 241, 0.8);
-        color            : #e0e7ff;
+        background-color: rgba(99, 102, 241, 0.8);
+        color: #e0e7ff;
     }
 
     .border-indigo {
-        border-color : #6366f1 !important;
+        border-color: #6366f1 !important;
     }
 
     .btn-indigo {
-        background-color : #6366f1;
-        color            : white;
-        border           : none;
+        background-color: #6366f1;
+        color: white;
+        border: none;
     }
 
     .btn-indigo:hover {
-        background-color : #4f46e5;
-        color            : white;
+        background-color: #4f46e5;
+        color: white;
     }
 </style>
 
@@ -150,64 +154,72 @@
 
     private record SectionInfo(string Title, string Description, ServiceType Type, RenderFragment Icon);
 
-    private readonly List<SectionInfo> _sections = [
+    private readonly List<SectionInfo> _sections =
+    [
         // TODO: Make this section use the services' logos rather than building them ourselves. We may need to pull the svg from a source so we can build manipulate it like we do. 
         new("Radarr",
-        "Connect your Radarr server to manage movie requests.",
-        ServiceType.Radarr,
-        @<svg viewBox = "0 0 1000 1115.2" xmlns = "http://www.w3.org/2000/svg" style = "height:2.5rem;width:2.5rem;">
-            <path d = "m120.015 174.916-1.433 810.916C50.198 993.53-.595 958.758.245 890.481L0 216.126C2.624 2.76 199.555-46.036 317.994 40.776l601.67 357.383c84.615 60.794 100.32 171.956 56.7 248.25-7.799-59.85-32.984-94.304-83.773-129.073l-678.066-392.46c-50.79-34.768-93.568-26.758-94.513 50.056zm-61.707 852.847c51 17.7 102.314 9.794 145.3-15.285L908.5 611.405c41.94 60.268 32.671 119.903-18.958 153.414L296.44 1098.972c-85.873 41.624-196.297-2.414-238.138-71.217z"
-                  fill = "#fff" />
-            <path d = "m272.941 797.285 414.225-245.888L273.7 327.762z" fill = "#ffc230" />
-        </svg>),
+            "Connect your Radarr server to manage movie requests.",
+            ServiceType.Radarr,
+            @<svg viewBox="0 0 1000 1115.2" xmlns="http://www.w3.org/2000/svg" style="height:2.5rem;width:2.5rem;">
+                <path d="m120.015 174.916-1.433 810.916C50.198 993.53-.595 958.758.245 890.481L0 216.126C2.624 2.76 199.555-46.036 317.994 40.776l601.67 357.383c84.615 60.794 100.32 171.956 56.7 248.25-7.799-59.85-32.984-94.304-83.773-129.073l-678.066-392.46c-50.79-34.768-93.568-26.758-94.513 50.056zm-61.707 852.847c51 17.7 102.314 9.794 145.3-15.285L908.5 611.405c41.94 60.268 32.671 119.903-18.958 153.414L296.44 1098.972c-85.873 41.624-196.297-2.414-238.138-71.217z"
+                      fill="#fff"/>
+                <path d="m272.941 797.285 414.225-245.888L273.7 327.762z" fill="#ffc230"/>
+            </svg>),
 
         new("Sonarr",
-        "Connect your Sonarr server to manage TV show requests.",
-        ServiceType.Sonarr,
-        @<svg viewBox = "0 0 216.7 216.9" xmlns = "http://www.w3.org/2000/svg" style = "height:2.5rem;width:2.5rem;">
-            <path d = "M216.7 108.45c0 29.833-10.533 55.4-31.6 76.7-.7.833-1.483 1.6-2.35 2.3a92.767 92.767 0 0 1-11 9.25c-18.267 13.467-39.367 20.2-63.3 20.2-23.967 0-45.033-6.733-63.2-20.2-4.8-3.4-9.3-7.25-13.5-11.55-16.367-16.266-26.417-35.167-30.15-56.7-.733-4.2-1.217-8.467-1.45-12.8-.1-2.4-.15-4.8-.15-7.2 0-2.533.05-4.95.15-7.25 0-.233.066-.467.2-.7 1.567-26.6 12.033-49.583 31.4-68.95C53.05 10.517 78.617 0 108.45 0c29.933 0 55.484 10.517 76.65 31.55 21.067 21.433 31.6 47.067 31.6 76.9z"
-                  clip-rule = "evenodd"
-                  fill = "#EEE"
-                  fill-rule = "evenodd" />
-            <path d = "m194.65 42.5-22.4 22.4C159.152 77.998 158 89.4 158 109.5c0 17.934 2.852 34.352 16.2 47.7 9.746 9.746 19 18.95 19 18.95-2.5 3.067-5.2 6.067-8.1 9-.7.833-1.483 1.6-2.35 2.3a90.601 90.601 0 0 1-7.9 6.95l-17.55-17.55c-15.598-15.6-27.996-17.1-48.6-17.1-19.77 0-33.223 1.822-47.7 16.3-8.647 8.647-18.55 18.6-18.55 18.6a95.782 95.782 0 0 1-10.7-9.5c-2.8-2.8-5.417-5.667-7.85-8.6 0 0 9.798-9.848 19.15-19.2 13.852-13.853 16.1-29.916 16.1-47.85 0-17.5-2.874-33.823-15.6-46.55-8.835-8.836-21.05-21-21.05-21 2.833-3.6 5.917-7.067 9.25-10.4a134.482 134.482 0 0 1 9-8.05L61.1 43.85C74.102 56.852 90.767 60.2 108.7 60.2c18.467 0 35.077-3.577 48.6-17.1 8.32-8.32 19.3-19.25 19.3-19.25 2.9 2.367 5.733 4.933 8.5 7.7a121.188 121.188 0 0 1 9.55 10.95z"
-                  clip-rule = "evenodd"
-                  fill = "#3A3F51"
-                  fill-rule = "evenodd" />
-            <circle cx = "108.45" cy = "108.45" r = "30" fill = "#0CF" />
-        </svg>)
+            "Connect your Sonarr server to manage TV show requests.",
+            ServiceType.Sonarr,
+            @<svg viewBox="0 0 216.7 216.9" xmlns="http://www.w3.org/2000/svg" style="height:2.5rem;width:2.5rem;">
+                <path d="M216.7 108.45c0 29.833-10.533 55.4-31.6 76.7-.7.833-1.483 1.6-2.35 2.3a92.767 92.767 0 0 1-11 9.25c-18.267 13.467-39.367 20.2-63.3 20.2-23.967 0-45.033-6.733-63.2-20.2-4.8-3.4-9.3-7.25-13.5-11.55-16.367-16.266-26.417-35.167-30.15-56.7-.733-4.2-1.217-8.467-1.45-12.8-.1-2.4-.15-4.8-.15-7.2 0-2.533.05-4.95.15-7.25 0-.233.066-.467.2-.7 1.567-26.6 12.033-49.583 31.4-68.95C53.05 10.517 78.617 0 108.45 0c29.933 0 55.484 10.517 76.65 31.55 21.067 21.433 31.6 47.067 31.6 76.9z"
+                      clip-rule="evenodd"
+                      fill="#EEE"
+                      fill-rule="evenodd"/>
+                <path d="m194.65 42.5-22.4 22.4C159.152 77.998 158 89.4 158 109.5c0 17.934 2.852 34.352 16.2 47.7 9.746 9.746 19 18.95 19 18.95-2.5 3.067-5.2 6.067-8.1 9-.7.833-1.483 1.6-2.35 2.3a90.601 90.601 0 0 1-7.9 6.95l-17.55-17.55c-15.598-15.6-27.996-17.1-48.6-17.1-19.77 0-33.223 1.822-47.7 16.3-8.647 8.647-18.55 18.6-18.55 18.6a95.782 95.782 0 0 1-10.7-9.5c-2.8-2.8-5.417-5.667-7.85-8.6 0 0 9.798-9.848 19.15-19.2 13.852-13.853 16.1-29.916 16.1-47.85 0-17.5-2.874-33.823-15.6-46.55-8.835-8.836-21.05-21-21.05-21 2.833-3.6 5.917-7.067 9.25-10.4a134.482 134.482 0 0 1 9-8.05L61.1 43.85C74.102 56.852 90.767 60.2 108.7 60.2c18.467 0 35.077-3.577 48.6-17.1 8.32-8.32 19.3-19.25 19.3-19.25 2.9 2.367 5.733 4.933 8.5 7.7a121.188 121.188 0 0 1 9.55 10.95z"
+                      clip-rule="evenodd"
+                      fill="#3A3F51"
+                      fill-rule="evenodd"/>
+                <circle cx="108.45" cy="108.45" r="30" fill="#0CF"/>
+            </svg>)
         // TODO: Add Overseerr/Seerr integration. 
     ];
 
-    protected override async Task OnInitializedAsync() {
+    protected override async Task OnInitializedAsync()
+    {
         await LoadServers();
     }
 
-    private async Task AddServer(ServiceType type) {
+    private async Task AddServer(ServiceType type)
+    {
         await _modal.OpenForAdd(type);
     }
 
-    private async Task EditServer(MediaServer server) {
+    private async Task EditServer(MediaServer server)
+    {
         await _modal.OpenForEdit(server);
     }
 
-    private async Task DeleteServer(int id) {
+    private async Task DeleteServer(int id)
+    {
         await ServerService.DeleteServerAsync(id);
         await LoadServers();
     }
 
-    private async Task LoadServers() {
+    private async Task LoadServers()
+    {
         _servers = await ServerService.GetAllServersAsync();
         StateHasChanged();
     }
 
-    private async Task ConfirmDelete(int id) {
+    private async Task ConfirmDelete(int id)
+    {
         _confirmHeader = "Delete Server";
         _confirmText = "Are you sure you want to delete this server?";
         _pendingAction = () => DeleteServer(id);
         await Js.InvokeVoidAsync("eval", "new bootstrap.Modal(document.getElementById('confirmationModal')).show()");
     }
 
-    private async Task ExecuteConfirm() {
+    private async Task ExecuteConfirm()
+    {
         if (_pendingAction is not null)
             await _pendingAction();
 

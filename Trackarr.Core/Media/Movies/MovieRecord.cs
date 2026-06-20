@@ -2,7 +2,8 @@
 
 namespace Trackarr.Core.Media.Movies;
 
-public class MovieRecord {
+public class MovieRecord
+{
     public int Id { get; set; }
     public string? Title { get; set; }
     public string? OriginalTitle { get; set; }

@@ -10,7 +10,8 @@ public record QualityDetail(int Id, string Name, string Source, int Resolution);
 
 public record StatusMessage(string Title, List<string> Messages);
 
-public class DownloadItem {
+public class DownloadItem
+{
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     [JsonIgnore] public int Id { get; set; }
     [JsonPropertyName("id")] public int RemoteId { get; set; }
@@ -66,21 +67,25 @@ public class DownloadItem {
     public decimal? LastObservedProgress { get; set; }
     public long? LastObservedSizeLeft { get; set; }
 
-    [NotMapped]
-    public QualityModel? Quality => Deserialize<QualityModel>(QualityJson);
+    [NotMapped] public QualityModel? Quality => Deserialize<QualityModel>(QualityJson);
 
     [NotMapped]
     public IReadOnlyList<StatusMessage> StatusMessages => Deserialize<List<StatusMessage>>(StatusMessagesJson) ?? [];
 
-    [NotMapped]
-    public int SeasonNumber { get; set; }
+    [NotMapped] public int SeasonNumber { get; set; }
 
-    [NotMapped]
-    public int EpisodeNumber { get; set; }
+    [NotMapped] public int EpisodeNumber { get; set; }
 
-    private static T? Deserialize<T>(string? json) {
+    private static T? Deserialize<T>(string? json)
+    {
         if (string.IsNullOrEmpty(json)) return default;
-        try { return JsonSerializer.Deserialize<T>(json, JsonOptions); }
-        catch { return default; }
+        try
+        {
+            return JsonSerializer.Deserialize<T>(json, JsonOptions);
+        }
+        catch
+        {
+            return default;
+        }
     }
 }

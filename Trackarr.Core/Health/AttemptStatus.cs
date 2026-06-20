@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Health;
 
-public enum AttemptStatus {
+public enum AttemptStatus
+{
     Active,
     Imported,
     RemovedByTrackarr,

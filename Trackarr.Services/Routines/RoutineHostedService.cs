@@ -5,11 +5,17 @@ using Trackarr.Data;
 
 namespace Trackarr.Services.Routines;
 
-public sealed class RoutineHostedService(RoutineRunner runner, IEnumerable<IRoutine> routines, IDbContextFactory<AppDbContext> dbContextFactory, RoutineService routineService) : BackgroundService {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
-        foreach (IRoutine routine in routines) await routineService.RegisterRoutineInDbAsync(routine, stoppingToken);
+public sealed class RoutineHostedService(
+    RoutineRunner runner,
+    IEnumerable<IRoutine> routines,
+    IDbContextFactory<AppDbContext> dbContextFactory,
+    RoutineService routineService) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        foreach (var routine in routines) await routineService.RegisterRoutineInDbAsync(routine, stoppingToken);
 
-        List<RoutineDefinition> definitions = await routineService.GetAllAsync(stoppingToken);
+        var definitions = await routineService.GetAllAsync(stoppingToken);
         runner.Load(definitions);
 
         using PeriodicTimer timer = new(TimeSpan.FromMilliseconds(500));

@@ -1,6 +1,7 @@
 ﻿namespace Trackarr.Core.Health;
 
-public enum HealthEventType {
+public enum HealthEventType
+{
     FirstSeen,
     QueueSeen,
     QueueMissing,
@@ -19,5 +20,6 @@ public enum HealthEventType {
     StatusWorsened,
     RemovedByTrackarr,
     ImportedSuccessfully,
-    FailedExternally
+    FailedExternally,
+    FetchingMetadata
 }

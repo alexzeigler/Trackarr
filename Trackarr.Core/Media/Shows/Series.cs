@@ -1,7 +1,7 @@
 ﻿namespace Trackarr.Core.Media.Shows;
 
-public class Series : MediaItem {
-
+public class Series : MediaItem
+{
     public bool Ended { get; set; }
     public string? Network { get; set; }
     public string? AirTime { get; set; }

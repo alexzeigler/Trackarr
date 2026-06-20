@@ -1,8 +1,8 @@
 ﻿.btn-link:focus,
 .btn-link:focus-visible {
     border-color: transparent;
-	box-shadow : none;
-	outline    : none;
+    box-shadow: none;
+    outline: none;
 }
 
 .spin {

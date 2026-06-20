@@ -2,7 +2,8 @@
 
 namespace Trackarr.Core.Media.Shows;
 
-public class EpisodeRecord {
+public class EpisodeRecord
+{
     public int Id { get; set; }
     public int SeriesId { get; set; }
     public int TvdbId { get; set; }
