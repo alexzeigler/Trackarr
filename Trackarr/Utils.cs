@@ -105,14 +105,8 @@ public static class Utils
 
                 return score switch
                 {
-                    <= 9 => "score-badge-red",
-                    <= 19 => "score-badge-red",
-                    <= 29 => "score-badge-red",
                     <= 39 => "score-badge-red",
-                    <= 49 => "score-badge-orange",
-                    <= 59 => "score-badge-orange",
                     <= 69 => "score-badge-orange",
-                    <= 79 => "score-badge-yellow ",
                     <= 89 => "score-badge-yellow",
                     _ => "score-badge-green"
                 };

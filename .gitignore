@@ -18,7 +18,16 @@ TestResults/
 artifacts/
 
 publish/
+test-publish/
 out/
+
+# Runtime data + ASP.NET Data Protection keys (secret — never commit)
+docker-data/
+
+# Image source files and scratch screenshots
+*.pdn
+triage.png
+modal.png
 
 .DS_Store
 Thumbs.db

@@ -21,8 +21,6 @@ builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(d
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
-builder.Services.AddRazorComponents().AddInteractiveServerComponents();
-
 var connectionString = ResolveConnectionString(builder);
 
 builder.Services.AddDbContextFactory<AppDbContext>(options =>

@@ -49,11 +49,10 @@ public class MediaServerService(
 
         logger.LogInformation("Fetching quality profiles for {name}", server.Name);
 
-        try
+        return await ExecuteApiAsync(server, "Unexpected error fetching profiles.", async () =>
         {
-            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
-            var client = CreateClient(10);
-            var url = $"{server.BaseUrl}/api/v3/qualityprofile?apikey={server.ApiKey}";
+            var client = CreateClient(server, 10);
+            var url = $"{server.BaseUrl}/api/v3/qualityprofile";
 
             using var response = await client.GetAsync(url);
 
@@ -61,7 +60,7 @@ public class MediaServerService(
                 throw new ApiException(server.Name, "/api/v3/qualityprofile", (int)response.StatusCode);
 
             var json = await response.Content.ReadAsStringAsync();
-            var profiles = JsonSerializer.Deserialize<List<QualityProfile>>(json, options) ?? [];
+            var profiles = JsonSerializer.Deserialize<List<QualityProfile>>(json, JsonOptions) ?? [];
 
             if (!await db.MediaServers.AnyAsync(s => s.Id == server.Id))
                 return profiles;
@@ -92,23 +91,7 @@ public class MediaServerService(
             ProfileFetchTimes[server.Id] = DateTime.UtcNow;
 
             return await db.QualityProfiles.Where(p => p.ServerId == server.Id).ToListAsync();
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (TaskCanceledException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Unexpected error fetching profiles.", ex);
-        }
+        });
     }
 
     public async Task SetQualityProfileAsync(MediaServer server, int remoteId, int profileId)
@@ -118,10 +101,10 @@ public class MediaServerService(
 
         var resource = server.ServiceType == ServiceType.Radarr ? "movie" : "series";
 
-        try
+        await ExecuteApiAsync(server, $"Error setting profile on {resource} {remoteId}.", async () =>
         {
-            var client = CreateClient(15);
-            var getUrl = $"{server.BaseUrl}/api/v3/{resource}/{remoteId}?apikey={server.ApiKey}";
+            var client = CreateClient(server, 15);
+            var getUrl = $"{server.BaseUrl}/api/v3/{resource}/{remoteId}";
 
             using var getResponse = await client.GetAsync(getUrl);
             if (!getResponse.IsSuccessStatusCode)
@@ -132,7 +115,7 @@ public class MediaServerService(
 
             node["qualityProfileId"] = profileId;
 
-            var putUrl = $"{server.BaseUrl}/api/v3/{resource}/{remoteId}?apikey={server.ApiKey}";
+            var putUrl = $"{server.BaseUrl}/api/v3/{resource}/{remoteId}";
             using var content = new StringContent(node.ToJsonString(), Encoding.UTF8, "application/json");
             using var putResponse = await client.PutAsync(putUrl, content);
 
@@ -141,23 +124,7 @@ public class MediaServerService(
 
             logger.LogInformation("Set profile {profile} on {resource} {id} for {name}", profileId, resource, remoteId,
                 server.Name);
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (TaskCanceledException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Error setting profile on {resource} {remoteId}.", ex);
-        }
+        });
     }
 
     public async Task<HashSet<string>> GetImportedDownloadIdsAsync(MediaServer server, IEnumerable<string> downloadIds)
@@ -172,14 +139,13 @@ public class MediaServerService(
 
         var imported = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        try
+        return await ExecuteApiAsync(server, "Error fetching history.", async () =>
         {
-            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
-            var client = CreateClient(15);
+            var client = CreateClient(server, 15);
 
             foreach (var downloadId in ids)
             {
-                var url = $"{server.BaseUrl}/api/v3/history?apikey={server.ApiKey}&downloadId={downloadId}&eventType=3";
+                var url = $"{server.BaseUrl}/api/v3/history?downloadId={downloadId}&eventType=3";
 
                 using var response = await client.GetAsync(url);
 
@@ -187,30 +153,14 @@ public class MediaServerService(
                     throw new ApiException(server.Name, "/api/v3/history", (int)response.StatusCode);
 
                 var json = await response.Content.ReadAsStringAsync();
-                var history = JsonSerializer.Deserialize<HistoryResponse>(json, options);
+                var history = JsonSerializer.Deserialize<HistoryResponse>(json, JsonOptions);
 
                 if (history?.Records.Count > 0)
                     imported.Add(downloadId);
             }
 
             return imported;
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (TaskCanceledException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Error fetching history.", ex);
-        }
+        });
     }
 
     public async Task<Dictionary<int, Episode>> GetQueueEpisodesBySeriesAsync(int serverId,
@@ -253,7 +203,7 @@ public class MediaServerService(
         if (server.ServiceType is not ServiceType.Radarr)
             throw new MediaServerException($"{server.Name}: Missing movies not supported for {server.ServiceType}.");
 
-        try
+        return await ExecuteApiAsync(server, "Unexpected error fetching missing movies.", async () =>
         {
             await using var db = await dbFactory.CreateDbContextAsync();
 
@@ -312,23 +262,7 @@ public class MediaServerService(
 
             logger.LogInformation("Fetched {count} missing movies for {name}", items.Count, server.Name);
             return items;
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (TaskCanceledException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Unexpected error fetching missing movies.", ex);
-        }
+        });
     }
 
     public async Task<Dictionary<int, Movie>> GetParentMovieAsync(int serverId, IEnumerable<DownloadItem> downloads)
@@ -356,9 +290,8 @@ public class MediaServerService(
 
         try
         {
-            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
-            var client = CreateClient(15);
-            var url = $"{server.BaseUrl}/api/v3/wanted/missing?apikey={server.ApiKey}&page={page}&pageSize={pageSize}";
+            var client = CreateClient(server, 15);
+            var url = $"{server.BaseUrl}/api/v3/wanted/missing?page={page}&pageSize={pageSize}";
 
             using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
 
@@ -366,53 +299,9 @@ public class MediaServerService(
                 throw new ApiException(server.Name, "/api/v3/wanted/missing", (int)response.StatusCode);
 
             var json = await response.Content.ReadAsStringAsync();
-            var missing = JsonSerializer.Deserialize<MissingMovieResponse>(json, options);
+            var missing = JsonSerializer.Deserialize<MissingMovieResponse>(json, JsonOptions);
 
-            var items = missing?.Records.Select(x => new Movie
-            {
-                RemoteId = x.Id,
-                Title = x.Title,
-                OriginalTitle = x.OriginalTitle,
-                SortTitle = x.SortTitle,
-                Status = x.Status,
-                Overview = x.Overview,
-                Website = x.Website,
-                Year = x.Year,
-                YouTubeTrailerId = x.YouTubeTrailerId,
-                Studio = x.Studio,
-                Path = x.Path,
-                QualityProfileId = x.QualityProfileId,
-                HasFile = x.HasFile,
-                MovieFileId = x.MovieFileId,
-                Monitored = x.Monitored,
-                MinimumAvailability = x.MinimumAvailability,
-                IsAvailable = x.IsAvailable,
-                FolderName = x.FolderName,
-                Runtime = x.Runtime,
-                CleanTitle = x.CleanTitle,
-                ImdbId = x.ImdbId,
-                TmdbId = x.TmdbId,
-                TitleSlug = x.TitleSlug,
-                Certification = x.Certification,
-                SizeOnDisk = x.SizeOnDisk,
-                InCinemas = x.InCinemas,
-                PhysicalRelease = x.PhysicalRelease,
-                DigitalRelease = x.DigitalRelease,
-                ReleaseDate = x.ReleaseDate,
-                Added = x.Added,
-                LastSearchTime = x.LastSearchTime,
-                Popularity = x.Popularity,
-                ServerId = server.Id,
-                OriginalLanguageJson = JsonSerializer.Serialize(x.OriginalLanguage),
-                AlternateTitlesJson = JsonSerializer.Serialize(x.AlternateTitles),
-                ImagesJson = JsonSerializer.Serialize(x.Images),
-                GenresJson = JsonSerializer.Serialize(x.Genres),
-                KeywordsJson = JsonSerializer.Serialize(x.Keywords),
-                TagsJson = JsonSerializer.Serialize(x.Tags),
-                RatingsJson = JsonSerializer.Serialize(x.Ratings),
-                CollectionJson = JsonSerializer.Serialize(x.Collection),
-                StatisticsJson = JsonSerializer.Serialize(x.Statistics)
-            }).ToList() ?? [];
+            var items = missing?.Records.Select(x => x.ToEntity(server.Id)).ToList() ?? [];
 
             return (items, missing?.TotalRecords ?? 0);
         }
@@ -432,11 +321,10 @@ public class MediaServerService(
 
         var existing = await db.Movies.FirstOrDefaultAsync(m => m.ServerId == server.Id && m.RemoteId == radarrMovieId);
 
-        try
+        return await ExecuteApiAsync(server, $"Unexpected error fetching movie {radarrMovieId}.", async () =>
         {
-            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
-            var client = CreateClient(10);
-            var url = $"{server.BaseUrl}/api/v3/movie/{radarrMovieId}?apikey={server.ApiKey}";
+            var client = CreateClient(server, 10);
+            var url = $"{server.BaseUrl}/api/v3/movie/{radarrMovieId}";
 
             using var response = await client.GetAsync(url);
 
@@ -444,7 +332,7 @@ public class MediaServerService(
                 throw new ApiException(server.Name, $"/api/v3/movie/{radarrMovieId}", (int)response.StatusCode);
 
             var json = await response.Content.ReadAsStringAsync();
-            var x = JsonSerializer.Deserialize<MovieRecord>(json, options);
+            var x = JsonSerializer.Deserialize<MovieRecord>(json, JsonOptions);
 
             if (x is null)
             {
@@ -457,51 +345,7 @@ public class MediaServerService(
                 return existing;
             }
 
-            Movie movie = new()
-            {
-                RemoteId = x.Id,
-                Title = x.Title,
-                OriginalTitle = x.OriginalTitle,
-                SortTitle = x.SortTitle,
-                Status = x.Status,
-                Overview = x.Overview,
-                Website = x.Website,
-                Year = x.Year,
-                YouTubeTrailerId = x.YouTubeTrailerId,
-                Studio = x.Studio,
-                Path = x.Path,
-                QualityProfileId = x.QualityProfileId,
-                HasFile = x.HasFile,
-                MovieFileId = x.MovieFileId,
-                Monitored = x.Monitored,
-                MinimumAvailability = x.MinimumAvailability,
-                IsAvailable = x.IsAvailable,
-                FolderName = x.FolderName,
-                Runtime = x.Runtime,
-                CleanTitle = x.CleanTitle,
-                ImdbId = x.ImdbId,
-                TmdbId = x.TmdbId,
-                TitleSlug = x.TitleSlug,
-                Certification = x.Certification,
-                SizeOnDisk = x.SizeOnDisk,
-                InCinemas = x.InCinemas,
-                PhysicalRelease = x.PhysicalRelease,
-                DigitalRelease = x.DigitalRelease,
-                ReleaseDate = x.ReleaseDate,
-                Added = x.Added,
-                LastSearchTime = x.LastSearchTime,
-                Popularity = x.Popularity,
-                ServerId = server.Id,
-                OriginalLanguageJson = JsonSerializer.Serialize(x.OriginalLanguage),
-                AlternateTitlesJson = JsonSerializer.Serialize(x.AlternateTitles),
-                ImagesJson = JsonSerializer.Serialize(x.Images),
-                GenresJson = JsonSerializer.Serialize(x.Genres),
-                KeywordsJson = JsonSerializer.Serialize(x.Keywords),
-                TagsJson = JsonSerializer.Serialize(x.Tags),
-                RatingsJson = JsonSerializer.Serialize(x.Ratings),
-                CollectionJson = JsonSerializer.Serialize(x.Collection),
-                StatisticsJson = JsonSerializer.Serialize(x.Statistics)
-            };
+            var movie = x.ToEntity(server.Id);
 
             if (existing is null)
             {
@@ -521,23 +365,7 @@ public class MediaServerService(
             await db.SaveChangesAsync();
 
             return saved;
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (TaskCanceledException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Unexpected error fetching movie {radarrMovieId}.", ex);
-        }
+        });
     }
 
     #endregion
@@ -551,7 +379,7 @@ public class MediaServerService(
         if (server.ServiceType is not ServiceType.Sonarr)
             throw new MediaServerException($"{server.Name}: Missing episodes not supported for {server.ServiceType}.");
 
-        try
+        return await ExecuteApiAsync(server, "Unexpected error fetching missing episodes.", async () =>
         {
             await using var db = await dbFactory.CreateDbContextAsync();
 
@@ -606,23 +434,7 @@ public class MediaServerService(
 
             logger.LogInformation("Fetched {count} missing episodes for {name}", items.Count, server.Name);
             return items;
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (TaskCanceledException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Unexpected error fetching missing episodes.", ex);
-        }
+        });
     }
 
     public async Task<Dictionary<int, Series>> GetParentSeriesAsync(int serverId, IEnumerable<DownloadItem> downloads)
@@ -650,10 +462,9 @@ public class MediaServerService(
 
         try
         {
-            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
-            var client = CreateClient(15);
+            var client = CreateClient(server, 15);
             var url =
-                $"{server.BaseUrl}/api/v3/wanted/missing?apikey={server.ApiKey}&page={page}&pageSize={pageSize}&includeSeries=true";
+                $"{server.BaseUrl}/api/v3/wanted/missing?page={page}&pageSize={pageSize}&includeSeries=true";
 
             using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
 
@@ -661,37 +472,9 @@ public class MediaServerService(
                 throw new ApiException(server.Name, "/api/v3/wanted/missing", (int)response.StatusCode);
 
             var json = await response.Content.ReadAsStringAsync();
-            var missing = JsonSerializer.Deserialize<MissingShowResponse>(json, options);
+            var missing = JsonSerializer.Deserialize<MissingShowResponse>(json, JsonOptions);
 
-            var items = missing?.Records.Select(x => new Episode
-            {
-                RemoteId = x.Id,
-                RemoteSeriesId = x.SeriesId,
-                TvdbId = x.TvdbId,
-                EpisodeFileId = x.EpisodeFileId,
-                SeasonNumber = x.SeasonNumber,
-                EpisodeNumber = x.EpisodeNumber,
-                AbsoluteEpisodeNumber = x.AbsoluteEpisodeNumber,
-                SceneAbsoluteEpisodeNumber = x.SceneAbsoluteEpisodeNumber,
-                SceneEpisodeNumber = x.SceneEpisodeNumber,
-                SceneSeasonNumber = x.SceneSeasonNumber,
-                Title = x.Title,
-                AirDate = x.AirDate,
-                AirDateUtc = x.AirDateUtc,
-                EndTime = x.EndTime,
-                GrabDate = x.GrabDate,
-                Runtime = x.Runtime,
-                FinaleType = x.FinaleType,
-                Overview = x.Overview,
-                HasFile = x.HasFile,
-                Monitored = x.Monitored,
-                UnverifiedSceneNumbering = x.UnverifiedSceneNumbering,
-                LastSearchTime = x.LastSearchTime,
-                ServerId = server.Id,
-                ImagesJson = JsonSerializer.Serialize(x.Images),
-                EpisodeFileJson = JsonSerializer.Serialize(x.EpisodeFile),
-                SeriesJson = JsonSerializer.Serialize(x.Series)
-            }).ToList() ?? [];
+            var items = missing?.Records.Select(x => x.ToEntity(server.Id)).ToList() ?? [];
 
             return (items, missing?.TotalRecords ?? 0);
         }
@@ -715,11 +498,10 @@ public class MediaServerService(
         var existing =
             await db.Series.FirstOrDefaultAsync(s => s.ServerId == server.Id && s.RemoteId == sonarrSeriesId);
 
-        try
+        return await ExecuteApiAsync(server, $"Unexpected error fetching series {sonarrSeriesId}.", async () =>
         {
-            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
-            var client = CreateClient(10);
-            var url = $"{server.BaseUrl}/api/v3/series/{sonarrSeriesId}?apikey={server.ApiKey}";
+            var client = CreateClient(server, 10);
+            var url = $"{server.BaseUrl}/api/v3/series/{sonarrSeriesId}";
 
             using var response = await client.GetAsync(url);
 
@@ -727,7 +509,7 @@ public class MediaServerService(
                 throw new ApiException(server.Name, $"/api/v3/series/{sonarrSeriesId}", (int)response.StatusCode);
 
             var json = await response.Content.ReadAsStringAsync();
-            var x = JsonSerializer.Deserialize<SeriesRecord>(json, options);
+            var x = JsonSerializer.Deserialize<SeriesRecord>(json, JsonOptions);
 
             if (x is null)
             {
@@ -740,50 +522,7 @@ public class MediaServerService(
                 return existing;
             }
 
-            Series series = new()
-            {
-                RemoteId = x.Id,
-                Title = x.Title,
-                SortTitle = x.SortTitle,
-                Status = x.Status,
-                Ended = x.Ended,
-                Overview = x.Overview,
-                Network = x.Network,
-                AirTime = x.AirTime,
-                Path = x.Path,
-                QualityProfileId = x.QualityProfileId,
-                LanguageProfileId = x.LanguageProfileId,
-                SeasonFolder = x.SeasonFolder,
-                Monitored = x.Monitored,
-                MonitorNewItems = x.MonitorNewItems,
-                UseSceneNumbering = x.UseSceneNumbering,
-                Runtime = x.Runtime,
-                TvdbId = x.TvdbId,
-                TvRageId = x.TvRageId,
-                TvMazeId = x.TvMazeId,
-                TmdbId = x.TmdbId,
-                ImdbId = x.ImdbId,
-                TitleSlug = x.TitleSlug,
-                RootFolderPath = x.RootFolderPath,
-                Certification = x.Certification,
-                SeriesType = x.SeriesType,
-                CleanTitle = x.CleanTitle,
-                Year = x.Year,
-                FirstAired = x.FirstAired,
-                LastAired = x.LastAired,
-                NextAiring = x.NextAiring,
-                PreviousAiring = x.PreviousAiring,
-                Added = x.Added,
-                ServerId = server.Id,
-                AlternateTitlesJson = JsonSerializer.Serialize(x.AlternateTitles),
-                ImagesJson = JsonSerializer.Serialize(x.Images),
-                OriginalLanguageJson = JsonSerializer.Serialize(x.OriginalLanguage),
-                SeasonsJson = JsonSerializer.Serialize(x.Seasons),
-                GenresJson = JsonSerializer.Serialize(x.Genres),
-                TagsJson = JsonSerializer.Serialize(x.Tags),
-                RatingsJson = JsonSerializer.Serialize(x.Ratings),
-                StatisticsJson = JsonSerializer.Serialize(x.Statistics)
-            };
+            var series = x.ToEntity(server.Id);
 
             if (existing is null)
             {
@@ -803,23 +542,7 @@ public class MediaServerService(
             await db.SaveChangesAsync();
 
             return saved;
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (TaskCanceledException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Unexpected error fetching series {sonarrSeriesId}.", ex);
-        }
+        });
     }
 
     public async Task<List<Episode>> GetEpisodesBySeriesIdAsync(int seriesServerId, int seriesRemoteId)
@@ -841,11 +564,10 @@ public class MediaServerService(
         var existing =
             await db.Episodes.FirstOrDefaultAsync(e => e.ServerId == server.Id && e.RemoteId == sonarrEpisodeId);
 
-        try
+        return await ExecuteApiAsync(server, $"Unexpected error fetching episode {sonarrEpisodeId}.", async () =>
         {
-            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
-            var client = CreateClient(10);
-            var url = $"{server.BaseUrl}/api/v3/episode/{sonarrEpisodeId}?apikey={server.ApiKey}";
+            var client = CreateClient(server, 10);
+            var url = $"{server.BaseUrl}/api/v3/episode/{sonarrEpisodeId}";
 
             using var response = await client.GetAsync(url);
 
@@ -853,32 +575,12 @@ public class MediaServerService(
                 throw new ApiException(server.Name, $"/api/v3/episode/{sonarrEpisodeId}", (int)response.StatusCode);
 
             var json = await response.Content.ReadAsStringAsync();
-            var x = JsonSerializer.Deserialize<EpisodeRecord>(json, options);
+            var x = JsonSerializer.Deserialize<EpisodeRecord>(json, JsonOptions);
 
             if (x is null)
                 return existing;
 
-            Episode episode = new()
-            {
-                RemoteId = x.Id,
-                RemoteSeriesId = x.SeriesId,
-                TvdbId = x.TvdbId,
-                EpisodeFileId = x.EpisodeFileId,
-                SeasonNumber = x.SeasonNumber,
-                EpisodeNumber = x.EpisodeNumber,
-                AbsoluteEpisodeNumber = x.AbsoluteEpisodeNumber,
-                Title = x.Title,
-                AirDate = x.AirDate,
-                AirDateUtc = x.AirDateUtc,
-                Overview = x.Overview,
-                HasFile = x.HasFile,
-                Monitored = x.Monitored,
-                UnverifiedSceneNumbering = x.UnverifiedSceneNumbering,
-                LastSearchTime = x.LastSearchTime,
-                ServerId = server.Id,
-                ImagesJson = JsonSerializer.Serialize(x.Images),
-                EpisodeFileJson = JsonSerializer.Serialize(x.EpisodeFile)
-            };
+            var episode = x.ToEntity(server.Id);
 
             var series = await db.Series.FirstOrDefaultAsync(s => s.ServerId == server.Id && s.RemoteId == x.SeriesId);
 
@@ -897,23 +599,7 @@ public class MediaServerService(
 
             await db.SaveChangesAsync();
             return existing ?? episode;
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (TaskCanceledException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Unexpected error fetching episode {sonarrEpisodeId}.", ex);
-        }
+        });
     }
 
     public async Task<List<(int EpisodeId, bool HasFile, bool Monitored)>> GetSeriesEpisodeStatesAsync(
@@ -922,11 +608,10 @@ public class MediaServerService(
         if (string.IsNullOrWhiteSpace(server.ApiKey))
             throw new MediaServerException($"{server.Name}: API key is required.");
 
-        try
+        return await ExecuteApiAsync(server, $"Error fetching episodes for series {seriesId}.", async () =>
         {
-            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
-            var client = CreateClient(10);
-            var url = $"{server.BaseUrl}/api/v3/episode?seriesId={seriesId}&apikey={server.ApiKey}";
+            var client = CreateClient(server, 10);
+            var url = $"{server.BaseUrl}/api/v3/episode?seriesId={seriesId}";
 
             using var response = await client.GetAsync(url);
 
@@ -934,26 +619,10 @@ public class MediaServerService(
                 throw new ApiException(server.Name, "/api/v3/episode", (int)response.StatusCode);
 
             var json = await response.Content.ReadAsStringAsync();
-            var episodes = JsonSerializer.Deserialize<List<EpisodeRecord>>(json, options) ?? [];
+            var episodes = JsonSerializer.Deserialize<List<EpisodeRecord>>(json, JsonOptions) ?? [];
 
             return episodes.Select(e => (e.Id, e.HasFile, e.Monitored)).ToList();
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (TaskCanceledException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Error fetching episodes for series {seriesId}.", ex);
-        }
+        });
     }
 
     #endregion
@@ -1057,7 +726,7 @@ public class MediaServerService(
 
         try
         {
-            var client = CreateClient(10);
+            var client = CreateClient(server, 10);
 
             var response = server.ServiceType switch
             {
@@ -1126,7 +795,7 @@ public class MediaServerService(
         if (string.IsNullOrWhiteSpace(server.ApiKey))
             throw new MediaServerException($"{server.Name}: API key is required.");
 
-        var url = $"{server.BaseUrl}/api/v3/system/status?apikey={server.ApiKey}";
+        var url = $"{server.BaseUrl}/api/v3/system/status";
         var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
 
         return !response.IsSuccessStatusCode
@@ -1145,9 +814,8 @@ public class MediaServerService(
 
         try
         {
-            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
-            var client = CreateClient(10);
-            var url = $"{mediaServer.BaseUrl}/api/v3/system/status?apikey={mediaServer.ApiKey}";
+            var client = CreateClient(mediaServer, 10);
+            var url = $"{mediaServer.BaseUrl}/api/v3/system/status";
 
             using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
 
@@ -1155,7 +823,7 @@ public class MediaServerService(
                 throw new ApiException(server.Name, "/api/v3/system/status", (int)response.StatusCode);
 
             await using var json = await response.Content.ReadAsStreamAsync();
-            var metadata = await JsonSerializer.DeserializeAsync<ServerMetadata>(json, options) ??
+            var metadata = await JsonSerializer.DeserializeAsync<ServerMetadata>(json, JsonOptions) ??
                            throw new MetadataException(server.Name);
 
             metadata.ServerId = mediaServer.Id;
@@ -1212,7 +880,7 @@ public class MediaServerService(
         if (server.ServiceType is not (ServiceType.Radarr or ServiceType.Sonarr))
             throw new MediaServerException($"{server.Name}: Queue fetching not supported for {server.ServiceType}.");
 
-        try
+        return await ExecuteApiAsync(server, "Unexpected error fetching queue.", async () =>
         {
             await using var db = await dbFactory.CreateDbContextAsync();
 
@@ -1295,23 +963,7 @@ public class MediaServerService(
             }
 
             return items;
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (TaskCanceledException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Unexpected error fetching queue.", ex);
-        }
+        });
     }
 
     private async Task<(List<DownloadItem> Items, int TotalRecords)> FetchQueuePageAsync(MediaServer server, int page,
@@ -1322,10 +974,9 @@ public class MediaServerService(
 
         try
         {
-            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
-            var client = CreateClient(15);
+            var client = CreateClient(server, 15);
             var url =
-                $"{server.BaseUrl}/api/v3/queue?apikey={server.ApiKey}&page={page}&pageSize={pageSize}&includeUnknownMovieItems=true&includeMovie=true&includeSeries=true";
+                $"{server.BaseUrl}/api/v3/queue?page={page}&pageSize={pageSize}&includeUnknownMovieItems=true&includeMovie=true&includeSeries=true";
 
             using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
 
@@ -1333,7 +984,7 @@ public class MediaServerService(
                 throw new ApiException(server.Name, "/api/v3/queue", (int)response.StatusCode);
 
             await using var stream = await response.Content.ReadAsStreamAsync();
-            var queue = await JsonSerializer.DeserializeAsync<QueueResponse>(stream, options);
+            var queue = await JsonSerializer.DeserializeAsync<QueueResponse>(stream, JsonOptions);
 
 
             var items = queue?.Records.Select(x => new DownloadItem
@@ -1384,11 +1035,11 @@ public class MediaServerService(
         if (string.IsNullOrWhiteSpace(server.ApiKey))
             throw new MediaServerException($"{server.Name}: API key is required.");
 
-        try
+        await ExecuteApiAsync(server, $"Unexpected error removing queue item {queueId}.", async () =>
         {
-            var client = CreateClient(15);
+            var client = CreateClient(server, 15);
             var url =
-                $"{server.BaseUrl}/api/v3/queue/{queueId}?apikey={server.ApiKey}&removeFromClient={removeFromClient.ToString().ToLowerInvariant()}&blocklist={blocklist.ToString().ToLowerInvariant()}&skipRedownload=false";
+                $"{server.BaseUrl}/api/v3/queue/{queueId}?removeFromClient={removeFromClient.ToString().ToLowerInvariant()}&blocklist={blocklist.ToString().ToLowerInvariant()}&skipRedownload=false";
 
             using var response = await client.DeleteAsync(url);
 
@@ -1396,23 +1047,7 @@ public class MediaServerService(
                 throw new ApiException(server.Name, $"/api/v3/queue/{queueId}", (int)response.StatusCode);
 
             logger.LogInformation("Removed queue item {id} from {name}", queueId, server.Name);
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (TaskCanceledException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Unexpected error removing queue item {queueId}.", ex);
-        }
+        });
     }
 
     public async Task TriggerSearchAsync(MediaServer server, string commandName, string paramName, object value)
@@ -1420,10 +1055,10 @@ public class MediaServerService(
         if (string.IsNullOrWhiteSpace(server.ApiKey))
             throw new MediaServerException($"{server.Name}: API key is required.");
 
-        try
+        await ExecuteApiAsync(server, $"Error triggering {commandName}.", async () =>
         {
-            var client = CreateClient(15);
-            var url = $"{server.BaseUrl}/api/v3/command?apikey={server.ApiKey}";
+            var client = CreateClient(server, 15);
+            var url = $"{server.BaseUrl}/api/v3/command";
             var payload = JsonSerializer.Serialize(new Dictionary<string, object>
             {
                 ["name"] = commandName, [paramName] = value
@@ -1436,23 +1071,7 @@ public class MediaServerService(
                 throw new ApiException(server.Name, "/api/v3/command", (int)response.StatusCode);
 
             logger.LogInformation("Triggered {cmd} on {name}", commandName, server.Name);
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (TaskCanceledException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new ConnectionException(server.Name, ex);
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Error triggering {commandName}.", ex);
-        }
+        });
     }
 
     public Task TriggerMovieSearchAsync(MediaServer server, int movieId)
@@ -1477,11 +1096,10 @@ public class MediaServerService(
         if (string.IsNullOrWhiteSpace(server.ApiKey))
             throw new MediaServerException($"{server.Name}: API key is required.");
 
-        try
+        return await ExecuteApiAsync(server, "Error fetching commands.", async () =>
         {
-            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
-            var client = CreateClient(10);
-            var url = $"{server.BaseUrl}/api/v3/command?apikey={server.ApiKey}";
+            var client = CreateClient(server, 10);
+            var url = $"{server.BaseUrl}/api/v3/command";
 
             using var response = await client.GetAsync(url);
 
@@ -1489,7 +1107,7 @@ public class MediaServerService(
                 throw new ApiException(server.Name, "/api/v3/command", (int)response.StatusCode);
 
             var json = await response.Content.ReadAsStringAsync();
-            var commands = JsonSerializer.Deserialize<List<CommandRecord>>(json, options) ?? [];
+            var commands = JsonSerializer.Deserialize<List<CommandRecord>>(json, JsonOptions) ?? [];
 
             foreach (var cmd in commands)
             {
@@ -1510,6 +1128,47 @@ public class MediaServerService(
             }
 
             return result;
+        });
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private static readonly JsonSerializerOptions CompactJsonOptions = new() { WriteIndented = false };
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private static string SerializeJsonElement(JsonElement value, string fallback)
+    {
+        return value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
+            ? fallback
+            : JsonSerializer.Serialize(value, CompactJsonOptions);
+    }
+
+    private HttpClient CreateClient(MediaServer server, int timeoutSeconds)
+    {
+        var client = httpClientFactory.CreateClient("MediaServerTest");
+        client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+
+        if (!string.IsNullOrWhiteSpace(server.ApiKey))
+            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Api-Key", server.ApiKey);
+
+        return client;
+    }
+
+    /// <summary>
+    /// Runs an Arr API call and translates low-level failures into the domain exception taxonomy:
+    /// our own <see cref="MediaServerException" /> (incl. <see cref="ApiException" />) pass through,
+    /// timeouts/socket errors become <see cref="ConnectionException" />, and anything else is wrapped
+    /// with <paramref name="unexpectedError" />. Centralizes what was a 4-arm try/catch repeated per call.
+    /// </summary>
+    private static async Task<T> ExecuteApiAsync<T>(MediaServer server, string unexpectedError,
+        Func<Task<T>> operation)
+    {
+        try
+        {
+            return await operation();
         }
         catch (MediaServerException)
         {
@@ -1525,28 +1184,17 @@ public class MediaServerService(
         }
         catch (Exception ex)
         {
-            throw new MediaServerException($"{server.Name}: Error fetching commands.", ex);
+            throw new MediaServerException($"{server.Name}: {unexpectedError}", ex);
         }
     }
 
-    #endregion
-
-    #region Helpers
-
-    private static readonly JsonSerializerOptions CompactJsonOptions = new() { WriteIndented = false };
-
-    private static string SerializeJsonElement(JsonElement value, string fallback)
+    private static async Task ExecuteApiAsync(MediaServer server, string unexpectedError, Func<Task> operation)
     {
-        return value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
-            ? fallback
-            : JsonSerializer.Serialize(value, CompactJsonOptions);
-    }
-
-    private HttpClient CreateClient(int timeoutSeconds)
-    {
-        var client = httpClientFactory.CreateClient("MediaServerTest");
-        client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
-        return client;
+        await ExecuteApiAsync(server, unexpectedError, async () =>
+        {
+            await operation();
+            return true;
+        });
     }
 
     private static async Task ClearDefaultAsync(AppDbContext db, ServiceType type, int? excludeId)
@@ -1571,20 +1219,6 @@ public class MediaServerService(
             "failed" => QueueState.Failed,
             _ => QueueState.Unknown
         };
-    }
-
-    private static QueueStatus MapQueueStatus(string? status, string? trackedStatus)
-    {
-        if (status?.Equals("warning", StringComparison.OrdinalIgnoreCase) == true)
-            return QueueStatus.Warning;
-
-        if (trackedStatus?.Equals("warning", StringComparison.OrdinalIgnoreCase) == true)
-            return QueueStatus.Warning;
-
-        if (status?.Equals("completed", StringComparison.OrdinalIgnoreCase) == true)
-            return QueueStatus.Completed;
-
-        return QueueStatus.Ok;
     }
 
     private async Task EnsureMediaHealthSummaryAsync<TMedia>(AppDbContext db, TMedia media, DateTime now)

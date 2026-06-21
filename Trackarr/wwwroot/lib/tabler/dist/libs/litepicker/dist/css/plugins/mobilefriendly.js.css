@@ -1,0 +1,135 @@
+/*!
+ * 
+ * ../css/plugins/mobilefriendly.js.css
+ * Litepicker v2.0.12 (https://github.com/wakirin/Litepicker)
+ * Package: litepicker (https://www.npmjs.com/package/litepicker)
+ * License: MIT (https://github.com/wakirin/Litepicker/blob/master/LICENCE.md)
+ * Copyright 2019-2021 Rinat G.
+ *     
+ * Hash: fc3887e0bb19d54c36db
+ * 
+ */
+:root {
+    --litepicker-mobilefriendly-backdrop-color-bg: #000000;
+}
+
+.litepicker-backdrop {
+    background-color: var(--litepicker-mobilefriendly-backdrop-color-bg);
+    bottom: 0;
+    display: none;
+    left: 0;
+    opacity: 0.3;
+    position: fixed;
+    right: 0;
+    top: 0;
+}
+
+.litepicker-open {
+    overflow: hidden;
+}
+
+.litepicker.mobilefriendly[data-plugins*="mobilefriendly"] {
+    --litepicker-container-months-box-shadow-color: #616161;
+    font-size: 1.1rem;
+    -webkit-transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%);
+}
+
+.litepicker.mobilefriendly-portrait {
+    --litepicker-day-width: 13.5vw;
+    --litepicker-month-width: calc(var(--litepicker-day-width) * 7);
+}
+
+.litepicker.mobilefriendly-landscape {
+    --litepicker-day-width: 5.5vw;
+    --litepicker-month-width: calc(var(--litepicker-day-width) * 7);
+}
+
+.litepicker[data-plugins*="mobilefriendly"] .container__months {
+    overflow: hidden;
+}
+
+.litepicker.mobilefriendly[data-plugins*="mobilefriendly"] .container__months .month-item-header {
+    height: var(--litepicker-day-width);
+}
+
+.litepicker.mobilefriendly[data-plugins*="mobilefriendly"] .container__days > div {
+    align-items: center;
+    -webkit-box-align: center;
+    -webkit-box-pack: center;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -ms-flex-align: center;
+    -ms-flex-pack: center;
+    height: var(--litepicker-day-width);
+    justify-content: center;
+}
+
+
+.litepicker[data-plugins*="mobilefriendly"] .container__months .month-item {
+    -webkit-transform-origin: center;
+    transform-origin: center;
+}
+
+.litepicker[data-plugins*="mobilefriendly"] .container__months .month-item.touch-target-next {
+    -webkit-animation-duration: .5s;
+    animation-duration: .5s;
+    -webkit-animation-name: lp-bounce-target-next;
+    animation-name: lp-bounce-target-next;
+    -webkit-animation-timing-function: ease;
+    animation-timing-function: ease;
+}
+
+.litepicker[data-plugins*="mobilefriendly"] .container__months .month-item.touch-target-prev {
+    -webkit-animation-duration: .5s;
+    animation-duration: .5s;
+    -webkit-animation-name: lp-bounce-target-prev;
+    animation-name: lp-bounce-target-prev;
+    -webkit-animation-timing-function: ease;
+    animation-timing-function: ease;
+}
+
+@-webkit-keyframes lp-bounce-target-next {
+    from {
+        -webkit-transform: translateX(100px) scale(0.5);
+        transform: translateX(100px) scale(0.5);
+    }
+    to {
+        -webkit-transform: translateX(0px) scale(1);
+        transform: translateX(0px) scale(1);
+    }
+}
+
+@keyframes lp-bounce-target-next {
+    from {
+        -webkit-transform: translateX(100px) scale(0.5);
+        transform: translateX(100px) scale(0.5);
+    }
+    to {
+        -webkit-transform: translateX(0px) scale(1);
+        transform: translateX(0px) scale(1);
+    }
+}
+
+@-webkit-keyframes lp-bounce-target-prev {
+    from {
+        -webkit-transform: translateX(-100px) scale(0.5);
+        transform: translateX(-100px) scale(0.5);
+    }
+    to {
+        -webkit-transform: translateX(0px) scale(1);
+        transform: translateX(0px) scale(1);
+    }
+}
+
+@keyframes lp-bounce-target-prev {
+    from {
+        -webkit-transform: translateX(-100px) scale(0.5);
+        transform: translateX(-100px) scale(0.5);
+    }
+    to {
+        -webkit-transform: translateX(0px) scale(1);
+        transform: translateX(0px) scale(1);
+    }
+}

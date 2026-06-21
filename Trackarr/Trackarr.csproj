@@ -15,6 +15,8 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8"/>
+        <!-- Pin native SQLite bundle to patched 3.0.3; the 2.1.11 pulled in transitively has GHSA-2m69-gcr7-jv3q. -->
+        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3"/>
         <ProjectReference Include="..\Trackarr.Client\Trackarr.Client.csproj"/>
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.5"/>
         <ProjectReference Include="..\Trackarr.Core\Trackarr.Core.csproj"/>

@@ -1,0 +1,156 @@
+using System.Text.Json;
+using Trackarr.Core.Media.Movies;
+using Trackarr.Core.Media.Shows;
+
+namespace Trackarr.Services.Media;
+
+/// <summary>
+/// Maps the JSON DTOs returned by the Radarr/Sonarr APIs onto the persisted entities.
+/// Pure, stateless projections — extracted out of <see cref="MediaServerService" /> so the
+/// mapping lives in exactly one place per type instead of being copy-pasted per call site.
+/// </summary>
+internal static class MediaRecordMappers
+{
+    public static Movie ToEntity(this MovieRecord x, int serverId) => new()
+    {
+        RemoteId = x.Id,
+        Title = x.Title,
+        OriginalTitle = x.OriginalTitle,
+        SortTitle = x.SortTitle,
+        Status = x.Status,
+        Overview = x.Overview,
+        Website = x.Website,
+        Year = x.Year,
+        YouTubeTrailerId = x.YouTubeTrailerId,
+        Studio = x.Studio,
+        Path = x.Path,
+        QualityProfileId = x.QualityProfileId,
+        HasFile = x.HasFile,
+        MovieFileId = x.MovieFileId,
+        Monitored = x.Monitored,
+        MinimumAvailability = x.MinimumAvailability,
+        IsAvailable = x.IsAvailable,
+        FolderName = x.FolderName,
+        Runtime = x.Runtime,
+        CleanTitle = x.CleanTitle,
+        ImdbId = x.ImdbId,
+        TmdbId = x.TmdbId,
+        TitleSlug = x.TitleSlug,
+        Certification = x.Certification,
+        SizeOnDisk = x.SizeOnDisk,
+        InCinemas = x.InCinemas,
+        PhysicalRelease = x.PhysicalRelease,
+        DigitalRelease = x.DigitalRelease,
+        ReleaseDate = x.ReleaseDate,
+        Added = x.Added,
+        LastSearchTime = x.LastSearchTime,
+        Popularity = x.Popularity,
+        ServerId = serverId,
+        OriginalLanguageJson = JsonSerializer.Serialize(x.OriginalLanguage),
+        AlternateTitlesJson = JsonSerializer.Serialize(x.AlternateTitles),
+        ImagesJson = JsonSerializer.Serialize(x.Images),
+        GenresJson = JsonSerializer.Serialize(x.Genres),
+        KeywordsJson = JsonSerializer.Serialize(x.Keywords),
+        TagsJson = JsonSerializer.Serialize(x.Tags),
+        RatingsJson = JsonSerializer.Serialize(x.Ratings),
+        CollectionJson = JsonSerializer.Serialize(x.Collection),
+        StatisticsJson = JsonSerializer.Serialize(x.Statistics)
+    };
+
+    public static Episode ToEntity(this MissingEpisodeRecord x, int serverId) => new()
+    {
+        RemoteId = x.Id,
+        RemoteSeriesId = x.SeriesId,
+        TvdbId = x.TvdbId,
+        EpisodeFileId = x.EpisodeFileId,
+        SeasonNumber = x.SeasonNumber,
+        EpisodeNumber = x.EpisodeNumber,
+        AbsoluteEpisodeNumber = x.AbsoluteEpisodeNumber,
+        SceneAbsoluteEpisodeNumber = x.SceneAbsoluteEpisodeNumber,
+        SceneEpisodeNumber = x.SceneEpisodeNumber,
+        SceneSeasonNumber = x.SceneSeasonNumber,
+        Title = x.Title,
+        AirDate = x.AirDate,
+        AirDateUtc = x.AirDateUtc,
+        EndTime = x.EndTime,
+        GrabDate = x.GrabDate,
+        Runtime = x.Runtime,
+        FinaleType = x.FinaleType,
+        Overview = x.Overview,
+        HasFile = x.HasFile,
+        Monitored = x.Monitored,
+        UnverifiedSceneNumbering = x.UnverifiedSceneNumbering,
+        LastSearchTime = x.LastSearchTime,
+        ServerId = serverId,
+        ImagesJson = JsonSerializer.Serialize(x.Images),
+        EpisodeFileJson = JsonSerializer.Serialize(x.EpisodeFile),
+        SeriesJson = JsonSerializer.Serialize(x.Series)
+    };
+
+    public static Episode ToEntity(this EpisodeRecord x, int serverId) => new()
+    {
+        RemoteId = x.Id,
+        RemoteSeriesId = x.SeriesId,
+        TvdbId = x.TvdbId,
+        EpisodeFileId = x.EpisodeFileId,
+        SeasonNumber = x.SeasonNumber,
+        EpisodeNumber = x.EpisodeNumber,
+        AbsoluteEpisodeNumber = x.AbsoluteEpisodeNumber,
+        Title = x.Title,
+        AirDate = x.AirDate,
+        AirDateUtc = x.AirDateUtc,
+        Overview = x.Overview,
+        HasFile = x.HasFile,
+        Monitored = x.Monitored,
+        UnverifiedSceneNumbering = x.UnverifiedSceneNumbering,
+        LastSearchTime = x.LastSearchTime,
+        ServerId = serverId,
+        ImagesJson = JsonSerializer.Serialize(x.Images),
+        EpisodeFileJson = JsonSerializer.Serialize(x.EpisodeFile)
+    };
+
+    public static Series ToEntity(this SeriesRecord x, int serverId) => new()
+    {
+        RemoteId = x.Id,
+        Title = x.Title,
+        SortTitle = x.SortTitle,
+        Status = x.Status,
+        Ended = x.Ended,
+        Overview = x.Overview,
+        Network = x.Network,
+        AirTime = x.AirTime,
+        Path = x.Path,
+        QualityProfileId = x.QualityProfileId,
+        LanguageProfileId = x.LanguageProfileId,
+        SeasonFolder = x.SeasonFolder,
+        Monitored = x.Monitored,
+        MonitorNewItems = x.MonitorNewItems,
+        UseSceneNumbering = x.UseSceneNumbering,
+        Runtime = x.Runtime,
+        TvdbId = x.TvdbId,
+        TvRageId = x.TvRageId,
+        TvMazeId = x.TvMazeId,
+        TmdbId = x.TmdbId,
+        ImdbId = x.ImdbId,
+        TitleSlug = x.TitleSlug,
+        RootFolderPath = x.RootFolderPath,
+        Certification = x.Certification,
+        SeriesType = x.SeriesType,
+        CleanTitle = x.CleanTitle,
+        Year = x.Year,
+        FirstAired = x.FirstAired,
+        LastAired = x.LastAired,
+        NextAiring = x.NextAiring,
+        PreviousAiring = x.PreviousAiring,
+        Added = x.Added,
+        ServerId = serverId,
+        AlternateTitlesJson = JsonSerializer.Serialize(x.AlternateTitles),
+        ImagesJson = JsonSerializer.Serialize(x.Images),
+        OriginalLanguageJson = JsonSerializer.Serialize(x.OriginalLanguage),
+        SeasonsJson = JsonSerializer.Serialize(x.Seasons),
+        GenresJson = JsonSerializer.Serialize(x.Genres),
+        TagsJson = JsonSerializer.Serialize(x.Tags),
+        RatingsJson = JsonSerializer.Serialize(x.Ratings),
+        StatisticsJson = JsonSerializer.Serialize(x.Statistics)
+    };
+}
