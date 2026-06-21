@@ -1,13 +1,18 @@
 ﻿services:
-  trackarr.client:
-    image: trackarr.client
-    build:
-      context: .
-      dockerfile: Trackarr.Client/Dockerfile
-
   trackarr:
-    image: trackarr
+    container_name: trackarr
+    image: trackarr:local
     build:
       context: .
       dockerfile: Trackarr/Dockerfile
-
+    restart: unless-stopped
+    ports:
+      - "5264:8080"
+    volumes:
+      - ./docker-data/trackarr:/config
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DOTNET_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Data Source=/config/trackarr.db"
+      DataProtection__KeysPath: "/config/keys"

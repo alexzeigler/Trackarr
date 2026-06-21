@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Trackarr.Components;
 using Trackarr.Core.Routine;
@@ -10,14 +12,22 @@ using _Imports = Trackarr.Client._Imports;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var dataProtectionPath = builder.Configuration["DataProtection:KeysPath"] ?? "/config/keys";
+
+Directory.CreateDirectory(dataProtectionPath);
+
+builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath))
+    .SetApplicationName("Trackarr");
+
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
-var solutionRoot = Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ?? "";
-var dbPath = Path.Combine(solutionRoot, "Trackarr.Data", "trackarr.db");
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+
+var connectionString = ResolveConnectionString(builder);
 
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
 {
-    options.UseSqlite($"Data Source={dbPath};Cache=Shared;Pooling=True", sqlite => { sqlite.CommandTimeout(30); });
+    options.UseSqlite(connectionString, sqlite => { sqlite.CommandTimeout(30); });
 });
 
 builder.Services.AddHostedService<RoutineHostedService>();
@@ -67,6 +77,8 @@ using (var scope = app.Services.CreateScope())
 
     await using var db = await factory.CreateDbContextAsync();
 
+    await db.Database.MigrateAsync();
+
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
     await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000;");
 }
@@ -77,9 +89,11 @@ using (var scope = app.Services.CreateScope())
     await eventService.IngestCrashReportsAsync();
 }
 
-app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment()) app.UseHttpsRedirection();
+
 app.UseAntiforgery();
 
+app.UseStaticFiles();
 app.MapStaticAssets();
 
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode().AddAdditionalAssemblies(typeof(_Imports).Assembly);
@@ -88,3 +102,55 @@ if (CrashReporter.LastError is not null)
     Console.Error.WriteLine($"[CrashReporter] {CrashReporter.LastError}");
 
 app.Run();
+return;
+
+static string ResolveConnectionString(WebApplicationBuilder builder)
+{
+    var configuredConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+    if (!string.IsNullOrWhiteSpace(configuredConnectionString))
+        return BuildSqliteConnectionString(configuredConnectionString, builder.Environment.ContentRootPath);
+
+    var runningInContainer = string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true",
+        StringComparison.OrdinalIgnoreCase);
+
+    string dbPath;
+
+    if (runningInContainer)
+    {
+        dbPath = "/config/trackarr.db";
+    }
+    else if (builder.Environment.IsDevelopment())
+    {
+        var solutionRoot = Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ??
+                           Directory.GetCurrentDirectory();
+        dbPath = Path.Combine(solutionRoot, "Trackarr.Data", "trackarr.db");
+    }
+    else
+    {
+        dbPath = Path.Combine(builder.Environment.ContentRootPath, "data", "trackarr.db");
+    }
+
+    return BuildSqliteConnectionString($"Data Source={dbPath}", builder.Environment.ContentRootPath);
+}
+
+static string BuildSqliteConnectionString(string connectionString, string contentRootPath)
+{
+    var sqliteConnectionString = new SqliteConnectionStringBuilder(connectionString)
+    {
+        Cache = SqliteCacheMode.Shared, Pooling = true
+    };
+
+    var dataSource = sqliteConnectionString.DataSource;
+
+    if (string.IsNullOrWhiteSpace(dataSource) || dataSource == ":memory:") return sqliteConnectionString.ToString();
+    var resolvedPath = Path.IsPathRooted(dataSource) ? dataSource : Path.Combine(contentRootPath, dataSource);
+
+    var directory = Path.GetDirectoryName(resolvedPath);
+
+    if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
+
+    sqliteConnectionString.DataSource = resolvedPath;
+
+    return sqliteConnectionString.ToString();
+}

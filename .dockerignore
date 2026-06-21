@@ -21,5 +21,17 @@
 **/obj
 **/secrets.dev.yaml
 **/values.dev.yaml
+**/bin
+**/obj
+.git
+.vs
+.idea
+*.user
+*.suo
+trackarr.db
+*.db
+*.db-shm
+*.db-wal
+appsettings.Development.json
 LICENSE
 README.md
