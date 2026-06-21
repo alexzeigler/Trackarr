@@ -6,5 +6,6 @@ public enum MissingEventType
     SearchFailed,
     DowngradedToFallback,
     Resolved,
-    CascadedToEpisode
+    CascadedToEpisode,
+    Abandoned
 }

@@ -13,21 +13,16 @@ public class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
-        var from = filter.From.Date;
-        var to = filter.To.Date.AddDays(1).AddTicks(-1);
+        var from = DateTime.SpecifyKind(filter.From.Date, DateTimeKind.Local).ToUniversalTime();
+        var to = DateTime.SpecifyKind(filter.To.Date.AddDays(1).AddTicks(-1), DateTimeKind.Local).ToUniversalTime();
 
-        var servers = await db.MediaServers
-            .AsNoTracking()
-            .OrderBy(server => server.Name)
+        var servers = await db.MediaServers.AsNoTracking().OrderBy(server => server.Name)
             .ToListAsync(cancellationToken);
 
         var serverLookup = servers.ToDictionary(server => server.Id, server => server.Name);
 
-        var attemptsQuery = db.DownloadAttempts
-            .AsNoTracking()
-            .Include(attempt => attempt.Server)
-            .Include(attempt => attempt.HealthSnapshot)
-            .Where(attempt =>
+        var attemptsQuery = db.DownloadAttempts.AsNoTracking().Include(attempt => attempt.Server)
+            .Include(attempt => attempt.HealthSnapshot).Where(attempt =>
                 (attempt.FirstSeenAt >= from && attempt.FirstSeenAt <= to) ||
                 (attempt.CompletedAt.HasValue && attempt.CompletedAt.Value >= from &&
                  attempt.CompletedAt.Value <= to) ||
@@ -40,29 +35,29 @@ public class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
         if (!string.IsNullOrWhiteSpace(filter.MediaType))
             attemptsQuery = attemptsQuery.Where(attempt => attempt.MediaType.ToString() == filter.MediaType);
 
-        var attempts = await attemptsQuery
-            .OrderByDescending(attempt => attempt.LastSeenAt)
+        var attempts = await attemptsQuery.OrderByDescending(attempt => attempt.LastSeenAt)
             .ToListAsync(cancellationToken);
 
         var attemptIds = attempts.Select(attempt => attempt.Id).ToList();
 
-        var healthEvents = await db.HealthEvents
-            .AsNoTracking()
-            .Include(ev => ev.DownloadAttempt)
-            .ThenInclude(attempt => attempt!.Server)
-            .Where(ev => ev.OccurredAt >= from && ev.OccurredAt <= to)
-            .Where(ev => attemptIds.Contains(ev.DownloadAttemptId))
-            .OrderByDescending(ev => ev.OccurredAt)
+        var healthEvents = await db.HealthEvents.AsNoTracking().Include(ev => ev.DownloadAttempt)
+            .ThenInclude(attempt => attempt!.Server).Where(ev => ev.OccurredAt >= from && ev.OccurredAt <= to)
+            .Where(ev => attemptIds.Contains(ev.DownloadAttemptId)).OrderByDescending(ev => ev.OccurredAt)
             .ToListAsync(cancellationToken);
 
-        var searchEvents = await db.SearchEvents
-            .AsNoTracking()
-            .Where(e => e.OccurredAt >= from && e.OccurredAt <= to)
-            .Where(e => filter.ServerId == null || e.ServerId == filter.ServerId)
-            .OrderByDescending(e => e.OccurredAt)
+        var searchEvents = await db.SearchEvents.AsNoTracking().Where(e => e.OccurredAt >= from && e.OccurredAt <= to)
+            .Where(e => filter.ServerId == null || e.ServerId == filter.ServerId).OrderByDescending(e => e.OccurredAt)
             .ToListAsync(cancellationToken);
 
-        var titleLookup = new Dictionary<(int ServerId, int RemoteId), string>();
+        var remoteIds = searchEvents.Select(e => e.RemoteId).Distinct().ToList();
+
+        var seriesTitles = await db.Series.AsNoTracking().Where(s => remoteIds.Contains(s.RemoteId))
+            .ToDictionaryAsync(s => (s.ServerId, s.RemoteId), s => s.Title, cancellationToken);
+
+        var movieTitles = await db.Movies.AsNoTracking().Where(m => remoteIds.Contains(m.RemoteId))
+            .ToDictionaryAsync(m => (m.ServerId, m.RemoteId), m => m.Title, cancellationToken);
+
+        var titleLookup = seriesTitles.Concat(movieTitles).ToDictionary(kv => kv.Key, kv => kv.Value);
 
         var rows = new List<HistoryRow>();
 
@@ -136,18 +131,18 @@ public class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
         }
 
         var stats = BuildStats(attempts);
-        var activity = BuildActivity(attempts, from, to);
+        var searchStats = BuildSearchStats(searchEvents);
+        var activity = BuildActivity(attempts, searchEvents, from, to);
         var breakdown = BuildBreakdown(stats);
 
         return new HistoryPageData
         {
             Servers = servers,
             Stats = stats,
+            SearchStats = searchStats,
             Activity = activity,
             Breakdown = breakdown,
-            Rows = rows
-                .OrderByDescending(row => row.OccurredAt)
-                .ToList()
+            Rows = rows.OrderByDescending(row => row.OccurredAt).ToList()
         };
     }
 
@@ -178,6 +173,7 @@ public class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
             MissingEventType.DowngradedToFallback => ("Downgraded to Fallback", "Downgraded", HistoryTab.Changes),
             MissingEventType.CascadedToEpisode => ("Cascaded to Episode", "Cascaded", HistoryTab.Changes),
             MissingEventType.Resolved => ("Resolved", "Completed", HistoryTab.DownloadEvents),
+            MissingEventType.Abandoned => ("Abandoned", "Failed", HistoryTab.Changes),
             _ => (type.ToString(), "Unknown", HistoryTab.Events)
         };
     }
@@ -196,15 +192,12 @@ public class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
         var completed = attempts.Count(IsCompleted);
         var failed = attempts.Count(IsFailed);
         var removed = attempts.Count(IsRemoved);
-        var downloaded = attempts
-            .Where(IsCompleted)
-            .Sum(attempt => attempt.HealthSnapshot?.LastSize ?? 0);
+        var downloaded = attempts.Where(IsCompleted).Sum(attempt => attempt.HealthSnapshot?.LastSize ?? 0);
 
         var durations = attempts
             .Where(attempt => IsCompleted(attempt) && attempt.CompletedAt.HasValue &&
-                              attempt.CompletedAt.Value > attempt.FirstSeenAt)
-            .Select(attempt => (attempt.CompletedAt!.Value - attempt.FirstSeenAt).TotalSeconds)
-            .ToList();
+                              attempt.CompletedAt.Value > attempt.FirstSeenAt).Select(attempt =>
+                (attempt.CompletedAt!.Value - attempt.FirstSeenAt).TotalSeconds).ToList();
 
         return new HistoryStats
         {
@@ -222,27 +215,50 @@ public class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
         };
     }
 
-    private static List<HistoryActivityPoint> BuildActivity(List<DownloadAttempt> attempts, DateTime from, DateTime to)
+    private static SearchStats BuildSearchStats(List<MissingSearchEvent> events)
+    {
+        return new SearchStats
+        {
+            SearchesPushed = events.Count(e => e.EventType == MissingEventType.SearchPushed),
+            Cascaded = events.Count(e => e.EventType == MissingEventType.CascadedToEpisode),
+            Abandoned = events.Count(e => e.EventType == MissingEventType.Abandoned),
+            Resolved = events.Count(e => e.EventType == MissingEventType.Resolved)
+        };
+    }
+
+    private static List<HistoryActivityPoint> BuildActivity(List<DownloadAttempt> attempts,
+        List<MissingSearchEvent> searchEvents, DateTime from, DateTime to)
     {
         var days = Enumerable.Range(0, Math.Max(1, (to.Date - from.Date).Days + 1))
-            .Select(offset => from.Date.AddDays(offset))
-            .ToList();
+            .Select(offset => from.Date.AddDays(offset)).ToList();
 
         return days.Select(day =>
         {
             var next = day.AddDays(1);
 
+            int Search(MissingEventType type)
+            {
+                return searchEvents.Count(e => e.EventType == type && e.OccurredAt >= day && e.OccurredAt < next);
+            }
+
             return new HistoryActivityPoint
             {
                 Date = day,
-                Added = attempts.Count(attempt => attempt.FirstSeenAt >= day && attempt.FirstSeenAt < next),
-                Completed = attempts.Count(attempt =>
-                    attempt.CompletedAt.HasValue && attempt.CompletedAt.Value >= day &&
-                    attempt.CompletedAt.Value < next),
-                Failed = attempts.Count(attempt =>
-                    attempt.FailedAt.HasValue && attempt.FailedAt.Value >= day && attempt.FailedAt.Value < next),
-                Removed = attempts.Count(attempt =>
-                    attempt.RemovedAt.HasValue && attempt.RemovedAt.Value >= day && attempt.RemovedAt.Value < next)
+                Added = attempts.Count(a => a.FirstSeenAt >= day && a.FirstSeenAt < next),
+                Completed =
+                    attempts.Count(a =>
+                        a.CompletedAt.HasValue && a.CompletedAt.Value >= day && a.CompletedAt.Value < next),
+                Failed = attempts.Count(a => a.FailedAt.HasValue && a.FailedAt.Value >= day && a.FailedAt.Value < next),
+                Removed =
+                    attempts.Count(a => a.RemovedAt.HasValue && a.RemovedAt.Value >= day && a.RemovedAt.Value < next),
+                Bytes =
+                    attempts.Where(a =>
+                            a.CompletedAt.HasValue && a.CompletedAt.Value >= day && a.CompletedAt.Value < next)
+                        .Sum(a => a.HealthSnapshot?.LastSize ?? 0),
+                SearchesPushed = Search(MissingEventType.SearchPushed),
+                Cascaded = Search(MissingEventType.CascadedToEpisode),
+                Abandoned = Search(MissingEventType.Abandoned),
+                Resolved = Search(MissingEventType.Resolved)
             };
         }).ToList();
     }
@@ -254,10 +270,14 @@ public class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
         return
         [
             new HistoryBreakdownItem
-                { Label = "Completed", Count = stats.Completed, Percent = Percent(stats.Completed, total) },
+            {
+                Label = "Completed", Count = stats.Completed, Percent = Percent(stats.Completed, total)
+            },
             new HistoryBreakdownItem { Label = "Failed", Count = stats.Failed, Percent = Percent(stats.Failed, total) },
             new HistoryBreakdownItem
-                { Label = "Removed", Count = stats.Removed, Percent = Percent(stats.Removed, total) },
+            {
+                Label = "Removed", Count = stats.Removed, Percent = Percent(stats.Removed, total)
+            },
             new HistoryBreakdownItem { Label = "Added", Count = stats.Added, Percent = Percent(stats.Added, total) }
         ];
     }
@@ -277,9 +297,7 @@ public class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
 
     private static bool IsCompleted(DownloadAttempt attempt)
     {
-        return attempt.CompletedAt.HasValue ||
-               attempt.WasSuccessful ||
-               attempt.WasImported ||
+        return attempt.CompletedAt.HasValue || attempt.WasSuccessful || attempt.WasImported ||
                string.Equals(attempt.Status.ToString(), "Completed", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(attempt.Status.ToString(), "Complete", StringComparison.OrdinalIgnoreCase);
     }

@@ -31,7 +31,7 @@
                                 </h1>
                                 <span class="badge bg-secondary-lt text-secondary">@TypeLabel</span>
                             </div>
-                            <div class="text-secondary fs-3 mt-1 text-truncate">@Item?.Quality?.Quality.Name</div>
+                            <div class="text-secondary fs-3 mt-1 text-truncate">@QualityDisplay</div>
                             <div class="row g-0 mt-4">
                                 <div class="col-6 col-md-4 col-xl px-4 border-end border-secondary-subtle overflow-hidden">
                                     <div class="small fw-bold text-uppercase text-secondary mb-2 text-truncate">
@@ -45,8 +45,8 @@
                                     <div class="small fw-bold text-uppercase text-secondary mb-2 text-truncate">
                                         Added
                                     </div>
-                                    <div class="fw-semibold text-truncate" title="@TimeAgo(Item?.Added)">
-                                        @TimeAgo(Item?.Added)
+                                    <div class="fw-semibold text-truncate" title="@AddedDisplay">
+                                        @AddedDisplay
                                     </div>
                                 </div>
 
@@ -55,14 +55,7 @@
                                         Last Searched
                                     </div>
                                     <span class="fw-semibold text-truncate">
-                                        @if (_movie != null)
-                                        {
-                                            @TimeAgo(_movie.LastSearchTime)
-                                        }
-                                        @if (_episode != null)
-                                        {
-                                            @TimeAgo(_episode.LastSearchTime)
-                                        }
+                                        @LastSearchDisplay
                                     </span>
                                 </div>
 
@@ -71,14 +64,7 @@
                                         Has File
                                     </div>
                                     <span class="fw-semibold text-truncate">
-                                        @if (_movie != null)
-                                        {
-                                            @TextDisplay(YesNo(_movie.HasFile))
-                                        }
-                                        @if (_episode != null)
-                                        {
-                                            @TextDisplay(YesNo(_episode.HasFile))
-                                        }
+                                        @HasFileDisplay
                                     </span>
                                 </div>
 
@@ -129,27 +115,48 @@
                                @onclick='() => _activeTab = "attempts"'><i class="bi bi-arrow-repeat me-1"></i>Attempts
                             </a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link py-3 @(_activeTab == "files" ? "active" : "")"
-                               @onclick='() => _activeTab = "files"'><i class="bi bi-file-earmark me-1"></i>Files
-                            </a>
-                        </li>
+                        @if (_series != null || _episode != null)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link py-3 @(_activeTab == "episodes" ? "active" : "")"
+                                   @onclick="@(async () =>
+                                             {
+                                                 _activeTab = "episodes";
+                                                 await LoadFilesAsync();
+                                             })">
+                                    <i class="bi bi-collection-play me-1"></i>Episodes
+                                </a>
+                            </li>
+                        }
                         <li class="nav-item">
                             <a class="nav-link py-3 @(_activeTab == "logs" ? "active" : "")"
                                @onclick='() => _activeTab = "logs"'><i class="bi bi-terminal me-1"></i>Logs
                             </a>
                         </li>
                     </ul>
-                    <div class="dropdown">
-                        <button class="btn btn-app-ghost btn-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                            Actions
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li>
-                                <a class="dropdown-item" onclick="@(() => EvaluateItem(Item))">Evaluate</a>
-                            </li>
-                        </ul>
-                    </div>
+                    @if (_queueItem != null)
+                    {
+                        <div class="dropdown">
+                            <button class="btn btn-app-ghost btn-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                Actions
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <button type="button" class="dropdown-item" @onclick="EvaluateItem">Evaluate
+                                    </button>
+                                </li>
+                                <li>
+                                    <button type="button" class="dropdown-item" @onclick="ForceRecheck">Force recheck
+                                    </button>
+                                </li>
+                                <li>
+                                    <button type="button" class="dropdown-item" @onclick="RemoveFromQueue">Remove from
+                                        queue
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    }
                 </div>
 
                 @* ── Body ── *@
@@ -255,25 +262,29 @@
                                         <div class="h3 fw-bold mb-0">Decision Factors</div>
                                     </div>
 
-                                    <div class="card-body p-0">
-                                        <DetailRow Label="Queue Status"
-                                                   IsBadge="true"
-                                                   Value="@StatusText"
-                                                   BadgeClass="@StatusBadgeClass(Item?.Status)"/>
+                                    <DetailRow Label="Queue Status"
+                                               IsBadge="true"
+                                               Value="@StatusText"
+                                               BadgeClass="@StatusBadgeClass(_queueItem?.Status)"/>
 
-                                        <DetailRow Label="Queue State" Value="@EnumDisplay(Item?.State)"/>
+                                    <DetailRow Label="Queue State" Value="@QueueStateText"/>
+
+                                    @if (_queueItem != null)
+                                    {
                                         <DetailRow Label="Status Message"
-                                                   MarkupString="@FormatStatusMessages(Item?.StatusMessagesJson)"/>
+                                                   MarkupString="@FormatStatusMessages(_queueItem.StatusMessagesJson)"/>
 
-                                        <DetailRow Label="Tracking State" Value="@EnumDisplay(Item?.TrackingState)"/>
                                         <DetailRow Label="Tracked Status"
-                                                   Value="@TextDisplay(Item?.TrackedDownloadStatus)"/>
+                                                   Value="@TextDisplay(_queueItem.TrackedDownloadStatus)"/>
 
                                         <DetailRow Label="Last Progress" Value="@LastProgress"/>
 
-                                        <DetailRow Label="Error Message" Value="@TextDisplay(Item?.ErrorMessage)"/>
-
-                                    </div>
+                                        <DetailRow Label="Error Message" Value="@TextDisplay(_queueItem.ErrorMessage)"/>
+                                    }
+                                    else
+                                    {
+                                        <DetailRow Label="Status Message" Value="Not currently downloading"/>
+                                    }
                                 </div>
                             </div>
 
@@ -296,7 +307,7 @@
                                         @if (currentAttempt != null)
                                         {
                                             <DetailRow Label="Attempt"
-                                                       Value="@AttemptNumberDisplay(currentAttempt.ReplacementAttemptNumber)"/>
+                                                       Value="@IntDisplay(currentAttempt.ReplacementAttemptNumber)"/>
 
                                             <DetailRow Label="Release" Value="@TextDisplay(currentAttempt.Title)"/>
 
@@ -358,7 +369,7 @@
                                                                             {
                                                                                 if (Item != null)
                                                                                 {
-                                                                                    await LoadHealthDataAsync(Item);
+                                                                                    await LoadHealthDataAsync();
                                                                                 }
                                                                             })">
                                     <svg xmlns="http://www.w3.org/2000/svg"
@@ -444,7 +455,7 @@
                                                                         {
                                                                             if (Item != null)
                                                                             {
-                                                                                await LoadHealthDataAsync(Item);
+                                                                                await LoadHealthDataAsync();
                                                                             }
                                                                         })">
                                 <svg xmlns="http://www.w3.org/2000/svg"
@@ -499,13 +510,13 @@
                                         </td>
 
                                         <td>
-                                            <span class="@AttemptStatusBadgeClass(attempt.Status) app-badge">
+                                            <span class="@AttemptStatusBadgeClass(attempt.Status) badge">
                                                 @attempt.Status
                                             </span>
                                         </td>
 
                                         <td>
-                                            <div class="fw-semibold">@AttemptNumberDisplay(attempt.ReplacementAttemptNumber)</div>
+                                            <div class="fw-semibold">@IntDisplay(attempt.ReplacementAttemptNumber)</div>
                                         </td>
 
                                         <td class="min-w-0">
@@ -562,33 +573,62 @@
                             </table>
                         </div>
                     }
+                    @if (_activeTab == "episodes")
+                    {
+                        <div class="card">
+                            <div class="list-group list-group-flush overflow-auto" style="max-height: 35rem">
+                                @if (_episodes.Count == 0 && _movie == null)
+                                {
+                                    <div class="list-group-item text-center text-muted py-4">No files</div>
+                                }
+                                @foreach (var season in _episodes.GroupBy(e => e.SeasonNumber).OrderBy(g => g.Key))
+                                {
+                                    var open = _openSeasons.Contains(season.Key);
+                                    <div class="list-group-header sticky-top d-flex align-items-center justify-content-between cursor-pointer"
+                                         @onclick="() => ToggleSeason(season.Key)">
+                                        <span>@SeasonLabel(season.Key)</span>
+                                        <i class="bi @(open ? "bi-chevron-down" : "bi-chevron-right")"></i>
+                                    </div>
+                                    @if (open)
+                                    {
+                                        @foreach (var ep in season.OrderBy(e => e.EpisodeNumber))
+                                        {
+                                            var st = FileStatus(ep.HasFile, _queuedEpisodeIds.Contains(ep.RemoteId));
+                                            <div class="list-group-item" @key="ep.Id">
+                                                <div class="row align-items-center">
+                                                    <div class="col text-truncate">
+                                                        <span class="me-2">
+                                                            @EpisodeTitle(ep)
+                                                        </span>
+                                                    </div>
+                                                    <div class="col-auto">
+                                                        <span class="app-badge @st.Css">@st.Label</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+                                }
+                                @if (_movie != null)
+                                {
+                                    var st = FileStatus(_movie.HasFile, _queuedMovieIds.Contains(_movie.RemoteId));
+                                    <div class="list-group-item" @key="_movie.Id">
+                                        <div class="row align-items-center">
+                                            <div class="col text-truncate text-body">@_movie.Title</div>
+                                            <div class="col-auto">
+                                                <span class="app-badge @st.Css">@st.Label</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
                 </div>
 
                 @* ── Footer ── *@
                 <div class="modal-footer">
-                    <div class="dropdown me-auto">
-                        <button class="btn btn-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                            Mark as...
-                        </button>
-                        <ul class="dropdown-menu">
-                            <li>
-                                <a class="dropdown-item">Failed</a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item">Completed</a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item">Ignored</a>
-                            </li>
-                        </ul>
-                    </div>
-                    <button class="btn btn-outline-danger" @onclick="RemoveFromQueue">
-                        <i class="bi bi-trash me-1"></i>Remove from Queue
-                    </button>
-                    <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button class="btn btn-primary" @onclick="ForceRecheck">
-                        <i class="bi bi-arrow-clockwise me-1"></i>Force Recheck
-                    </button>
+                    <button class="btn app-btn-primary btn-app-ghost" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>

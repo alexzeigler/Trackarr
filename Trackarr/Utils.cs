@@ -1,8 +1,11 @@
 ﻿using System.Globalization;
 using Microsoft.AspNetCore.Components;
+using Microsoft.EntityFrameworkCore;
 using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
+using Trackarr.Core.Routine;
 using Trackarr.Core.Server;
+using Trackarr.Data;
 
 namespace Trackarr;
 
@@ -28,6 +31,7 @@ public static class Utils
             "error" => "status-badge status-failed",
             "failedpending" => "status-badge status-failed",
             "downloadclientunavailable" => "status-badge status-failed",
+            "missing" => "status-badge status-missing",
             _ => "status-badge status-paused"
         };
     }
@@ -179,11 +183,94 @@ public static class Utils
     public static MarkupString GetChecked(bool value, int size = 24)
     {
         if (value)
-            return
-                (MarkupString)
+            return (MarkupString)
                 $"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon text-green icon-2\"><path d=\"M5 12l5 5l10 -10\"></path></svg>";
 
         return (MarkupString)
             $"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon text-red icon-2\">\n\t<path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\" />\n\t<path d=\"M18 6l-12 12\" />\n\t<path d=\"M6 6l12 12\" />\n</svg>";
+    }
+
+    public static string IntervalText(int seconds)
+    {
+        return seconds switch
+        {
+            <= 0 => "Manual",
+            < 60 => $"{seconds}s",
+            < 3600 => $"{seconds / 60}m",
+            _ => seconds < 86400 ? $"{seconds / 3600}h" : $"{seconds / 86400}d"
+        };
+    }
+
+    public static string DurationText(DateTime? startTime, DateTime? endTime)
+    {
+        if (startTime == null) return "—";
+
+        var end = endTime ?? DateTime.UtcNow;
+        var duration = end.ToUniversalTime() - startTime.Value.ToUniversalTime();
+
+        if (duration.TotalMilliseconds < 0) return "—";
+
+        return duration switch
+        {
+            { TotalMilliseconds: < 1000 } => $"{(int)duration.TotalMilliseconds}ms",
+            { TotalSeconds: < 60 } => $"{duration.TotalSeconds:0.0}s",
+            { TotalMinutes: < 60 } => $"{(int)duration.TotalMinutes}m {duration.Seconds}s",
+            { TotalHours: < 24 } => $"{(int)duration.TotalHours}h {duration.Minutes}m",
+            _ => $"{(int)duration.TotalDays}d {duration.Hours}h"
+        };
+    }
+
+    public static string RoutineStatusBadge(RoutineDefinition routine)
+    {
+        return RoutineStatusText(routine) switch
+        {
+            "Running" => "bg-primary-lt",
+            "Paused" => "bg-warning-lt",
+            "Disabled" => "bg-secondary-lt",
+            "Failed" => "bg-danger-lt",
+            _ => "bg-success-lt"
+        };
+    }
+
+    public static string RoutineStatusText(RoutineDefinition routine)
+    {
+        if (routine.IsRunning) return "Running";
+
+        if (!routine.Enabled) return "Disabled";
+
+        if (routine.IsPaused) return "Paused";
+
+        if (routine.LastRun != null && !routine.LastRunSuccess) return "Failed";
+
+        return "Enabled";
+    }
+
+    public static string RoutineResultText(RoutineDefinition routine)
+    {
+        if (routine.LastRun == null) return "Never ran";
+
+        return routine.LastRunSuccess ? "Success" : "Failed";
+    }
+
+    public static string RoutineResultClass(RoutineDefinition routine)
+    {
+        if (routine.LastRun == null) return "text-muted";
+
+        return routine.LastRunSuccess ? "text-success" : "text-danger";
+    }
+
+    public static async Task<int> GetTotalEpisodeCountAsync(AppDbContext db, Series? series,
+        CancellationToken cancellationToken = default)
+    {
+        if (series == null) return 0;
+
+        return await db.Episodes.AsNoTracking()
+            .CountAsync(x => x.ServerId == series.ServerId && x.RemoteSeriesId == series.RemoteId, cancellationToken);
+    }
+
+    public static (string Class, string Icon) Delta(decimal value, bool goodIsPositive)
+    {
+        if (value <= 0) return ("text-warning", "ti ti-minus");
+        return goodIsPositive ? ("text-green", "ti ti-trending-up") : ("text-red", "ti ti-trending-down");
     }
 }

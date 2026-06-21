@@ -56,52 +56,81 @@ public class MissingService(
         return count;
     }
 
-    private async Task RunSearchFlowAsync(
-        MediaServer server, AppDbContext db, MissingMediaRecord record,
-        bool inQueue, bool isSearching, DateTime now)
+    private async Task RunSearchFlowAsync(MediaServer server, AppDbContext db, MissingMediaRecord record, bool inQueue,
+        bool isSearching, bool isAvailable, DateTime now)
     {
         record.LastEvaluatedAt = now;
 
-        if (inQueue)
+        if (record.SearchState == MissingSearchState.Abandoned)
+            return;
+
+        if (!isAvailable)
         {
-            record.SearchState = MissingSearchState.Idle;
+            record.SearchState = MissingSearchState.NotAvailable;
+            record.LastSearchPushedAt = null;
             return;
         }
 
-        if (record.SearchState == MissingSearchState.PendingVerification)
+        if (inQueue)
         {
-            if (now - (record.LastSearchPushedAt ?? now) < _policy.SearchCooldown) return;
-            record.FailedSearchCount++;
-            record.SearchState = MissingSearchState.Idle;
-            AddEvent(db, record, MissingEventType.SearchFailed);
+            record.SearchState = MissingSearchState.InQueue;
+            record.LastSearchPushedAt = null;
+            return;
         }
 
-        if (isSearching) return;
-        if (record.LastSearchPushedAt is { } last && now - last < _policy.SearchCooldown) return;
+        if (record.LastSearchPushedAt is { } pushedAt)
+        {
+            if (now - pushedAt < _policy.SearchCooldown)
+            {
+                record.SearchState = MissingSearchState.SkippedCooldown;
+                return;
+            }
+
+            record.FailedSearchCount++;
+            record.LastSearchPushedAt = null;
+        }
+
+        if (record.FailedSearchCount >= _policy.AbandonAfter)
+        {
+            record.SearchState = MissingSearchState.Abandoned;
+            AddEvent(db, record, MissingEventType.Abandoned);
+            return;
+        }
+
+        if (record.LoweredToFallback && record.FailedSearchCount >= _policy.MaxFailedSearches)
+        {
+            record.SearchState = MissingSearchState.Abandoned;
+            AddEvent(db, record, MissingEventType.Abandoned);
+            return;
+        }
+
+        if (isSearching)
+        {
+            record.SearchState = MissingSearchState.SkippedSearching;
+            return;
+        }
 
         await PushSearchAsync(server, record);
-        record.SearchState = MissingSearchState.PendingVerification;
+        record.SearchState = MissingSearchState.SearchPushed;
         record.LastSearchPushedAt = now;
         AddEvent(db, record, MissingEventType.SearchPushed);
     }
 
-    private async Task ProcessRadarrAsync(
-        MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
+    private async Task ProcessRadarrAsync(MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
         List<Movie> missing, List<DownloadItem> queue, ActiveSearches active, DateTime now)
     {
         foreach (var item in missing)
         {
-            var rec = records.FirstOrDefault(r => r.RemoteId == item.RemoteId && r.EpisodeId == null)
-                      ?? AddRecord(db, records, server.Id, item.RemoteId, null, MissingSearchTier.Series, now);
+            var rec = records.FirstOrDefault(r => r.RemoteId == item.RemoteId && r.EpisodeId == null) ?? AddRecord(db,
+                records, server.Id, item.RemoteId, null, MissingSearchTier.Series, now);
 
             var inQueue = queue.Any(q => q.MovieId == item.RemoteId);
             var isSearching = active.MovieIds.Contains(item.RemoteId);
-            await RunSearchFlowAsync(server, db, rec, inQueue, isSearching, now);
+            await RunSearchFlowAsync(server, db, rec, inQueue, isSearching, item.IsAvailable, now);
         }
     }
 
-    private async Task ProcessSonarrAsync(
-        MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
+    private async Task ProcessSonarrAsync(MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
         List<Episode> missing, List<DownloadItem> queue, ActiveSearches active, DateTime now)
     {
         foreach (var group in missing.GroupBy(e => e.RemoteSeriesId))
@@ -113,37 +142,37 @@ public class MissingService(
             {
                 foreach (var ep in group)
                 {
-                    var rec = records.FirstOrDefault(r => r.RemoteId == seriesId && r.EpisodeId == ep.RemoteId)
-                              ?? AddRecord(db, records, server.Id, seriesId, ep.RemoteId, MissingSearchTier.Episode,
-                                  now);
+                    var epAvailable = ep.AirDateUtc < now;
+                    var rec = records.FirstOrDefault(r => r.RemoteId == seriesId && r.EpisodeId == ep.RemoteId) ??
+                              AddRecord(db, records, server.Id, seriesId, ep.RemoteId, MissingSearchTier.Episode, now);
 
                     var inQueue = queue.Any(q => q.EpisodeId == ep.RemoteId);
                     var isSearching = active.EpisodeIds.Contains(ep.RemoteId);
-                    await RunSearchFlowAsync(server, db, rec, inQueue, isSearching, now);
+                    await RunSearchFlowAsync(server, db, rec, inQueue, isSearching, epAvailable, now);
                 }
 
                 continue;
             }
 
-            var seriesRec = records.FirstOrDefault(r => r.RemoteId == seriesId && r.EpisodeId == null)
-                            ?? AddRecord(db, records, server.Id, seriesId, null, MissingSearchTier.Series, now);
+            var seriesRec = records.FirstOrDefault(r => r.RemoteId == seriesId && r.EpisodeId == null) ??
+                            AddRecord(db, records, server.Id, seriesId, null, MissingSearchTier.Series, now);
 
             var sInQueue = queue.Any(q => q.SeriesId == seriesId);
             var sSearching = active.SeriesIds.Contains(seriesId);
-            await RunSearchFlowAsync(server, db, seriesRec, sInQueue, sSearching, now);
+            var series = await media.GetSeriesByIdAsync(server, seriesId);
+            var sAvailable = series?.IsAvailable(now) ?? false;
+            await RunSearchFlowAsync(server, db, seriesRec, sInQueue, sSearching, sAvailable, now);
         }
     }
 
-    private async Task ReconcileRadarrAsync(
-        MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
+    private async Task ReconcileRadarrAsync(MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
         List<Movie> missing, List<DownloadItem> queue)
     {
         var missingIds = missing.Select(m => m.RemoteId).ToHashSet();
 
-        foreach (var rec in records.Where(r => !missingIds.Contains(r.RemoteId)).ToList())
+        foreach (var rec in records.Where(r => !missingIds.Contains(r.RemoteId)).ToList()
+                     .Where(rec => queue.All(q => q.MovieId != rec.RemoteId)))
         {
-            if (queue.Any(q => q.MovieId == rec.RemoteId)) continue;
-
             var movie = await media.GetMovieByIdAsync(server, rec.RemoteId);
 
             if (movie is null)
@@ -164,17 +193,15 @@ public class MissingService(
         }
     }
 
-    private async Task ReconcileSonarrAsync(
-        MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
+    private async Task ReconcileSonarrAsync(MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
         List<Episode> missing, List<DownloadItem> queue)
     {
         var missingEpIds = missing.Select(e => e.RemoteId).ToHashSet();
         var missingSeriesIds = missing.Select(e => e.RemoteSeriesId).ToHashSet();
 
         var fellOut = records.Where(r => r.EpisodeId != null
-                ? !missingEpIds.Contains(r.EpisodeId.Value)
-                : !missingSeriesIds.Contains(r.RemoteId))
-            .ToList();
+            ? !missingEpIds.Contains(r.EpisodeId.Value)
+            : !missingSeriesIds.Contains(r.RemoteId)).ToList();
 
         if (fellOut.Count == 0) return;
 
@@ -230,37 +257,39 @@ public class MissingService(
         }
     }
 
-    private async Task ApplyRadarrFallbackAsync(
-        MediaServer server, AppDbContext db, List<MissingMediaRecord> records, List<Movie> missing)
+    private async Task ApplyRadarrFallbackAsync(MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
+        List<Movie> missing)
     {
         if (server.FallBackProfileId is not { } fallbackId) return;
 
         var missingIds = missing.Select(m => m.RemoteId).ToHashSet();
 
-        var targets = records.Where(r => r.EpisodeId == null
-                                         && !r.LoweredToFallback
-                                         && r.FailedSearchCount >= _policy.MaxFailedSearches
-                                         && missingIds.Contains(r.RemoteId)).ToList();
+        var targets = records.Where(r =>
+            r.EpisodeId == null && !r.LoweredToFallback && r.FailedSearchCount >= _policy.MaxFailedSearches &&
+            missingIds.Contains(r.RemoteId)).ToList();
 
         foreach (var rec in targets)
         {
             await media.SetQualityProfileAsync(server, rec.RemoteId, fallbackId);
             rec.LoweredToFallback = true;
+            rec.FailedSearchCount = 0;
+            rec.LastSearchPushedAt = null;
             AddEvent(db, rec, MissingEventType.DowngradedToFallback);
         }
     }
 
-    private async Task ApplySonarrFallbackAsync(
-        MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
+    private async Task ApplySonarrFallbackAsync(MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
         List<Episode> missing, DateTime now)
     {
-        var cascadeTargets = records.Where(r => r.EpisodeId == null
-                                                && !r.LoweredToFallback
-                                                && r.FailedSearchCount >= _policy.MaxFailedSearches).ToList();
+        var cascadeTargets = records.Where(r =>
+            r.EpisodeId == null && !r.LoweredToFallback && r.SearchState != MissingSearchState.Abandoned &&
+            r.FailedSearchCount >= _policy.MaxFailedSearches).ToList();
 
         foreach (var seriesRec in cascadeTargets)
         {
-            foreach (var ep in missing.Where(e => e.RemoteSeriesId == seriesRec.RemoteId))
+            var eps = missing.Where(e => e.RemoteSeriesId == seriesRec.RemoteId).ToList();
+
+            foreach (var ep in eps)
             {
                 if (records.Any(r => r.RemoteId == seriesRec.RemoteId && r.EpisodeId == ep.RemoteId)) continue;
                 AddRecord(db, records, server.Id, seriesRec.RemoteId, ep.RemoteId, MissingSearchTier.Episode, now);
@@ -274,8 +303,7 @@ public class MissingService(
 
         var missingEpIds = missing.Select(e => e.RemoteId).ToHashSet();
 
-        var bySeries = records
-            .Where(r => r.EpisodeId != null && missingEpIds.Contains(r.EpisodeId.Value))
+        var bySeries = records.Where(r => r.EpisodeId != null && missingEpIds.Contains(r.EpisodeId.Value))
             .GroupBy(r => r.RemoteId);
 
         foreach (var grp in bySeries)
@@ -289,6 +317,8 @@ public class MissingService(
             foreach (var r in recs)
             {
                 r.LoweredToFallback = true;
+                r.FailedSearchCount = 0;
+                r.LastSearchPushedAt = null;
                 AddEvent(db, r, MissingEventType.DowngradedToFallback);
             }
         }
@@ -303,9 +333,8 @@ public class MissingService(
         return media.TriggerEpisodeSearchAsync(server, record.EpisodeId!.Value);
     }
 
-    private static MissingMediaRecord AddRecord(
-        AppDbContext db, List<MissingMediaRecord> records,
-        int serverId, int remoteId, int? episodeId, MissingSearchTier tier, DateTime now)
+    private static MissingMediaRecord AddRecord(AppDbContext db, List<MissingMediaRecord> records, int serverId,
+        int remoteId, int? episodeId, MissingSearchTier tier, DateTime now)
     {
         var rec = new MissingMediaRecord
         {
@@ -313,7 +342,7 @@ public class MissingService(
             RemoteId = remoteId,
             EpisodeId = episodeId,
             Tier = tier,
-            SearchState = MissingSearchState.Idle,
+            SearchState = MissingSearchState.New,
             FirstSeenMissingAt = now,
             LastEvaluatedAt = now
         };

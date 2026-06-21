@@ -2,6 +2,12 @@
 
 public enum MissingSearchState
 {
-    Idle,
-    PendingVerification
+    New,
+    InQueue,
+    SearchPushed,
+    SkippedCooldown,
+    SkippedSearching,
+    NotAvailable,
+    Stuck,
+    Abandoned
 }

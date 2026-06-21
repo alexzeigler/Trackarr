@@ -1197,21 +1197,8 @@ namespace Trackarr.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("ActiveStrikeCount")
-                        .HasColumnType("INTEGER");
-
                     b.Property<DateTime?>("Added")
                         .HasColumnType("TEXT");
-
-                    b.Property<string>("AttemptKey")
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("CompletedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("CustomFormatScore")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("CustomFormatsJson")
                         .HasColumnType("TEXT");
@@ -1237,29 +1224,11 @@ namespace Trackarr.Data.Migrations
                     b.Property<DateTime?>("EstimatedCompletionTime")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("FailedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("FirstSeenAtUtc")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Indexer")
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("LanguagesJson")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal?>("LastObservedProgress")
-                        .HasColumnType("TEXT");
-
-                    b.Property<long?>("LastObservedSizeLeft")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("LastProgressAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("LastSeenAtUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("MovieId")
@@ -1274,9 +1243,6 @@ namespace Trackarr.Data.Migrations
 
                     b.Property<string>("QualityJson")
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("QueueStatus")
-                        .HasColumnType("INTEGER");
 
                     b.Property<int>("RemoteId")
                         .HasColumnType("INTEGER")
@@ -1311,9 +1277,6 @@ namespace Trackarr.Data.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("TotalStrikeCount")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("TrackedDownloadState")
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
@@ -1322,16 +1285,7 @@ namespace Trackarr.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("TrackingState")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("AttemptKey");
-
-                    b.HasIndex("ServerId", "AttemptKey");
 
                     b.HasIndex("ServerId", "DownloadId");
 

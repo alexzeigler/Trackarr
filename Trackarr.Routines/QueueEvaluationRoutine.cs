@@ -1,4 +1,5 @@
-﻿using Trackarr.Core.Routine;
+﻿using Trackarr.Core.Health;
+using Trackarr.Core.Routine;
 using Trackarr.Services.Media;
 
 namespace Trackarr.Tasks;
@@ -19,40 +20,41 @@ public class QueueEvaluationRoutine(MediaServerService mediaServerService, Healt
     {
         var evaluated = 0;
         var removed = 0;
+        var imported = 0;
+        var disappeared = 0;
 
-        var servers = await mediaServerService.GetAllServersAsync();
-
-        foreach (var mediaServer in servers)
+        foreach (var server in await mediaServerService.GetAllServersAsync())
         {
-            var downloadItems = await mediaServerService.GetQueueAsync(mediaServer);
+            var queue = await mediaServerService.GetQueueAsync(server);
+            var downloads = queue.GroupBy(HealthService.GetDownloadId).Select(e => e.First()).ToList();
 
-            var uniqueDownloads = downloadItems
-                .GroupBy(e => string.IsNullOrWhiteSpace(e.DownloadId) ? e.AttemptKey : e.DownloadId)
-                .Select(e => e.First());
-
-            var removedAny = false;
-
-            foreach (var downloadItem in uniqueDownloads)
+            foreach (var download in downloads)
             {
-                var decision = await healthService.EvaluateAsync(downloadItem, cancellationToken);
+                var decision = await healthService.EvaluateAsync(download, cancellationToken);
                 evaluated++;
 
-                if (!decision.ShouldRemove)
-                    continue;
+                if (!decision.ShouldRemove) continue;
 
-                await mediaServerService.RemoveFromQueueAsync(mediaServer, downloadItem.RemoteId);
+                await mediaServerService.RemoveFromQueueAsync(server, download.RemoteId);
                 await healthService.MarkRemovedByTrackarrAsync(decision.DownloadAttemptId, decision.Message,
                     cancellationToken);
-
                 removed++;
-                removedAny = true;
             }
 
-            if (removedAny)
-                await mediaServerService.GetQueueAsync(mediaServer, true);
+            var activeIds = downloads.Select(HealthService.GetDownloadId).ToList();
+            var missingIds = await healthService.GetMissingDownloadIdsAsync(server.Id, activeIds, cancellationToken);
+            var importedIds = missingIds.Count == 0
+                ? []
+                : await mediaServerService.GetImportedDownloadIdsAsync(server, missingIds);
+
+            var resolved = await healthService.ResolveMissingAttemptsAsync(server.Id, activeIds, importedIds,
+                cancellationToken);
+
+            imported += resolved.Count(e => e.Status == AttemptStatus.Imported);
+            disappeared += resolved.Count(e => e.Status == AttemptStatus.Disappeared);
         }
 
         LastRunSuccess = true;
-        return $"Evaluated {evaluated} items, removed {removed}.";
+        return $"Evaluated {evaluated}, removed {removed}, imported {imported}, disappeared {disappeared}.";
     }
 }

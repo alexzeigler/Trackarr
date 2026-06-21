@@ -21,4 +21,9 @@ public class Series : MediaItem
 
     public string? AlternateTitlesJson { get; set; }
     public string? SeasonsJson { get; set; }
+
+    public bool IsAvailable(DateTime now)
+    {
+        return PreviousAiring < now || NextAiring < now || FirstAired < now;
+    }
 }

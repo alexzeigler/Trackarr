@@ -10,8 +10,7 @@ using Trackarr.Core.Server;
 
 namespace Trackarr.Data;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options)
-    : DbContext(options)
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<MediaServer> MediaServers { get; set; }
     public DbSet<ServerMetadata> ServerMetadata { get; set; }
@@ -49,8 +48,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.HasOne(e => e.Metadata).WithOne().HasForeignKey<ServerMetadata>(m => m.ServerId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(e => e.FallbackProfile).WithMany()
-                .HasForeignKey(e => e.FallBackProfileId)
+            entity.HasOne(e => e.FallbackProfile).WithMany().HasForeignKey(e => e.FallBackProfileId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -89,11 +87,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(e => e.Protocol).HasMaxLength(100);
             entity.Property(e => e.DownloadClient).HasMaxLength(255);
             entity.Property(e => e.Indexer).HasMaxLength(255);
-            entity.Property(e => e.AttemptKey).HasMaxLength(500);
-            entity.Property(e => e.TrackingState).HasConversion<string>().HasMaxLength(100);
-
-            entity.HasIndex(e => e.AttemptKey);
-            entity.HasIndex(e => new { e.ServerId, e.AttemptKey });
             entity.HasIndex(e => new { e.ServerId, e.DownloadId });
         });
 
@@ -390,8 +383,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<QualityProfile>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.HasOne(e => e.ParentServer).WithMany()
-                .HasForeignKey(e => e.ServerId)
+            entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

@@ -1,0 +1,241 @@
+﻿@page "/missing"
+@using Trackarr.Components.Modals
+@using static Utils
+<MediaDetailsModal @ref="_detailsModal"/>
+
+<div class="d-flex flex-column gap-3">
+    <div class="row g-3 w-100">
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon stat-icon-primary">
+                        <i class="ti ti-movie-off"></i>
+                    </div>
+                    <div>
+                        <div class="stat-label">Missing</div>
+                        <div class="stat-value">@TotalMissingCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon stat-icon-warning">
+                        <i class="ti ti-search"></i>
+                    </div>
+                    <div>
+                        <div class="stat-label">Search Ready</div>
+                        <div class="stat-value">@SearchReadyCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon stat-icon-purple">
+                        <i class="ti ti-arrow-down-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-label">Fallback Lowered</div>
+                        <div class="stat-value">@FallbackLoweredCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon stat-icon-danger">
+                        <i class="ti ti-alert-triangle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-label">Failed Searches</div>
+                        <div class="stat-value">@FailedSearchCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <AppTable TItem="MissingMediaRow"
+              Items="_missingRows"
+              PageSize="PageSize"
+              EmptyColspan="10"
+              EmptyText="No missing media found"
+              DefaultSort="firstSeen"
+              SearchPredicate="MatchesSearch"
+              SortSelectors="MissingSorts">
+        <ToolbarTemplate>
+            <button class="btn btn-app-ghost" @onclick="RefreshAsync" disabled="@IsRefreshing">
+                <svg xmlns="http://www.w3.org/2000/svg"
+                     width="20"
+                     height="20"
+                     viewBox="0 0 24 24"
+                     fill="none"
+                     stroke="currentColor"
+                     stroke-width="2"
+                     stroke-linecap="round"
+                     stroke-linejoin="round"
+                     class="icon icon-tabler icon-tabler-refresh m-0 @(IsRefreshing ? "spinner" : "")">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+                    <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+                </svg>
+            </button>
+        </ToolbarTemplate>
+
+        <HeaderTemplate>
+            <tr>
+                <AppTableColumn SortKey="name" Width="34%">
+                    Name
+                </AppTableColumn>
+
+                <AppTableColumn SortKey="server" Width="150px">
+                    Server
+                </AppTableColumn>
+
+                <AppTableColumn SortKey="tier" Width="120px">
+                    Tier
+                </AppTableColumn>
+
+                <AppTableColumn SortKey="state" Width="130px">
+                    State
+                </AppTableColumn>
+
+                <AppTableColumn SortKey="failed" Width="95px" TextEnd="true">
+                    Failed
+                </AppTableColumn>
+
+                <AppTableColumn SortKey="count" Width="95px" TextEnd="true">
+                    Missing
+                </AppTableColumn>
+
+                <AppTableColumn SortKey="fallback" Width="105px">
+                    Fallback
+                </AppTableColumn>
+
+                <AppTableColumn SortKey="firstSeen" Width="130px" TextEnd="true">
+                    First Missing
+                </AppTableColumn>
+
+                <AppTableColumn SortKey="lastSearch" Width="130px" TextEnd="true">
+                    Last Search
+                </AppTableColumn>
+
+                <AppTableColumn SortKey="lastEval" Width="130px" TextEnd="true">
+                    Last Evaluated
+                </AppTableColumn>
+                <AppTableColumn Width="135px" TextEnd="true"/>
+            </tr>
+        </HeaderTemplate>
+
+        <RowTemplate Context="row">
+            @{
+                var server = GetServer(row);
+                var movie = GetMovie(row);
+                var series = GetSeries(row);
+                var posterUrl = GetPosterUrl(row);
+                var title = GetTitle(row);
+                var subtitle = GetSubtitle(row);
+                var type = GetMissingType(row);
+                var state = GetStateDisplay(row);
+                var tier = GetTierDisplay(row);
+            }
+
+            <tr @key="row.Key">
+                <td class="border-secondary-subtle border">
+                    <div class="item-title-cell">
+                        @if (posterUrl != null)
+                        {
+                            <img src="@posterUrl" class="media-poster media-poster-md" alt=""/>
+                        }
+
+                        <div>
+                            <div class="item-title">@title</div>
+                            <div class="item-meta">
+                                <span class="app-badge app-badge-muted">@type</span>
+                                <span>@subtitle</span>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+
+                <td class="border-secondary-subtle border">
+                    @if (server != null)
+                    {
+                        <div class="d-flex align-items-center gap-2">
+                            @GetServerIcon(server.ServiceType)
+                            <span class="fw-semibold">@TextDisplay(server.Name)</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <span class="text-muted">@TextDisplay(null)</span>
+                    }
+                </td>
+
+
+                <td class="border-secondary-subtle border">
+                    <span class="@GetTierBadgeClass(row)">@tier</span>
+                </td>
+
+                <td class="border-secondary-subtle border">
+                    <span class="@GetStateBadgeClass(row) app-badge">@state</span>
+                </td>
+
+                <td class="fw-semibold text-end border-secondary-subtle border">
+                    @IntDisplay(row.FailedSearchCount)
+                </td>
+                <td class="fw-semibold text-end border-secondary-subtle border">
+                    @if (movie != null)
+                    {
+                        <span>@row.MissingCount movie</span>
+                    }
+                    else if (series != null)
+                    {
+                        <span>@row.MissingCount of @GetTotalEpisodeCount(row)</span>
+                    }
+                </td>
+
+                <td class="border-secondary-subtle border">
+                    @GetChecked(row.LoweredToFallback, 20)
+                </td>
+
+                <td class="fw-semibold text-end border-secondary-subtle border"
+                    title="@DateTimeDisplay(row.FirstSeenMissingAt)">
+                    @TimeAgo(row.FirstSeenMissingAt)
+                </td>
+
+                <td class="fw-semibold text-end border-secondary-subtle border"
+                    title="@DateTimeDisplay(row.LastSearchPushedAt)">
+                    @TimeAgo(row.LastSearchPushedAt)
+                </td>
+
+                <td class="fw-semibold text-end border-secondary-subtle border"
+                    title="@DateTimeDisplay(row.LastEvaluatedAt)">
+                    @TimeAgo(row.LastEvaluatedAt)
+                </td>
+                <td class="text-end border-secondary-subtle border">
+                    <div class="btn-group">
+                        <button class="btn btn-app-ghost text-white" @onclick="() => OpenDetailsAsync(row)">
+                            View
+                        </button>
+                        <button data-bs-toggle="dropdown"
+                                type="button"
+                                class="btn btn-app-ghost dropdown-toggle dropdown-toggle-split text-white"
+                                aria-expanded="false"></button>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a class="dropdown-item" href="#">Mark As...</a>
+                            <a class="dropdown-item text-status-failed" href="#">Remove</a>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        </RowTemplate>
+    </AppTable>
+</div>

@@ -55,17 +55,12 @@
 
     private static readonly List<NavItem> NavItems =
     [
-        new("Track", "", "/", "ti ti-stack-2", []),
+        new("Queue", "", "/", "ti ti-stack-2", []),
+        new("Missing", "/missing", "/missing", "ti ti-stack-2", []),
         new("Servers", "/servers", "/servers", "ti ti-server", []),
         new("History", "/history", "/history", "ti ti-history", []),
-        new("Settings", "/settings", "/settings", "bi bi-gear-fill",
-        [
-            new NavChild("General", "/settings/general"),
-            new NavChild("Services", "/settings/services")
-        ]),
         new("System", "/system/status", "/system", "bi bi-laptop",
         [
-            new NavChild("Status", "/system/status"),
             new NavChild("Routines", "/system/routines"),
             new NavChild("Events", "/system/events")
         ])

@@ -1,4 +1,5 @@
 ﻿using Trackarr.Core.Health;
+using Trackarr.Core.Media.Missing;
 using Trackarr.Core.Server;
 
 namespace Trackarr.Core.Queue;
@@ -27,6 +28,7 @@ public class HistoryPageData
     public List<HistoryActivityPoint> Activity { get; set; } = [];
     public List<HistoryBreakdownItem> Breakdown { get; set; } = [];
     public List<HistoryRow> Rows { get; set; } = [];
+    public SearchStats SearchStats { get; set; } = new();
 }
 
 public class HistoryStats
@@ -53,6 +55,11 @@ public class HistoryActivityPoint
     public int Failed { get; set; }
     public int Removed { get; set; }
     public int Added { get; set; }
+    public long Bytes { get; set; }
+    public int SearchesPushed { get; set; }
+    public int Cascaded { get; set; }
+    public int Abandoned { get; set; }
+    public int Resolved { get; set; }
 }
 
 public class HistoryBreakdownItem
@@ -67,7 +74,7 @@ public class HistoryRow
     public HistoryTab Tab { get; set; }
     public DateTime OccurredAt { get; set; }
     public string Event { get; set; } = string.Empty;
-    public string Item { get; set; } = string.Empty;
+    public string? Item { get; set; } = string.Empty;
     public TrackedMediaType MediaType { get; set; } = TrackedMediaType.Unknown;
     public string Server { get; set; } = string.Empty;
     public string Profile { get; set; } = "—";

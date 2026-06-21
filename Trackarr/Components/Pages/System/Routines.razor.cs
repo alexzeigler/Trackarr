@@ -2,11 +2,13 @@
 using Microsoft.EntityFrameworkCore;
 using Trackarr.Core.Routine;
 using Trackarr.Data;
+using static Trackarr.Utils;
 
 namespace Trackarr.Components.Pages.System;
 
 public partial class Routines : ComponentBase
 {
+    private CancellationTokenSource? _cts;
     private List<RoutineDefinition> _routines = [];
     private List<RoutineRun> _runs = [];
     private string _search = string.Empty;
@@ -19,19 +21,27 @@ public partial class Routines : ComponentBase
     private int PausedCount => _routines.Count(x => x.IsPaused);
     private int FailedCount => _routines.Count(x => x.LastRun != null && !x.LastRunSuccess);
 
-    private IEnumerable<RoutineDefinition> FilteredRoutines => _routines
-        .Where(MatchesSearch)
-        .Where(MatchesStatus)
-        .OrderByDescending(x => x.IsRunning)
-        .ThenByDescending(x => x.Enabled)
-        .ThenBy(x => x.Name);
+    private IEnumerable<RoutineDefinition> FilteredRoutines =>
+        _routines.Where(MatchesSearch).Where(MatchesStatus).OrderByDescending(x => x.IsRunning)
+            .ThenByDescending(x => x.Enabled).ThenBy(x => x.Name);
 
-    private IEnumerable<RoutineRun> RecentRuns => _runs
-        .OrderByDescending(x => x.StartTime).Take(10);
+    private IEnumerable<RoutineRun> RecentRuns => _runs.OrderByDescending(x => x.StartTime).Take(10);
 
     protected override async Task OnInitializedAsync()
     {
+        _cts = new CancellationTokenSource();
         await Refresh();
+        _ = RunRefreshLoopAsync(_cts.Token);
+    }
+
+    private async Task RunRefreshLoopAsync(CancellationToken token)
+    {
+        PeriodicTimer timer = new(TimeSpan.FromSeconds(2));
+        while (await timer.WaitForNextTickAsync(token))
+        {
+            await Refresh();
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task Refresh()
@@ -42,11 +52,7 @@ public partial class Routines : ComponentBase
 
         _routines = await db.Routines.AsNoTracking().OrderBy(x => x.Name).ToListAsync();
 
-        _runs = await db.RoutineRuns
-            .AsNoTracking()
-            .OrderByDescending(x => x.StartTime)
-            .Take(25)
-            .ToListAsync();
+        _runs = await db.RoutineRuns.AsNoTracking().OrderByDescending(x => x.StartTime).Take(25).ToListAsync();
 
         IsLoading = false;
     }
@@ -55,16 +61,15 @@ public partial class Routines : ComponentBase
     {
         if (string.IsNullOrWhiteSpace(_search)) return true;
 
-        return Contains(routine.Name, _search)
-               || Contains(routine.Key, _search)
-               || Contains(routine.Description, _search);
+        return Contains(routine.Name, _search) || Contains(routine.Key, _search) ||
+               Contains(routine.Description, _search);
     }
 
     private bool MatchesStatus(RoutineDefinition routine)
     {
         if (string.IsNullOrWhiteSpace(_statusFilter)) return true;
 
-        return StatusText(routine) == _statusFilter;
+        return RoutineStatusText(routine) == _statusFilter;
     }
 
     private static bool Contains(string? value, string search)
@@ -76,8 +81,7 @@ public partial class Routines : ComponentBase
     {
         await using var db = await DbFactory.CreateDbContextAsync();
 
-        var entity = await db.Routines
-            .FirstOrDefaultAsync(x => x.Id == routine.Id);
+        var entity = await db.Routines.FirstOrDefaultAsync(x => x.Id == routine.Id);
 
         if (entity == null) return;
 
@@ -91,8 +95,7 @@ public partial class Routines : ComponentBase
     {
         await using var db = await DbFactory.CreateDbContextAsync();
 
-        var entity = await db.Routines
-            .FirstOrDefaultAsync(x => x.Id == routine.Id);
+        var entity = await db.Routines.FirstOrDefaultAsync(x => x.Id == routine.Id);
 
         if (entity == null) return;
 
@@ -109,106 +112,23 @@ public partial class Routines : ComponentBase
         await Refresh();
     }
 
-    private static string StatusText(RoutineDefinition routine)
+    private async Task RunRoutine(string key)
     {
-        if (routine.IsRunning) return "Running";
+        var routine = _routines.FirstOrDefault(r => r.Key == key);
+        if (routine is null) return;
 
-        if (!routine.Enabled) return "Disabled";
+        var lastRun = routine.LastRun;
+        routine.IsRunning = true;
+        RoutineRunner.RunAsync(key);
+        await InvokeAsync(StateHasChanged);
 
-        if (routine.IsPaused) return "Paused";
-
-        if (routine.LastRun != null && !routine.LastRunSuccess) return "Failed";
-
-        return "Enabled";
-    }
-
-    private static string StatusBadge(RoutineDefinition routine)
-    {
-        return StatusText(routine) switch
+        for (var i = 0; i < 20; i++)
         {
-            "Running" => "bg-primary-lt",
-            "Paused" => "bg-warning-lt",
-            "Disabled" => "bg-secondary-lt",
-            "Failed" => "bg-danger-lt",
-            _ => "bg-success-lt"
-        };
-    }
-
-    private static string ResultText(RoutineDefinition routine)
-    {
-        if (routine.LastRun == null) return "Never ran";
-
-        return routine.LastRunSuccess ? "Success" : "Failed";
-    }
-
-    private static string ResultClass(RoutineDefinition routine)
-    {
-        if (routine.LastRun == null) return "text-muted";
-
-        return routine.LastRunSuccess ? "text-success" : "text-danger";
-    }
-
-    private static string IntervalText(int seconds)
-    {
-        if (seconds <= 0) return "Manual";
-
-        if (seconds < 60) return $"{seconds}s";
-
-        if (seconds < 3600) return $"{seconds / 60}m";
-
-        if (seconds < 86400) return $"{seconds / 3600}h";
-
-        return $"{seconds / 86400}d";
-    }
-
-    private static string DateText(DateTime? value)
-    {
-        if (value == null) return "—";
-
-        return TimeAgo(value.Value);
-    }
-
-    private static string DateText(DateTime value)
-    {
-        return TimeAgo(value);
-    }
-
-    private static string DisplayText(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? "—" : value;
-    }
-
-    private static string TimeAgo(DateTime value)
-    {
-        var utc = value.Kind == DateTimeKind.Utc
-            ? value
-            : value.ToUniversalTime();
-
-        var diff = DateTime.UtcNow - utc;
-
-        if (diff.TotalSeconds < 0)
-        {
-            diff = utc - DateTime.UtcNow;
-
-            return diff switch
-            {
-                { TotalMinutes: < 1 } => "soon",
-                { TotalHours: < 1 } => $"in {(int)diff.TotalMinutes}m",
-                { TotalDays: < 1 } => $"in {(int)diff.TotalHours}h",
-                { TotalDays: < 7 } => $"in {(int)diff.TotalDays}d",
-                { TotalDays: < 30 } => $"in {(int)(diff.TotalDays / 7)}w",
-                _ => $"in {(int)(diff.TotalDays / 30)}mo"
-            };
+            await Task.Delay(300);
+            await Refresh();
+            await InvokeAsync(StateHasChanged);
+            if (_routines.FirstOrDefault(r => r.Key == key)?.LastRun != lastRun)
+                break;
         }
-
-        return diff switch
-        {
-            { TotalMinutes: < 1 } => "just now",
-            { TotalHours: < 1 } => $"{(int)diff.TotalMinutes}m ago",
-            { TotalDays: < 1 } => $"{(int)diff.TotalHours}h ago",
-            { TotalDays: < 7 } => $"{(int)diff.TotalDays}d ago",
-            { TotalDays: < 30 } => $"{(int)(diff.TotalDays / 7)}w ago",
-            _ => $"{(int)(diff.TotalDays / 30)}mo ago"
-        };
     }
 }

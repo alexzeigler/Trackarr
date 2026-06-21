@@ -16,11 +16,15 @@ public partial class History : ComponentBase
 
     private HistoryPageData _data = new();
 
-    private DateTime _fromDate = DateTime.Today.AddDays(-30);
+    private DateTime _fromDate = DateTime.Today.AddDays(-7);
     private List<string> _mediaTypes = [];
+    private int _page = 1;
+    private string _search = "";
 
     private int? _serverFilter;
     private List<MediaServer> _servers = [];
+    private string _sortColumn = "date";
+    private bool _sortDescending = true;
     private List<string> _statuses = [];
     private string? _statusFilter;
 
@@ -28,15 +32,102 @@ public partial class History : ComponentBase
     private DateTime _toDate = DateTime.Today;
     private string? _typeFilter;
 
+    private IEnumerable<HistoryRow> TabRows =>
+        _data.Rows.Where(r => r.Tab == _activeTab)
+            .Where(r => string.IsNullOrWhiteSpace(_statusFilter) ||
+                        string.Equals(r.Status, _statusFilter, StringComparison.OrdinalIgnoreCase)).Where(r =>
+                r.Item != null && (string.IsNullOrWhiteSpace(_search) ||
+                                   r.Item.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                                   r.Event.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                                   r.Server.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                                   (r.Details?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)));
+
+    private List<HistoryRow> SortedRows
+    {
+        get
+        {
+            var rows = _sortColumn switch
+            {
+                "event" => Order(TabRows, r => r.Event),
+                "item" => Order(TabRows, r => r.Item),
+                "type" => Order(TabRows, r => r.MediaType.ToString()),
+                "server" => Order(TabRows, r => r.Server),
+                "status" => Order(TabRows, r => r.Status),
+                _ => Order(TabRows, r => r.OccurredAt)
+            };
+            return rows.ToList();
+        }
+    }
+
+    private List<SeriesLegend> ActivitySeries =>
+    [
+        new("Completed", "#2fb344", _data.Activity.Sum(p => p.Completed)),
+        new("Failed", "#d63939", _data.Activity.Sum(p => p.Failed)),
+        new("Removed", "#f76707", _data.Activity.Sum(p => p.Removed)),
+        new("Added", "#4299e1", _data.Activity.Sum(p => p.Added))
+    ];
+
+    private List<SeriesLegend> SearchSeries =>
+    [
+        new("Searches Pushed", "#7738e9", _data.Activity.Sum(p => p.SearchesPushed)),
+        new("Cascaded", "#4299e1", _data.Activity.Sum(p => p.Cascaded)),
+        new("Abandoned", "#d63939", _data.Activity.Sum(p => p.Abandoned)),
+        new("Resolved", "#2fb344", _data.Activity.Sum(p => p.Resolved))
+    ];
+
+    private IEnumerable<HistoryRow> PagedRows => SortedRows.Skip((_page - 1) * PageSize).Take(PageSize);
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(SortedRows.Count / (double)PageSize));
+
     [Inject] private HistoryService HistoryService { get; set; } = null!;
     [Inject] private IJSRuntime Js { get; set; } = null!;
 
     private bool IsLoading { get; set; }
 
-    private IEnumerable<HistoryRow> FilteredRows => _data.Rows
-        .Where(row => row.Tab == _activeTab)
-        .Where(row => string.IsNullOrWhiteSpace(_statusFilter) ||
-                      string.Equals(row.Status, _statusFilter, StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<HistoryRow> FilteredRows =>
+        _data.Rows.Where(row => row.Tab == _activeTab).Where(row =>
+            string.IsNullOrWhiteSpace(_statusFilter) ||
+            string.Equals(row.Status, _statusFilter, StringComparison.OrdinalIgnoreCase));
+
+    private IEnumerable<HistoryRow> Order<T>(IEnumerable<HistoryRow> rows, Func<HistoryRow, T> key)
+    {
+        return _sortDescending ? rows.OrderByDescending(key) : rows.OrderBy(key);
+    }
+
+    private void SortBy(string column)
+    {
+        if (_sortColumn == column)
+        {
+            _sortDescending = !_sortDescending;
+        }
+        else
+        {
+            _sortColumn = column;
+            _sortDescending = true;
+        }
+
+        _page = 1;
+    }
+
+    private string SortClass(string column)
+    {
+        return _sortColumn != column ? "table-sort" : _sortDescending ? "table-sort desc" : "table-sort asc";
+    }
+
+    private void OnSearchChanged(ChangeEventArgs args)
+    {
+        _search = args.Value?.ToString() ?? "";
+        _page = 1;
+    }
+
+    private void Prev()
+    {
+        if (_page > 1) _page--;
+    }
+
+    private void Next()
+    {
+        if (_page < TotalPages) _page++;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -45,30 +136,29 @@ public partial class History : ComponentBase
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!_tableInitialized && FilteredRows.Any())
+        if (!_chartsPending) return;
+        _chartsPending = false;
+        try
         {
-            await Js.InvokeVoidAsync("trackarrTable.init", "history-table", "history-table-search",
-                "history-page-count", PageSize, Array.Empty<string>());
-            _tableInitialized = true;
-        }
-        else if (_tableInitialized)
-        {
-            await Js.InvokeVoidAsync("trackarrTable.reindex", "history-table");
-        }
+            await Js.InvokeVoidAsync("trackarrHistoryCharts.renderSearchActivity", "history-search-chart",
+                SearchActivityChartPayload());
+            await Js.InvokeVoidAsync("trackarrHistoryCharts.renderActivity", "history-activity-chart",
+                ActivityChartPayload());
+            await Js.InvokeVoidAsync("trackarrHistoryCharts.renderBreakdown", "history-breakdown-chart",
+                BreakdownChartPayload());
 
-        if (_chartsPending)
-            try
-            {
-                await Js.InvokeVoidAsync("trackarrHistoryCharts.renderActivity", "history-activity-chart",
-                    ActivityChartPayload());
-                await Js.InvokeVoidAsync("trackarrHistoryCharts.renderBreakdown", "history-breakdown-chart",
-                    BreakdownChartPayload());
-                _chartsPending = false;
-            }
-            catch (JSException)
-            {
-                _chartsPending = false;
-            }
+            await Js.InvokeVoidAsync("trackarrHistoryCharts.renderSpark", "spark-searches", "bar",
+                _data.Activity.Select(p => p.SearchesPushed).ToArray(), "#7738e9");
+            await Js.InvokeVoidAsync("trackarrHistoryCharts.renderSpark", "spark-cascaded", "line",
+                _data.Activity.Select(p => p.Cascaded).ToArray(), "#4299e1");
+            await Js.InvokeVoidAsync("trackarrHistoryCharts.renderSpark", "spark-abandoned", "line",
+                _data.Activity.Select(p => p.Abandoned).ToArray(), "#d63939");
+            await Js.InvokeVoidAsync("trackarrHistoryCharts.renderSpark", "spark-resolved", "area",
+                _data.Activity.Select(p => p.Resolved).ToArray(), "#2fb344");
+        }
+        catch (JSException)
+        {
+        }
     }
 
     private async Task LoadAsync()
@@ -78,33 +168,35 @@ public partial class History : ComponentBase
 
         var filter = new HistoryFilter
         {
-            From = _fromDate,
-            To = _toDate,
-            ServerId = _serverFilter,
-            MediaType = _typeFilter
+            From = _fromDate, To = _toDate, ServerId = _serverFilter, MediaType = _typeFilter
         };
 
         _data = await HistoryService.GetHistoryAsync(filter);
         _servers = _data.Servers;
-        _mediaTypes = _data.Rows
-            .Select(row => row.MediaType.ToString())
+        _mediaTypes = _data.Rows.Select(row => row.MediaType.ToString())
             .Where(value =>
                 !string.Equals(value, TrackedMediaType.Unknown.ToString(), StringComparison.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(value => value)
-            .ToList();
+            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value).ToList();
 
-        _statuses = _data.Rows
-            .Select(row => row.Status)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(value => value)
-            .ToList();
+        _statuses = _data.Rows.Select(row => row.Status).Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value).ToList();
 
         IsLoading = false;
         _chartsPending = true;
 
         await InvokeAsync(StateHasChanged);
+    }
+
+    private object SearchActivityChartPayload()
+    {
+        return new
+        {
+            labels = _data.Activity.Select(p => p.Date.ToString("MMM d", CultureInfo.InvariantCulture)).ToArray(),
+            searches = _data.Activity.Select(p => p.SearchesPushed).ToArray(),
+            cascaded = _data.Activity.Select(p => p.Cascaded).ToArray(),
+            abandoned = _data.Activity.Select(p => p.Abandoned).ToArray(),
+            resolved = _data.Activity.Select(p => p.Resolved).ToArray()
+        };
     }
 
     private async Task OnFromDateChanged(ChangeEventArgs args)
@@ -137,16 +229,17 @@ public partial class History : ComponentBase
         await LoadAsync();
     }
 
-    private Task OnStatusChanged(ChangeEventArgs args)
-    {
-        _statusFilter = string.IsNullOrWhiteSpace(args.Value?.ToString()) ? null : args.Value.ToString();
-        return InvokeAsync(StateHasChanged);
-    }
-
     private void SetTab(HistoryTab tab)
     {
         _activeTab = tab;
-        _tableInitialized = false;
+        _page = 1;
+    }
+
+    private Task OnStatusChanged(ChangeEventArgs args)
+    {
+        _statusFilter = string.IsNullOrWhiteSpace(args.Value?.ToString()) ? null : args.Value.ToString();
+        _page = 1;
+        return InvokeAsync(StateHasChanged);
     }
 
     private string TabClass(HistoryTab tab)
@@ -288,4 +381,6 @@ public partial class History : ComponentBase
             _ => "bg-secondary"
         };
     }
+
+    private record SeriesLegend(string Label, string Color, int Total);
 }
