@@ -6,7 +6,10 @@ namespace Trackarr.Components.Modals;
 
 public partial class AddServerModal : ComponentBase
 {
+    private string _autoRemove = "";
+    private string _monitorQueue = "";
     private DotNetObjectReference<AddServerModal>? _ref;
+    private string _searchMissing = "";
     private bool _showApiKey;
     [Parameter] public ServiceType ServiceType { get; set; }
     [Parameter] public EventCallback OnSaved { get; set; }
@@ -20,8 +23,9 @@ public partial class AddServerModal : ComponentBase
     private bool IsSaving { get; set; }
     private bool IsBusy => IsTesting || IsSaving;
 
-    private bool IsValid => !string.IsNullOrWhiteSpace(Model.Name) && !string.IsNullOrWhiteSpace(Model.Host) &&
-                            Model.Port > 0 && !string.IsNullOrWhiteSpace(Model.ApiKey);
+    private bool IsValid =>
+        !string.IsNullOrWhiteSpace(Model.Name) && !string.IsNullOrWhiteSpace(Model.Host) && Model.Port > 0 &&
+        !string.IsNullOrWhiteSpace(Model.ApiKey);
 
     private bool CanSave => IsValid && TestResult is { Item1: true } && !IsBusy;
     private List<QualityProfile>? Profiles { get; set; } = [];
@@ -58,6 +62,7 @@ public partial class AddServerModal : ComponentBase
         TestResult = null;
         _showApiKey = false;
         HasProfiles = false;
+        SyncBehaviorFromModel();
 
         await InvokeAsync(StateHasChanged);
 
@@ -68,6 +73,7 @@ public partial class AddServerModal : ComponentBase
     {
         ServiceType = server.ServiceType;
         Model = server.Clone();
+        SyncBehaviorFromModel();
         if (server.FallBackProfileId != null)
         {
             Profiles = await ServerService.GetProfilesAsync(server);
@@ -156,8 +162,23 @@ public partial class AddServerModal : ComponentBase
         await Js.InvokeVoidAsync("initTooltips");
     }
 
+    private void SyncBehaviorFromModel()
+    {
+        _monitorQueue = Model.MonitorQueue?.ToString() ?? "";
+        _autoRemove = Model.AutoRemoveDownloads?.ToString() ?? "";
+        _searchMissing = Model.SearchMissing?.ToString() ?? "";
+    }
+
+    private void SyncBehaviorToModel()
+    {
+        Model.MonitorQueue = string.IsNullOrEmpty(_monitorQueue) ? null : bool.Parse(_monitorQueue);
+        Model.AutoRemoveDownloads = string.IsNullOrEmpty(_autoRemove) ? null : bool.Parse(_autoRemove);
+        Model.SearchMissing = string.IsNullOrEmpty(_searchMissing) ? null : bool.Parse(_searchMissing);
+    }
+
     private async Task Save()
     {
+        SyncBehaviorToModel();
         IsSaving = true;
         if (IsEditing)
             await ServerService.UpdateServerAsync(Model);

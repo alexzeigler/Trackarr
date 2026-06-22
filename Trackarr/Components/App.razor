@@ -1,4 +1,6 @@
-﻿@inject IJSRuntime Js
+﻿@using Trackarr.Services.Settings
+@inject IJSRuntime Js
+@inject SettingsService SettingsService
 
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
@@ -7,6 +9,7 @@
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <base href="/"/>
+    <title>@SettingsService.GetString("General", "AppName", "Trackarr")</title>
 
     <ResourcePreloader/>
     <link rel="preconnect" href="https://rsms.me/">
@@ -42,6 +45,8 @@
 <script src="/js/bootstrapHelper.js"></script>
 <script src="/js/trackarr-table-list.js"></script>
 <script src="/js/historyChart.js"></script>
+<script src="/js/queueChart.js"></script>
+<script src="/js/missingChart.js"></script>
 <script src="_content/Blazor.Bootstrap/blazor.bootstrap.js"></script>
 
 <script>

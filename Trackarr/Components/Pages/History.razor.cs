@@ -5,12 +5,13 @@ using Trackarr.Core.Health;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
+using Trackarr.Services.Settings;
+using static Trackarr.Utils;
 
 namespace Trackarr.Components.Pages;
 
 public partial class History : ComponentBase
 {
-    private const int PageSize = 25;
     private HistoryTab _activeTab = HistoryTab.DownloadEvents;
     private bool _chartsPending;
 
@@ -31,6 +32,16 @@ public partial class History : ComponentBase
     private bool _tableInitialized;
     private DateTime _toDate = DateTime.Today;
     private string? _typeFilter;
+    [Inject] private SettingsService Settings { get; set; } = null!;
+    private int PageSize => Settings.GetInt("Display", "HistoryPageSize", 25);
+
+    private string TableDensityClass =>
+        Settings.GetString("Display", "TableDensity", "normal") switch
+        {
+            "compact" => "table-density-compact",
+            "comfortable" => "table-density-comfortable",
+            _ => ""
+        };
 
     private IEnumerable<HistoryRow> TabRows =>
         _data.Rows.Where(r => r.Tab == _activeTab)
@@ -317,14 +328,7 @@ public partial class History : ComponentBase
 
     private static string TypeBadgeClass(TrackedMediaType type)
     {
-        return type.ToString() switch
-        {
-            "Movie" => "badge bg-purple-lt text-purple",
-            "Episode" => "badge bg-blue-lt text-blue",
-            "Series" => "badge bg-indigo-lt text-indigo",
-            "Season" => "badge bg-indigo-lt text-indigo",
-            _ => "badge bg-secondary-lt text-secondary"
-        };
+        return MediaTypeBadgeClass(type.ToString());
     }
 
     private static string StatusBadgeClass(string status)

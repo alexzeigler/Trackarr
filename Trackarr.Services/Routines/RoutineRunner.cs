@@ -61,6 +61,25 @@ public sealed class RoutineRunner(
         Enqueue(key);
     }
 
+    public bool IsQueued(string key)
+    {
+        return _manualQueue.Contains(key);
+    }
+
+    public RoutineDefinition? GetDefinition(string key)
+    {
+        return _routines.FirstOrDefault(x => x.Key == key);
+    }
+
+    public async Task ForceResetAsync(string key)
+    {
+        var routine = _routines.FirstOrDefault(x => x.Key == key);
+        if (routine is null) return;
+
+        routine.IsRunning = false;
+        await routineService.UpdateDefinitionAsync(routine);
+    }
+
     private async Task ExecuteRoutineAsync(RoutineDefinition routine, CancellationToken cancellationToken)
     {
         var handler = handlers.FirstOrDefault(x => x.Key == routine.Key);
@@ -79,10 +98,7 @@ public sealed class RoutineRunner(
         {
             routine.IsRunning = true;
             await routineService.UpdateDefinitionAsync(routine, cancellationToken);
-            await eventService.LogAsync($"Task '{routine.Name}' started.",
-                routine.Key,
-                LogLevel.Information,
-                null,
+            await eventService.LogAsync($"Task '{routine.Name}' started.", routine.Key, LogLevel.Information, null,
                 cancellationToken);
             if (handler != null)
             {
@@ -99,10 +115,7 @@ public sealed class RoutineRunner(
                 run.State = RoutineState.Success;
 
                 await eventService.LogAsync($"Task '{routine.Name}' completed in {routine.LastRunTime}ms. {msg}",
-                    routine.Key,
-                    LogLevel.Information,
-                    null,
-                    cancellationToken);
+                    routine.Key, LogLevel.Information, null, cancellationToken);
             }
         }
         catch (Exception ex)
@@ -118,17 +131,14 @@ public sealed class RoutineRunner(
             run.State = RoutineState.Failed;
             run.ErrorMessage = ex.Message;
 
-            await eventService.LogAsync($"Routine '{routine.Name}' failed: {ex.Message}",
-                routine.Key,
-                LogLevel.Error,
-                ex.ToString(),
-                cancellationToken);
+            await eventService.LogAsync($"Routine '{routine.Name}' failed: {ex.Message}", routine.Key, LogLevel.Error,
+                ex.ToString(), cancellationToken);
         }
         finally
         {
             routine.IsRunning = false;
-            await routineService.SaveRunAsync(run, cancellationToken);
-            await routineService.UpdateDefinitionAsync(routine, cancellationToken);
+            await routineService.SaveRunAsync(run);
+            await routineService.UpdateDefinitionAsync(routine);
         }
     }
 }

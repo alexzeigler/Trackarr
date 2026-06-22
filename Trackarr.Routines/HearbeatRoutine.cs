@@ -15,7 +15,7 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
 
     public override async Task<string> ExecuteAsync(CancellationToken cancellationToken)
     {
-        var servers = await mediaServerService.GetAllServersAsync();
+        var servers = (await mediaServerService.GetAllServersAsync()).Where(s => s.IsEnabled).ToList();
 
         foreach (var server in servers)
             try

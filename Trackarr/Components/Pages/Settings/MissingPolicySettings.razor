@@ -1,0 +1,119 @@
+@page "/settings/missing"
+@using Trackarr.Core.UI
+@using Trackarr.Services.Settings
+@layout SettingsLayout
+@inject SettingsService SettingsService
+
+<div class="subheader mb-2">Missing Media Search Policy</div>
+<p class="text-muted mb-4">Configure how Trackarr searches for missing media on your servers.</p>
+
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label">Search Cooldown</label>
+                <div class="input-group">
+                    <input type="number"
+                           class="form-control"
+                           min="1"
+                           max="1440"
+                           @bind="_cooldownMinutes"
+                           @bind:after="MarkDirty"/>
+                    <span class="input-group-text">minutes</span>
+                </div>
+                <div class="form-text">Minimum time between search attempts for the same item. Prevents hammering your
+                    indexers.
+                </div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Max Failed Searches</label> <input type="number"
+                                                                             class="form-control"
+                                                                             min="1"
+                                                                             max="50"
+                                                                             @bind="_maxFailed"
+                                                                             @bind:after="MarkDirty"/>
+                <div class="form-text">Number of failed searches before falling back to a lower quality profile.</div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Max Episode Cascade</label> <input type="number"
+                                                                             class="form-control"
+                                                                             min="1"
+                                                                             max="50"
+                                                                             @bind="_maxCascade"
+                                                                             @bind:after="MarkDirty"/>
+                <div class="form-text">Maximum number of episodes to cascade search within a single series evaluation.
+                </div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Abandon After</label>
+                <div class="input-group">
+                    <input type="number"
+                           class="form-control"
+                           min="1"
+                           max="100"
+                           @bind="_abandonAfter"
+                           @bind:after="MarkDirty"/>
+                    <span class="input-group-text">failures</span>
+                </div>
+                <div class="form-text">Total failures before Trackarr stops searching for an item entirely.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private SettingsPageContext Context { get; set; } = null!;
+
+    private int _cooldownMinutes;
+    private int _maxFailed;
+    private int _maxCascade;
+    private int _abandonAfter;
+
+    private int _origCooldownMinutes;
+    private int _origMaxFailed;
+    private int _origMaxCascade;
+    private int _origAbandonAfter;
+
+    protected override void OnInitialized()
+    {
+        LoadValues();
+        Context.SaveAsync = SaveAsync;
+        Context.DiscardAsync = DiscardAsync;
+    }
+
+    private void LoadValues()
+    {
+        _cooldownMinutes = SettingsService.GetInt("MissingPolicy", "SearchCooldownMinutes", 10);
+        _maxFailed = SettingsService.GetInt("MissingPolicy", "MaxFailedSearches", 3);
+        _maxCascade = SettingsService.GetInt("MissingPolicy", "MaxEpisodeCascade", 3);
+        _abandonAfter = SettingsService.GetInt("MissingPolicy", "AbandonAfter", 5);
+
+        _origCooldownMinutes = _cooldownMinutes;
+        _origMaxFailed = _maxFailed;
+        _origMaxCascade = _maxCascade;
+        _origAbandonAfter = _abandonAfter;
+    }
+
+    private void MarkDirty()
+    {
+        Context.HasChanges = _cooldownMinutes != _origCooldownMinutes || _maxFailed != _origMaxFailed || _maxCascade != _origMaxCascade || _abandonAfter != _origAbandonAfter;
+        Context.NotifyChanged();
+    }
+
+    private async Task SaveAsync()
+    {
+        await SettingsService.SaveCategoryAsync("MissingPolicy", new Dictionary<string, string> { ["SearchCooldownMinutes"] = _cooldownMinutes.ToString(), ["MaxFailedSearches"] = _maxFailed.ToString(), ["MaxEpisodeCascade"] = _maxCascade.ToString(), ["AbandonAfter"] = _abandonAfter.ToString() });
+        LoadValues();
+    }
+
+    private Task DiscardAsync()
+    {
+        _cooldownMinutes = _origCooldownMinutes;
+        _maxFailed = _origMaxFailed;
+        _maxCascade = _origMaxCascade;
+        _abandonAfter = _origAbandonAfter;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+}

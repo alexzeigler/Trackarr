@@ -1,18 +1,44 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject NavigationManager Nav
+@inject AppStateService AppState
+@implements IDisposable
 
-<div class="page">
+<div class="app-shell">
     <AppSidebar/>
-    <main class="page-wrapper">
-        <section class="page-body p-3">
-            @Body
+    <div class="app-main">
+        <AppTopbar/>
+        <section class="app-content">
+            <div class="container-xl">
+                @Body
+            </div>
         </section>
-    </main>
+    </div>
 </div>
 
 <div id="blazor-error-ui" class="blazor-error-modal" data-nosnippet>
     <div class="blazor-error-card">
         <h3>An unhandled error has occurred</h3>
         <p>The application needs to reload to continue.</p>
-        <a href="." class="reload btn btn-primary">Reload</a>
+        <a href="." class="reload btn btn-app-primary">Reload</a>
     </div>
 </div>
+
+@code {
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        AppState.UpdateRoute(Nav.Uri);
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        AppState.UpdateRoute(e.Location);
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+
+}

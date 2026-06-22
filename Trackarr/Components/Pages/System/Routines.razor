@@ -1,4 +1,4 @@
-﻿@page "/system/routines"
+@page "/system/routines"
 @using Trackarr.Core.Routine
 @using Trackarr.Services.Routines
 @using static Utils;
@@ -6,230 +6,233 @@
 
 <PageTitle>Routines</PageTitle>
 
-<div class="page-header d-print-none m-0">
-    <div class="row g-2 align-items-center">
-        <div class="col-auto ms-auto d-print-none">
-            <button type="button" class="btn btn-primary" @onclick="Refresh">
-                <i class="ti ti-refresh me-2"></i> Refresh
-            </button>
-        </div>
-    </div>
-</div>
+<div class="d-flex flex-column gap-3">
+    <div class="card app-card">
+        <div class="card-header">
+            <div class="d-flex flex-wrap align-items-center gap-2 w-100">
+                <div class="ms-auto d-flex flex-wrap btn-list">
+                    @if (HasActiveFilters)
+                    {
+                        <button class="btn btn-app-ghost" @onclick="ClearFilters">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 width="16"
+                                 height="16"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 class="icon m-0 me-1">
+                                <path d="M18 6l-12 12"/>
+                                <path d="M6 6l12 12"/>
+                            </svg>
+                            Clear
+                        </button>
+                    }
 
-<div class="page-body">
-    <div class="row row-cards mb-3">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card app-card">
-                <div class="card-body">
-                    <div class="subheader">Enabled</div>
-                    <div class="h1 mb-0">@EnabledCount</div>
+                    <select class="form-select w-auto" value="@_statusFilter" @onchange="OnStatusFilterChanged">
+                        <option value="">All Statuses</option>
+                        <option value="Running">Running</option>
+                        <option value="Queued">Queued</option>
+                        <option value="Enabled">Enabled</option>
+                        <option value="Paused">Paused</option>
+                        <option value="Disabled">Disabled</option>
+                        <option value="Failed">Failed</option>
+                    </select>
+
+                    <button type="button" class="btn btn-app-primary" @onclick="RunAll">
+                        <i class="ti ti-player-play me-1"></i> Run All
+                    </button>
+
+                    <div class="input-group input-group-flat w-auto">
+                        <span class="input-group-text">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 width="24"
+                                 height="24"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 class="icon icon-1">
+                                <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"></path>
+                                <path d="M21 21l-6 -6"></path>
+                            </svg>
+                        </span>
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               autocomplete="off"
+                               placeholder="Search routines..."
+                               value="@_search"
+                               @oninput="OnSearchChanged"/>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-sm-6 col-lg-3">
-            <div class="card app-card">
-                <div class="card-body">
-                    <div class="subheader">Running</div>
-                    <div class="h1 mb-0">@RunningCount</div>
-                </div>
-            </div>
+        <div class="table-responsive">
+            <table class="table table-vcenter table-nowrap">
+                <thead>
+                <tr>
+                    <th>
+                        <button class="@SortClass("name")" @onclick='() => SortBy("name")'>Routine</button>
+                    </th>
+                    <th style="width: 100px">
+                        <button class="@SortClass("status")" @onclick='() => SortBy("status")'>Status</button>
+                    </th>
+                    <th style="width: 80px">
+                        <button class="@SortClass("interval")" @onclick='() => SortBy("interval")'>Interval</button>
+                    </th>
+                    <th style="width: 100px" class="text-end">
+                        <button class="@SortClass("lastRun")" @onclick='() => SortBy("lastRun")'>Last Run</button>
+                    </th>
+                    <th style="width: 100px" class="text-end">
+                        <button class="@SortClass("nextRun")" @onclick='() => SortBy("nextRun")'>Next Run</button>
+                    </th>
+                    <th style="width: 90px">
+                        <button class="@SortClass("result")" @onclick='() => SortBy("result")'>Result</button>
+                    </th>
+                    <th class="w-1"></th>
+                </tr>
+                </thead>
+                <tbody class="table-tbody">
+                @if (IsLoading)
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm me-2"></div>
+                            Loading routines
+                        </td>
+                    </tr>
+                }
+                else if (!FilteredRoutines.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">No routines found</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var routine in FilteredRoutines)
+                    {
+                        <tr @key="routine.Key">
+                            <td>
+                                <div class="fw-semibold">@routine.Name</div>
+                                @if (!string.IsNullOrWhiteSpace(routine.Description))
+                                {
+                                    <div class="text-secondary small">@routine.Description</div>
+                                }
+                            </td>
+                            <td>
+                                @{ var queued = RoutineRunner.IsQueued(routine.Key); }
+                                <span class="@RoutineStatusBadge(routine, queued)">
+                                    @RoutineStatusText(routine, queued)
+                                </span>
+                            </td>
+                            <td>@IntervalText(routine.IntervalSeconds)</td>
+                            <td class="text-end text-secondary">@TimeAgo(routine.LastRun)</td>
+                            <td class="text-end text-secondary">@TimeAgo(routine.NextRun)</td>
+                            <td>
+                                <span class="@RoutineResultClass(routine)">
+                                    @RoutineResultText(routine)
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-list flex-nowrap">
+                                    @if (routine.IsRunning)
+                                    {
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => ForceReset(routine.Key)">
+                                            Force Stop
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <div class="btn-list flex-nowrap">
+                                            <button type="button"
+                                                    class="btn btn-sm btn-app-primary"
+                                                    @onclick="() => RunRoutine(routine.Key)">
+                                                Run
+                                            </button>
+                                            <button type="button"
+                                                    class="btn btn-sm @(routine.IsPaused ? "btn-success" : "btn-warning")"
+                                                    @onclick="() => TogglePaused(routine)">
+                                                @(routine.IsPaused ? "Resume" : "Pause")
+                                            </button>
+                                            <button type="button"
+                                                    class="btn btn-sm @(routine.Enabled ? "btn-danger" : "btn-app-primary")"
+                                                    @onclick="() => ToggleEnabled(routine)">
+                                                @(routine.Enabled ? "Disable" : "Enable")
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
         </div>
 
-        <div class="col-sm-6 col-lg-3">
-            <div class="card app-card">
-                <div class="card-body">
-                    <div class="subheader">Paused</div>
-                    <div class="h1 mb-0">@PausedCount</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-lg-3">
-            <div class="card app-card">
-                <div class="card-body">
-                    <div class="subheader">Failed</div>
-                    <div class="h1 mb-0">@FailedCount</div>
-                </div>
-            </div>
+        <div class="card-footer d-flex align-items-center justify-content-end">
+            <div class="fw-semibold">@FilteredRoutines.Count() of @_routines.Count routines</div>
         </div>
     </div>
 
     <div class="card app-card">
         <div class="card-header">
-            <div>
-                <h3 class="card-title">Routine Status</h3>
-                <div class="text-muted small">Background jobs and scheduled Trackarr tasks</div>
-            </div>
-
-            <div class="ms-auto d-flex flex-wrap gap-2">
-                <div class="input-icon">
-                    <span class="input-icon-addon">
-                        <i class="ti ti-search"></i>
-                    </span>
-                    <input class="form-control"
-                           style="width: 260px"
-                           placeholder="Search routines"
-                           @bind="_search"
-                           @bind:event="oninput"/>
-                </div>
-
-                <select class="form-select w-auto" @bind="_statusFilter">
-                    <option value="">All statuses</option>
-                    <option value="Running">Running</option>
-                    <option value="Enabled">Enabled</option>
-                    <option value="Paused">Paused</option>
-                    <option value="Disabled">Disabled</option>
-                    <option value="Failed">Failed</option>
-                </select>
-            </div>
+            <h3 class="card-title">Recent Runs</h3>
         </div>
 
-        <div class="card-table">
-            <div class="table-responsive">
-                <table class="table table-vcenter table-nowrap card-table">
-                    <thead>
+        <div class="table-responsive">
+            <table class="table table-vcenter table-nowrap">
+                <thead>
+                <tr>
+                    <th>Routine</th>
+                    <th style="width: 100px">Duration</th>
+                    <th style="width: 100px" class="text-end">Started</th>
+                    <th style="width: 100px" class="text-end">Completed</th>
+                    <th style="width: 80px">Status</th>
+                    <th>Message</th>
+                </tr>
+                </thead>
+                <tbody class="table-tbody">
+                @if (!RecentRuns.Any())
+                {
                     <tr>
-                        <th>Routine</th>
-                        <th>Status</th>
-                        <th>Interval</th>
-                        <th>Last Run</th>
-                        <th>Next Run</th>
-                        <th>Last Result</th>
-                        <th class="w-1"></th>
+                        <td colspan="6" class="text-center text-muted py-4">No routine runs found</td>
                     </tr>
-                    </thead>
-                    <tbody>
-                    @if (IsLoading)
+                }
+                else
+                {
+                    @foreach (var run in RecentRuns)
                     {
-                        <tr>
-                            <td colspan="7" class="text-center text-muted py-4">
-                                <div class="spinner-border spinner-border-sm me-2"></div>
-                                Loading routines
+                        <tr @key="run.Id">
+                            <td class="fw-semibold">@(_routines.FirstOrDefault(x => x.Id == run.RoutineDefinitionId)?.Name ?? "—")</td>
+                            <td>@DurationText(run.StartTime, run.EndTime)</td>
+                            <td class="text-end text-secondary">@TimeAgo(run.StartTime)</td>
+                            <td class="text-end text-secondary">@TimeAgo(run.EndTime)</td>
+                            <td>
+                                <span class="badge @(run.State == RoutineState.Success ? "bg-success-lt text-success" : "bg-danger-lt text-danger")">
+                                    @(run.State == RoutineState.Success ? "Success" : "Failed")
+                                </span>
+                            </td>
+                            <td class="text-secondary" style="max-width: 520px">
+                                @TextDisplay(run.ErrorMessage)
                             </td>
                         </tr>
                     }
-                    else if (!FilteredRoutines.Any())
-                    {
-                        <tr>
-                            <td colspan="7" class="text-center text-muted py-4">No routines found</td>
-                        </tr>
-                    }
-                    else
-                    {
-                        @foreach (var routine in FilteredRoutines)
-                        {
-                            <tr>
-                                <td>
-                                    <div class="fw-semibold">@routine.Name</div>
-                                    <div class="text-muted small">@routine.Description</div>
-                                    <div class="text-muted small font-monospace">@routine.Key</div>
-                                </td>
-                                <td>
-                                    <span class="badge @RoutineStatusBadge(routine)">
-                                        @RoutineStatusText(routine)
-                                    </span>
-                                </td>
-                                <td>@IntervalText(routine.IntervalSeconds)</td>
-                                <td>@TimeAgo(routine.LastRun)</td>
-                                <td>@TimeAgo(routine.NextRun)</td>
-                                <td>
-                                    <span class="@RoutineResultClass(routine)">
-                                        @RoutineResultText(routine)
-                                    </span>
-                                </td>
-                                <td>
-                                    <div class="btn-list flex-nowrap">
-                                        @if (routine.IsRunning)
-                                        {
-                                            <button type="button" class="btn btn-sm btn-outline-primary" disabled>
-                                                <i class="ti ti-refresh spinner me-1"></i>
-                                            </button>
-                                        }
-                                        else
-                                        {
-                                            <div class="btn-list flex-nowrap">
-                                                <button type="button"
-                                                        class="btn btn-sm btn-primary"
-                                                        @onclick="() => RunRoutine(routine.Key)">
-                                                    <i class="ti ti-player-play me-1"></i> Run Now
-                                                </button>
-
-                                                <button type="button"
-                                                        class="btn btn-sm @(routine.IsPaused ? "btn-success" : "btn-warning")"
-                                                        @onclick="() => TogglePaused(routine)">
-                                                    @(routine.IsPaused ? "Resume" : "Pause")
-                                                </button>
-
-                                                <button type="button"
-                                                        class="btn btn-sm @(routine.Enabled ? "btn-danger" : "btn-primary")"
-                                                        @onclick="() => ToggleEnabled(routine)">
-                                                    @(routine.Enabled ? "Disable" : "Enable")
-                                                </button>
-                                            </div>
-                                        }
-                                    </div>
-                                </td>
-                            </tr>
-                        }
-                    }
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <div class="card app-card mt-3">
-        <div class="card-header">
-            <div>
-                <h3 class="card-title">Recent Runs</h3>
-                <div class="text-muted small">Latest routine activity</div>
-            </div>
+                }
+                </tbody>
+            </table>
         </div>
 
-        <div class="card-table">
-            <div class="table-responsive">
-                <table class="table table-vcenter table-nowrap card-table">
-                    <thead>
-                    <tr>
-                        <th>Routine</th>
-                        <th>Execution Time</th>
-                        <th>Started</th>
-                        <th>Completed</th>
-                        <th>Status</th>
-                        <th>Message</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @if (!RecentRuns.Any())
-                    {
-                        <tr>
-                            <td colspan="5" class="text-center text-muted py-4">No routine runs found</td>
-                        </tr>
-                    }
-                    else
-                    {
-                        @foreach (var run in RecentRuns)
-                        {
-                            <tr>
-                                <td class="font-monospace">@FilteredRoutines.Where(x => x.Id == run.RoutineDefinitionId).FirstOrDefault()?.Name</td>
-                                <td>@DurationText(run.StartTime, run.EndTime)</td>
-                                <td>@TimeAgo(run.StartTime)</td>
-                                <td>@TimeAgo(run.EndTime)</td>
-                                <td>
-                                    <span class="badge @(run.State == RoutineState.Success ? "bg-success-lt" : "bg-danger-lt")">
-                                        @(run.State == RoutineState.Success ? "Success" : "Failed")
-                                    </span>
-                                </td>
-                                <td class="text-muted text-truncate" style="max-width: 520px">
-                                    @TextDisplay(run.ErrorMessage)
-                                </td>
-                            </tr>
-                        }
-                    }
-                    </tbody>
-                </table>
-            </div>
+        <div class="card-footer d-flex align-items-center justify-content-end">
+            <div class="fw-semibold">@RecentRuns.Count() of @_runs.Count runs</div>
         </div>
     </div>
 </div>

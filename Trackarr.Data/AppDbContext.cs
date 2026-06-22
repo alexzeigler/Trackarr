@@ -7,6 +7,7 @@ using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Routine;
 using Trackarr.Core.Server;
+using Trackarr.Core.Settings;
 
 namespace Trackarr.Data;
 
@@ -30,6 +31,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<QualityProfile> QualityProfiles { get; set; }
     public DbSet<MissingMediaRecord> MissingMedia { get; set; }
     public DbSet<MissingSearchEvent> SearchEvents { get; set; }
+    public DbSet<AppSetting> AppSettings { get; set; }
+    public DbSet<BlacklistEntry> Blacklist { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -408,6 +411,25 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             entity.HasIndex(e => new { e.ServerId, e.RemoteId, e.EpisodeId });
             entity.HasIndex(e => e.OccurredAt);
+        });
+
+        modelBuilder.Entity<AppSetting>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Category).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Key).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Value).IsRequired().HasMaxLength(4000);
+            entity.Property(e => e.Type).IsRequired().HasMaxLength(50);
+            entity.HasIndex(e => new { e.Category, e.Key }).IsUnique();
+        });
+
+        modelBuilder.Entity<BlacklistEntry>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Pattern).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.Type).HasConversion<string>().HasMaxLength(50);
+            entity.Property(e => e.Note).HasMaxLength(1000);
+            entity.HasIndex(e => e.Type);
         });
     }
 }

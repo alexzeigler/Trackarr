@@ -1,241 +1,364 @@
-﻿@page "/missing"
+@page "/missing"
 @using Trackarr.Components.Modals
+@using Trackarr.Core.UI
 @using static Utils
+@implements IAsyncDisposable
+
 <MediaDetailsModal @ref="_detailsModal"/>
 
 <div class="d-flex flex-column gap-3">
-    <div class="row g-3 w-100">
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card stat-card">
+    <div class="subheader mt-2 mb-2">Missing Overview</div>
+    <div class="row row-cards mb-3">
+        <div class="col-sm-6 col-xl-2">
+            <div class="card app-card">
                 <div class="card-body">
-                    <div class="stat-icon stat-icon-primary">
-                        <i class="ti ti-movie-off"></i>
-                    </div>
-                    <div>
-                        <div class="stat-label">Missing</div>
-                        <div class="stat-value">@TotalMissingCount</div>
-                    </div>
+                    <div class="subheader mb-2">Total Missing</div>
+                    <div class="h1 mb-0">@FormatNumber(_pageData.Stats.TotalMissing)</div>
                 </div>
             </div>
         </div>
 
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card stat-card">
+        <div class="col-sm-6 col-xl-2">
+            <div class="card app-card">
                 <div class="card-body">
-                    <div class="stat-icon stat-icon-warning">
-                        <i class="ti ti-search"></i>
-                    </div>
-                    <div>
-                        <div class="stat-label">Search Ready</div>
-                        <div class="stat-value">@SearchReadyCount</div>
-                    </div>
+                    <div class="subheader mb-2">Search Ready</div>
+                    <div class="h1 mb-0">@FormatNumber(_pageData.Stats.SearchReady)</div>
                 </div>
             </div>
         </div>
 
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card stat-card">
+        <div class="col-sm-6 col-xl-2">
+            <div class="card app-card">
                 <div class="card-body">
-                    <div class="stat-icon stat-icon-purple">
-                        <i class="ti ti-arrow-down-circle"></i>
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="subheader">Searches (24h)</div>
+                        @if (_pageData.Stats.SearchesPushed24H > 0)
+                        {
+                            <div class="ms-auto d-flex align-items-center @SearchTrendDisplay.Class">
+                                <i class="@SearchTrendDisplay.Icon"></i>
+                            </div>
+                        }
                     </div>
-                    <div>
-                        <div class="stat-label">Fallback Lowered</div>
-                        <div class="stat-value">@FallbackLoweredCount</div>
-                    </div>
+                    <div class="h1 mb-0">@FormatNumber(_pageData.Stats.SearchesPushed24H)</div>
                 </div>
             </div>
         </div>
 
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card stat-card">
+        <div class="col-sm-6 col-xl-2">
+            <div class="card app-card">
                 <div class="card-body">
-                    <div class="stat-icon stat-icon-danger">
-                        <i class="ti ti-alert-triangle"></i>
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="subheader">Resolved (24h)</div>
+                        @if (_pageData.Stats.Resolved24H > 0)
+                        {
+                            <div class="ms-auto d-flex align-items-center @ResolvedTrendDisplay.Class">
+                                <i class="@ResolvedTrendDisplay.Icon"></i>
+                            </div>
+                        }
                     </div>
-                    <div>
-                        <div class="stat-label">Failed Searches</div>
-                        <div class="stat-value">@FailedSearchCount</div>
-                    </div>
+                    <div class="h1 mb-0">@FormatNumber(_pageData.Stats.Resolved24H)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-2">
+            <div class="card app-card">
+                <div class="card-body">
+                    <div class="subheader mb-2">Failed Searches</div>
+                    <div class="h1 mb-0">@FormatNumber(_pageData.Stats.FailedSearches)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-2">
+            <div class="card app-card">
+                <div class="card-body">
+                    <div class="subheader mb-2">Abandoned</div>
+                    <div class="h1 mb-0">@FormatNumber(_pageData.Stats.Abandoned)</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <AppTable TItem="MissingMediaRow"
-              Items="_missingRows"
-              PageSize="PageSize"
-              EmptyColspan="10"
-              EmptyText="No missing media found"
-              DefaultSort="firstSeen"
-              SearchPredicate="MatchesSearch"
-              SortSelectors="MissingSorts">
-        <ToolbarTemplate>
-            <button class="btn btn-app-ghost" @onclick="RefreshAsync" disabled="@IsRefreshing">
-                <svg xmlns="http://www.w3.org/2000/svg"
-                     width="20"
-                     height="20"
-                     viewBox="0 0 24 24"
-                     fill="none"
-                     stroke="currentColor"
-                     stroke-width="2"
-                     stroke-linecap="round"
-                     stroke-linejoin="round"
-                     class="icon icon-tabler icon-tabler-refresh m-0 @(IsRefreshing ? "spinner" : "")">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                    <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
-                    <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
-                </svg>
-            </button>
-        </ToolbarTemplate>
-
-        <HeaderTemplate>
-            <tr>
-                <AppTableColumn SortKey="name" Width="34%">
-                    Name
-                </AppTableColumn>
-
-                <AppTableColumn SortKey="server" Width="150px">
-                    Server
-                </AppTableColumn>
-
-                <AppTableColumn SortKey="tier" Width="120px">
-                    Tier
-                </AppTableColumn>
-
-                <AppTableColumn SortKey="state" Width="130px">
-                    State
-                </AppTableColumn>
-
-                <AppTableColumn SortKey="failed" Width="95px" TextEnd="true">
-                    Failed
-                </AppTableColumn>
-
-                <AppTableColumn SortKey="count" Width="95px" TextEnd="true">
-                    Missing
-                </AppTableColumn>
-
-                <AppTableColumn SortKey="fallback" Width="105px">
-                    Fallback
-                </AppTableColumn>
-
-                <AppTableColumn SortKey="firstSeen" Width="130px" TextEnd="true">
-                    First Missing
-                </AppTableColumn>
-
-                <AppTableColumn SortKey="lastSearch" Width="130px" TextEnd="true">
-                    Last Search
-                </AppTableColumn>
-
-                <AppTableColumn SortKey="lastEval" Width="130px" TextEnd="true">
-                    Last Evaluated
-                </AppTableColumn>
-                <AppTableColumn Width="135px" TextEnd="true"/>
-            </tr>
-        </HeaderTemplate>
-
-        <RowTemplate Context="row">
-            @{
-                var server = GetServer(row);
-                var movie = GetMovie(row);
-                var series = GetSeries(row);
-                var posterUrl = GetPosterUrl(row);
-                var title = GetTitle(row);
-                var subtitle = GetSubtitle(row);
-                var type = GetMissingType(row);
-                var state = GetStateDisplay(row);
-                var tier = GetTierDisplay(row);
-            }
-
-            <tr @key="row.Key">
-                <td class="border-secondary-subtle border">
-                    <div class="item-title-cell">
-                        @if (posterUrl != null)
-                        {
-                            <img src="@posterUrl" class="media-poster media-poster-md" alt=""/>
-                        }
-
-                        <div>
-                            <div class="item-title">@title</div>
-                            <div class="item-meta">
-                                <span class="app-badge app-badge-muted">@type</span>
-                                <span>@subtitle</span>
-                            </div>
+    @if (Settings.GetBool("Display", "ShowMissingCharts", true))
+    {
+        <div class="row row-cards mb-3">
+            <div class="col-lg-6">
+                <div class="card app-card h-100">
+                    <div class="card-header">
+                        <h3 class="card-title">Search Activity (Last 24h)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="missing-activity-chart" class="chart-lg"></div>
+                        <div class="mt-3">
+                            @foreach (var s in ActivityLegend)
+                            {
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="me-2"
+                                          style="display:inline-block;width:16px;height:0;border-top:3px solid @s.Color;border-radius:2px;"></span>
+                                    <div class="flex-fill">@s.Label</div>
+                                    <div class="text-secondary">@FormatNumber(s.Total)</div>
+                                </div>
+                            }
                         </div>
                     </div>
-                </td>
+                </div>
+            </div>
 
-                <td class="border-secondary-subtle border">
-                    @if (server != null)
+            <div class="col-lg-6">
+                <div class="card app-card h-100">
+                    <div class="card-header">
+                        <h3 class="card-title">State Breakdown</h3>
+                    </div>
+                    <div class="card-body">
+                        <ChartHost Id="missing-state-chart" Class="chart-lg"/>
+                        <div class="mt-3">
+                            @foreach (var item in _pageData.StateBreakdown)
+                            {
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="badge @StateDotClass(item.Label) me-2">&nbsp;</span>
+                                    <div class="flex-fill">@item.Label</div>
+                                    <div class="text-secondary">@FormatNumber(item.Count) (@FormatPercent(item.Percent))</div>
+                                </div>
+                            }
+                            @if (_pageData.StateBreakdown.Count == 0)
+                            {
+                                <div class="empty">
+                                    <div class="empty-icon"><i class="ti ti-chart-pie"></i></div>
+                                    <p class="empty-title">No missing data</p>
+                                </div>
+                            }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    }
+
+    <div class="card app-card">
+        <div class="card-header">
+            <div class="d-flex flex-wrap align-items-center gap-2 w-100">
+                <div class="ms-auto d-flex flex-wrap btn-list">
+                    @if (HasActiveFilters)
                     {
-                        <div class="d-flex align-items-center gap-2">
-                            @GetServerIcon(server.ServiceType)
-                            <span class="fw-semibold">@TextDisplay(server.Name)</span>
-                        </div>
-                    }
-                    else
-                    {
-                        <span class="text-muted">@TextDisplay(null)</span>
-                    }
-                </td>
-
-
-                <td class="border-secondary-subtle border">
-                    <span class="@GetTierBadgeClass(row)">@tier</span>
-                </td>
-
-                <td class="border-secondary-subtle border">
-                    <span class="@GetStateBadgeClass(row) app-badge">@state</span>
-                </td>
-
-                <td class="fw-semibold text-end border-secondary-subtle border">
-                    @IntDisplay(row.FailedSearchCount)
-                </td>
-                <td class="fw-semibold text-end border-secondary-subtle border">
-                    @if (movie != null)
-                    {
-                        <span>@row.MissingCount movie</span>
-                    }
-                    else if (series != null)
-                    {
-                        <span>@row.MissingCount of @GetTotalEpisodeCount(row)</span>
-                    }
-                </td>
-
-                <td class="border-secondary-subtle border">
-                    @GetChecked(row.LoweredToFallback, 20)
-                </td>
-
-                <td class="fw-semibold text-end border-secondary-subtle border"
-                    title="@DateTimeDisplay(row.FirstSeenMissingAt)">
-                    @TimeAgo(row.FirstSeenMissingAt)
-                </td>
-
-                <td class="fw-semibold text-end border-secondary-subtle border"
-                    title="@DateTimeDisplay(row.LastSearchPushedAt)">
-                    @TimeAgo(row.LastSearchPushedAt)
-                </td>
-
-                <td class="fw-semibold text-end border-secondary-subtle border"
-                    title="@DateTimeDisplay(row.LastEvaluatedAt)">
-                    @TimeAgo(row.LastEvaluatedAt)
-                </td>
-                <td class="text-end border-secondary-subtle border">
-                    <div class="btn-group">
-                        <button class="btn btn-app-ghost text-white" @onclick="() => OpenDetailsAsync(row)">
-                            View
+                        <button class="btn btn-app-ghost" @onclick="ClearFilters">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 width="16"
+                                 height="16"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 class="icon m-0 me-1">
+                                <path d="M18 6l-12 12"/>
+                                <path d="M6 6l12 12"/>
+                            </svg>
+                            Clear
                         </button>
-                        <button data-bs-toggle="dropdown"
-                                type="button"
-                                class="btn btn-app-ghost dropdown-toggle dropdown-toggle-split text-white"
-                                aria-expanded="false"></button>
-                        <div class="dropdown-menu dropdown-menu-end">
-                            <a class="dropdown-item" href="#">Mark As...</a>
-                            <a class="dropdown-item text-status-failed" href="#">Remove</a>
-                        </div>
+                    }
+
+                    <select class="form-select w-auto" @onchange="OnStateFilterChanged">
+                        <option value="" selected="@(_stateFilter == null)">All States</option>
+                        @foreach (var state in AvailableStates)
+                        {
+                            <option value="@state" selected="@(_stateFilter == state)">@state</option>
+                        } </select>
+
+                    <select class="form-select w-auto" @onchange="OnServerFilterChanged">
+                        <option value="" selected="@(_serverFilter == null)">All Servers</option>
+                        @foreach (var server in _servers.Values.OrderBy(s => s.Name))
+                        {
+                            <option value="@server.Name"
+                                    selected="@(_serverFilter == server.Name)">@server.Name</option>
+                        } </select>
+
+                    <select class="form-select w-auto" @onchange="OnTypeFilterChanged">
+                        <option value="" selected="@(_typeFilter == null)">All Types</option>
+                        @foreach (var type in AvailableTypes)
+                        {
+                            <option value="@type" selected="@(_typeFilter == type)">@type</option>
+                        } </select>
+
+                    <button class="btn btn-app-ghost" @onclick="RefreshAsync" disabled="@IsRefreshing">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             width="20"
+                             height="20"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="2"
+                             stroke-linecap="round"
+                             stroke-linejoin="round"
+                             class="icon icon-tabler icon-tabler-refresh m-0 @(IsRefreshing ? "spinner" : "")">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                            <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+                            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+                        </svg>
+                    </button>
+
+                    <div class="input-group input-group-flat w-auto">
+                        <span class="input-group-text">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 width="24"
+                                 height="24"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 class="icon icon-1">
+                                <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"></path>
+                                <path d="M21 21l-6 -6"></path>
+                            </svg>
+                        </span>
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               autocomplete="off"
+                               placeholder="Search missing..."
+                               value="@_searchTerm"
+                               @oninput="OnSearchChanged">
                     </div>
-                </td>
-            </tr>
-        </RowTemplate>
-    </AppTable>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-vcenter table-nowrap @TableDensityClass">
+                <thead>
+                <tr>
+                    <th>
+                        <button class="@SortClass("name")" @onclick='() => SortBy("name")'>Name</button>
+                    </th>
+                    <th style="width: 130px">
+                        <button class="@SortClass("state")" @onclick='() => SortBy("state")'>State</button>
+                    </th>
+                    <th style="width: 95px" class="text-end">
+                        <button class="@SortClass("count")" @onclick='() => SortBy("count")'>Missing</button>
+                    </th>
+                    <th style="width: 100px" class="text-end">
+                        <button class="@SortClass("firstSeen")" @onclick='() => SortBy("firstSeen")'>Missing Since
+                        </button>
+                    </th>
+                    <th style="width: 100px" class="text-end">
+                        <button class="@SortClass("lastSearch")" @onclick='() => SortBy("lastSearch")'>Searched</button>
+                    </th>
+                    <th style="width: 80px"></th>
+                </tr>
+                </thead>
+                <tbody class="table-tbody">
+                @if (FilteredRows.Count == 0)
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">No missing media found</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var row in FilteredRows)
+                    {
+                        var server = GetServer(row);
+                        var movie = GetMovie(row);
+                        var series = GetSeries(row);
+                        var posterUrl = GetPosterUrl(row);
+                        var title = GetTitle(row);
+                        var type = GetMissingType(row);
+                        var state = GetStateDisplay(row);
+
+                        <tr @key="row.Key">
+                            <td>
+                                <div class="item-title-cell">
+                                    @if (posterUrl != null)
+                                    {
+                                        <img src="@posterUrl" class="media-poster media-poster-md" alt=""/>
+                                    }
+                                    <div>
+                                        <div class="item-title fw-semibold">@title</div>
+                                        <div class="item-meta">
+                                            <span class="@MediaTypeBadgeClass(type)">@type</span>
+                                            @if (row.IsEpisodeGroup)
+                                            {
+                                                <span class="text-secondary ms-2">@GetEpisodeSummary(row)</span>
+                                            }
+                                            @if (row.LoweredToFallback)
+                                            {
+                                                <span class="badge bg-warning-lt text-warning ms-2">Fallback</span>
+                                            }
+                                            @if (row.FailedSearchCount > 0)
+                                            {
+                                                <span class="text-danger ms-2">@row.FailedSearchCount failed</span>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td>
+                                <span class="@GetStateBadgeClass(row)">@state</span>
+                            </td>
+
+                            <td class="text-end">
+                                @if (movie != null)
+                                {
+                                    <span>1 movie</span>
+                                }
+                                else if (series != null)
+                                {
+                                    var total = GetTotalEpisodeCount(row);
+                                    <span>@row.MissingCount of @total</span>
+                                }
+                            </td>
+
+                            <td class="text-end text-secondary" title="@DateTimeDisplay(row.FirstSeenMissingAt)">
+                                @TimeAgo(row.FirstSeenMissingAt)
+                            </td>
+
+                            <td class="text-end text-secondary" title="@DateTimeDisplay(row.LastSearchPushedAt)">
+                                @TimeAgo(row.LastSearchPushedAt)
+                            </td>
+
+                            <td class="text-end">
+                                <div class="dropdown">
+                                    <button data-bs-toggle="dropdown"
+                                            type="button"
+                                            class="btn btn-app-ghost btn-sm"
+                                            aria-expanded="false">
+                                        <svg xmlns="http://www.w3.org/2000/svg"
+                                             width="16"
+                                             height="16"
+                                             viewBox="0 0 24 24"
+                                             fill="none"
+                                             stroke="currentColor"
+                                             stroke-width="2"
+                                             stroke-linecap="round"
+                                             stroke-linejoin="round"
+                                             class="icon m-0">
+                                            <path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/>
+                                            <path d="M12 19m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/>
+                                            <path d="M12 5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/>
+                                        </svg>
+                                    </button>
+                                    <div class="dropdown-menu dropdown-menu-end">
+                                        <button class="dropdown-item" @onclick="() => OpenDetailsAsync(row)">
+                                            View Details
+                                        </button>
+                                        <button class="dropdown-item">Mark As...</button>
+                                        <div class="dropdown-divider"></div>
+                                        <button class="dropdown-item text-danger">Remove</button>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-footer d-flex align-items-center justify-content-end">
+            <div class="fw-semibold">@FilteredRows.Count of @_missingRows.Count groups</div>
+        </div>
+    </div>
 </div>

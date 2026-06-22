@@ -1,10 +1,11 @@
 ﻿using Trackarr.Core.Routine;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
+using Trackarr.Services.Settings;
 
 namespace Trackarr.Tasks;
 
-public sealed class QueueRefreshRoutine(MediaServerService mediaServerService) : Routine
+public sealed class QueueRefreshRoutine(MediaServerService mediaServerService, SettingsService settings) : Routine
 {
     public override string Key { get; set; } = "queue_refresh";
     public override string Name { get; set; } = "Queue Refresh";
@@ -15,7 +16,8 @@ public sealed class QueueRefreshRoutine(MediaServerService mediaServerService) :
 
     public override async Task<string> ExecuteAsync(CancellationToken cancellationToken)
     {
-        var servers = await mediaServerService.GetAllServersAsync();
+        var servers = (await mediaServerService.GetAllServersAsync())
+            .Where(s => s.IsEnabled && settings.ShouldMonitorQueue(s)).OrderBy(s => s.Priority).ToList();
         var count = 0;
 
         foreach (var server in servers)
@@ -28,12 +30,11 @@ public sealed class QueueRefreshRoutine(MediaServerService mediaServerService) :
 
             count += items.Count;
 
-            await mediaServerService.UpdateServerStatsAsync(server.Id,
-                s =>
-                {
-                    s.LastQueueFetchAt = DateTime.UtcNow;
-                    s.LastQueueCount = items.Count;
-                });
+            await mediaServerService.UpdateServerStatsAsync(server.Id, s =>
+            {
+                s.LastQueueFetchAt = DateTime.UtcNow;
+                s.LastQueueCount = items.Count;
+            });
         }
 
         LastRunSuccess = true;

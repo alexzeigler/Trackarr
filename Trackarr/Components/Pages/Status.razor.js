@@ -1,5 +1,4 @@
-﻿export class Status {
-
+export class Status {
 }
 
 window.Status = Status;

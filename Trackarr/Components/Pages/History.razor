@@ -3,397 +3,389 @@
 @using Trackarr.Core.UI
 @using static Utils
 
-<div class="page-body">
-    <div class="card mb-3">
-        <div class="card-body">
-            <div class="row g-2 align-items-center">
-                <div class="col-md-2">
-                    <input type="date"
-                           class="form-control"
-                           value="@_fromDate.ToString("yyyy-MM-dd")"
-                           @onchange="OnFromDateChanged"/>
-                </div>
-
-                <div class="col-md-2">
-                    <input type="date"
-                           class="form-control"
-                           value="@_toDate.ToString("yyyy-MM-dd")"
-                           @onchange="OnToDateChanged"/>
-                </div>
-
-                <div class="col-md-2">
-                    <select class="form-select" @onchange="OnServerChanged">
-                        <option value="">All Servers</option>
-                        @foreach (var server in _servers)
-                        {
-                            <option value="@server.Id" selected="@(_serverFilter == server.Id)">@server.Name</option>
-                        } </select>
-                </div>
-
-                <div class="col-md-2">
-                    <select class="form-select" @onchange="OnTypeChanged">
-                        <option value="">All Categories</option>
-                        @foreach (var type in _mediaTypes)
-                        {
-                            <option value="@type" selected="@(_typeFilter == type)">@type</option>
-                        } </select>
-                </div>
-
-                <div class="col-md-2">
-                    <select class="form-select" @onchange="OnStatusChanged">
-                        <option value="">All Statuses</option>
-                        @foreach (var status in _statuses)
-                        {
-                            <option value="@status" selected="@(_statusFilter == status)">@status</option>
-                        } </select>
-                </div>
-
-                <div class="col-md-2">
-                    <div class="input-icon">
-                        <span class="input-icon-addon">
-                            <i class="ti ti-search"></i>
-                        </span>
-                        <input type="text"
-                               class="form-control"
-                               placeholder="Search history..."
-                               value="@_search"
-                               @oninput="OnSearchChanged"/>
-                    </div>
-                </div>
+<div class="card app-card mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-2">
+                <input type="date"
+                       class="form-control"
+                       value="@_fromDate.ToString("yyyy-MM-dd")"
+                       @onchange="OnFromDateChanged"/>
             </div>
-        </div>
-    </div>
-    <div class="subheader mt-2 mb-2">Acquisition Activity</div>
-    <div class="row row-cards mb-3">
-        <div class="col-sm-6 col-xl-3">
-            <div class="card">
-                <div class="card-body">
-                    <div class="subheader mb-2">Searches Pushed</div>
-                    <div class="h1 mb-3">@FormatNumber(_data.SearchStats.SearchesPushed)</div>
-                    <div id="spark-searches"></div>
-                </div>
+
+            <div class="col-md-2">
+                <input type="date"
+                       class="form-control"
+                       value="@_toDate.ToString("yyyy-MM-dd")"
+                       @onchange="OnToDateChanged"/>
             </div>
-        </div>
 
-        <div class="col-sm-6 col-xl-3">
-            <div class="card">
-                <div class="card-body">
-                    <div class="subheader mb-2">Cascaded to Episode</div>
-                    <div class="h1 mb-3">@FormatNumber(_data.SearchStats.Cascaded)</div>
-                    <div id="spark-cascaded"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-3">
-            <div class="card">
-                <div class="card-body">
-                    <div class="subheader mb-2">Abandoned</div>
-                    <div class="h1 mb-3">@FormatNumber(_data.SearchStats.Abandoned)</div>
-                    <div id="spark-abandoned"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-3">
-            <div class="card">
-                <div class="card-body">
-                    <div class="subheader mb-2">Resolved</div>
-                    <div class="h1 mb-3">@FormatNumber(_data.SearchStats.Resolved)</div>
-                    <div id="spark-resolved"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="subheader mt-2 mb-2">Download Activity</div>
-    <div class="row row-cards mb-3">
-        <div class="col-sm-6 col-xl-2">
-            <div class="card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-2">
-                        <div class="subheader">Total Downloads</div>
-                    </div>
-                    <div class="h1 mb-3">@FormatNumber(_data.Stats.TotalDownloads)</div>
-                    <div id="spark-added"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-2">
-            <div class="card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-2">
-                        <div class="subheader">Completed</div>
-                        <div class="ms-auto d-flex align-items-center @Delta(_data.Stats.Completed, true).Class">
-                            @FormatPercent(_data.Stats.CompletedPercent)
-                            <i class="@Delta(_data.Stats.Completed, true).Icon ms-1"></i>
-                        </div>
-                    </div>
-                    <div class="h1 mb-3">@FormatNumber(_data.Stats.Completed)</div>
-                    <div id="spark-completed"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-2">
-            <div class="card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-2">
-                        <div class="subheader">Failed</div>
-                        <div class="ms-auto d-flex align-items-center @Delta(_data.Stats.Failed, false).Class">
-                            @FormatPercent(_data.Stats.FailedPercent)
-                            <i class="@Delta(_data.Stats.Failed, false).Icon ms-1"></i>
-                        </div>
-                    </div>
-                    <div class="h1 mb-3">@FormatNumber(_data.Stats.Failed)</div>
-                    <div id="spark-failed"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-2">
-            <div class="card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-2">
-                        <div class="subheader">Removed</div>
-                        <div class="ms-auto d-flex align-items-center @Delta(_data.Stats.Removed, false).Class">
-                            @FormatPercent(_data.Stats.RemovedPercent)
-                            <i class="@Delta(_data.Stats.Removed, false).Icon ms-1"></i>
-                        </div>
-                    </div>
-                    <div class="h1 mb-3">@FormatNumber(_data.Stats.Removed)</div>
-                    <div id="spark-removed"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-2">
-            <div class="card">
-                <div class="card-body">
-                    <div class="subheader mb-2">Avg. Time to Completion</div>
-                    <div class="h1 mb-3">@FormatDuration(_data.Stats.AverageCompletionTime)</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-2">
-            <div class="card">
-                <div class="card-body">
-                    <div class="subheader mb-2">Data Downloaded</div>
-                    <div class="h1 mb-3">@FormatBytes(_data.Stats.DataDownloaded)</div>
-                    <div id="spark-data"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-
-    <div class="row row-cards mb-3">
-        <div class="col-lg-4">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h3 class="card-title">Activity Over Time</h3>
-                </div>
-                <div class="card-body">
-                    <div id="history-activity-chart" class="chart-lg"></div>
-                    <div class="mt-3">
-                        @foreach (var s in ActivitySeries)
-                        {
-                            <div class="d-flex align-items-center mb-2">
-                                <span class="me-2"
-                                      style="display:inline-block;width:16px;height:0;border-top:3px solid @s.Color;border-radius:2px;"></span>
-                                <div class="flex-fill">@s.Label</div>
-                                <div class="text-secondary">@FormatNumber(s.Total)</div>
-                            </div>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-4">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h3 class="card-title">Acquisitions Over Time</h3>
-                </div>
-                <div class="card-body">
-                    <div id="history-search-chart" class="chart-lg"></div>
-                    <div class="mt-3">
-                        @foreach (var s in ActivitySeries)
-                        {
-                            <div class="d-flex align-items-center mb-2">
-                                <span class="me-2"
-                                      style="display:inline-block;width:16px;height:0;border-top:3px solid @s.Color;border-radius:2px;"></span>
-                                <div class="flex-fill">@s.Label</div>
-                                <div class="text-secondary">@FormatNumber(s.Total)</div>
-                            </div>
-                        }
-                    </div>
-                </div>
-
-            </div>
-        </div>
-        <div class="col-4">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h3 class="card-title">Activity Breakdown</h3>
-                </div>
-                <div class="card-body">
-                    <ChartHost Id="history-breakdown-chart" Class="chart-lg"/>
-
-                    <div class="mt-3">
-                        @foreach (var item in _data.Breakdown)
-                        {
-                            <div class="d-flex align-items-center mb-2">
-                                <span class="badge @BreakdownDotClass(item.Label) me-2">&nbsp;</span>
-                                <div class="flex-fill">@item.Label</div>
-                                <div class="text-secondary">@FormatNumber(item.Count) (@FormatPercent(item.Percent))</div>
-                            </div>
-                        }
-
-                        @if (_data.Breakdown.Count == 0)
-                        {
-                            <div class="empty">
-                                <div class="empty-icon">
-                                    <i class="ti ti-chart-pie"></i>
-                                </div>
-                                <p class="empty-title">No breakdown data</p>
-                            </div>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div id="history-table" class="card">
-        <div class="card-header">
-            <ul class="nav nav-tabs card-header-tabs">
-                <li class="nav-item">
-                    <button type="button"
-                            class="@TabClass(HistoryTab.DownloadEvents)"
-                            @onclick="() => SetTab(HistoryTab.DownloadEvents)">
-                        <i class="ti ti-download me-2"></i>Download Events
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button type="button"
-                            class="@TabClass(HistoryTab.Events)"
-                            @onclick="() => SetTab(HistoryTab.Events)">
-                        <i class="ti ti-clipboard-list me-2"></i>Events
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button type="button"
-                            class="@TabClass(HistoryTab.Searches)"
-                            @onclick="() => SetTab(HistoryTab.Searches)">
-                        <i class="ti ti-search me-2"></i>Searches
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button type="button"
-                            class="@TabClass(HistoryTab.Health)"
-                            @onclick="() => SetTab(HistoryTab.Health)">
-                        <i class="ti ti-heartbeat me-2"></i>Health
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button type="button"
-                            class="@TabClass(HistoryTab.Changes)"
-                            @onclick="() => SetTab(HistoryTab.Changes)">
-                        <i class="ti ti-history me-2"></i>Changes
-                    </button>
-                </li>
-            </ul>
-        </div>
-
-        <div class="table-responsive">
-            <table class="table table-vcenter table-nowrap card-table">
-                <thead>
-                <tr>
-                    <th>
-                        <button class="@SortClass("date")" @onclick='() => SortBy("date")'>Date / Time</button>
-                    </th>
-                    <th>
-                        <button class="@SortClass("event")" @onclick='() => SortBy("event")'>Event</button>
-                    </th>
-                    <th>
-                        <button class="@SortClass("item")" @onclick='() => SortBy("item")'>Item</button>
-                    </th>
-                    <th>
-                        <button class="@SortClass("type")" @onclick='() => SortBy("type")'>Type</button>
-                    </th>
-                    <th>
-                        <button class="@SortClass("server")" @onclick='() => SortBy("server")'>Server</button>
-                    </th>
-                    <th>
-                        <button class="table-sort">Profile</button>
-                    </th>
-                    <th>
-                        <button class="@SortClass("status")" @onclick='() => SortBy("status")'>Status</button>
-                    </th>
-                    <th>Details</th>
-                </tr>
-                </thead>
-                <tbody class="table-tbody">
-                @if (IsLoading)
-                {
-                    <tr>
-                        <td colspan="8" class="text-center text-secondary py-4">
-                            <div class="spinner-border spinner-border-sm me-2"></div>
-                            Loading history...
-                        </td>
-                    </tr>
-                }
-                else if (!PagedRows.Any())
-                {
-                    <tr>
-                        <td colspan="8" class="text-center text-secondary py-4">No history entries found</td>
-                    </tr>
-                }
-                else
-                {
-                    @foreach (var row in PagedRows)
+            <div class="col-md-2">
+                <select class="form-select" @onchange="OnServerChanged">
+                    <option value="">All Servers</option>
+                    @foreach (var server in _servers)
                     {
-                        <tr>
-                            <td>@FormatDate(row.OccurredAt)</td>
-                            <td>
-                                <span class="@EventIconClass(row)"><i class="@EventIcon(row)"></i></span>
-                                <span class="ms-2">@row.Event</span>
-                            </td>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <span class="avatar avatar-xs me-2"><i class="ti ti-photo"></i></span>
-                                    <span>@row.Item</span>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="@TypeBadgeClass(row.MediaType)">@DisplayType(row.MediaType)</span>
-                            </td>
-                            <td>@row.Server</td>
-                            <td>@row.Profile</td>
-                            <td>
-                                <span class="@StatusBadgeClass(row.Status)">@row.Status</span>
-                            </td>
-                            <td class="text-secondary">@row.Details</td>
-                        </tr>
-                    }
-                }
-                </tbody>
-            </table>
-        </div>
+                        <option value="@server.Id" selected="@(_serverFilter == server.Id)">@server.Name</option>
+                    } </select>
+            </div>
 
-        <div class="card-footer d-flex align-items-center">
-            <p class="m-0 text-secondary">Showing @PagedRows.Count() of @FormatNumber(SortedRows.Count) events</p>
-            <ul class="pagination m-0 ms-auto">
-                <li class="page-item @(_page <= 1 ? "disabled" : "")">
-                    <button class="page-link" @onclick="Prev">Prev</button>
-                </li>
-                <li class="page-item">
-                    <span class="page-link">@_page / @TotalPages</span>
-                </li>
-                <li class="page-item @(_page >= TotalPages ? "disabled" : "")">
-                    <button class="page-link" @onclick="Next">Next</button>
-                </li>
-            </ul>
+            <div class="col-md-2">
+                <select class="form-select" @onchange="OnTypeChanged">
+                    <option value="">All Categories</option>
+                    @foreach (var type in _mediaTypes)
+                    {
+                        <option value="@type" selected="@(_typeFilter == type)">@type</option>
+                    } </select>
+            </div>
+
+            <div class="col-md-2">
+                <select class="form-select" @onchange="OnStatusChanged">
+                    <option value="">All Statuses</option>
+                    @foreach (var status in _statuses)
+                    {
+                        <option value="@status" selected="@(_statusFilter == status)">@status</option>
+                    } </select>
+            </div>
+
+            <div class="col-md-2">
+                <div class="input-icon">
+                    <span class="input-icon-addon">
+                        <i class="ti ti-search"></i>
+                    </span>
+                    <input type="text"
+                           class="form-control"
+                           placeholder="Search history..."
+                           value="@_search"
+                           @oninput="OnSearchChanged"/>
+                </div>
+            </div>
         </div>
+    </div>
+</div>
+<div class="subheader mt-2 mb-2">Acquisition Activity</div>
+<div class="row row-cards mb-3">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card app-card">
+            <div class="card-body">
+                <div class="subheader mb-2">Searches Pushed</div>
+                <div class="h1 mb-3">@FormatNumber(_data.SearchStats.SearchesPushed)</div>
+                <div id="spark-searches"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-3">
+        <div class="card app-card">
+            <div class="card-body">
+                <div class="subheader mb-2">Cascaded to Episode</div>
+                <div class="h1 mb-3">@FormatNumber(_data.SearchStats.Cascaded)</div>
+                <div id="spark-cascaded"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-3">
+        <div class="card app-card">
+            <div class="card-body">
+                <div class="subheader mb-2">Abandoned</div>
+                <div class="h1 mb-3">@FormatNumber(_data.SearchStats.Abandoned)</div>
+                <div id="spark-abandoned"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-3">
+        <div class="card app-card">
+            <div class="card-body">
+                <div class="subheader mb-2">Resolved</div>
+                <div class="h1 mb-3">@FormatNumber(_data.SearchStats.Resolved)</div>
+                <div id="spark-resolved"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="subheader mt-2 mb-2">Download Activity</div>
+<div class="row row-cards mb-3">
+    <div class="col-sm-6 col-xl-2">
+        <div class="card app-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="subheader">Total Downloads</div>
+                </div>
+                <div class="h1 mb-3">@FormatNumber(_data.Stats.TotalDownloads)</div>
+                <div id="spark-added"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-2">
+        <div class="card app-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="subheader">Completed</div>
+                    <div class="ms-auto d-flex align-items-center @Delta(_data.Stats.Completed, true).Class">
+                        @FormatPercent(_data.Stats.CompletedPercent)
+                        <i class="@Delta(_data.Stats.Completed, true).Icon ms-1"></i>
+                    </div>
+                </div>
+                <div class="h1 mb-3">@FormatNumber(_data.Stats.Completed)</div>
+                <div id="spark-completed"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-2">
+        <div class="card app-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="subheader">Failed</div>
+                    <div class="ms-auto d-flex align-items-center @Delta(_data.Stats.Failed, false).Class">
+                        @FormatPercent(_data.Stats.FailedPercent)
+                        <i class="@Delta(_data.Stats.Failed, false).Icon ms-1"></i>
+                    </div>
+                </div>
+                <div class="h1 mb-3">@FormatNumber(_data.Stats.Failed)</div>
+                <div id="spark-failed"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-2">
+        <div class="card app-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="subheader">Removed</div>
+                    <div class="ms-auto d-flex align-items-center @Delta(_data.Stats.Removed, false).Class">
+                        @FormatPercent(_data.Stats.RemovedPercent)
+                        <i class="@Delta(_data.Stats.Removed, false).Icon ms-1"></i>
+                    </div>
+                </div>
+                <div class="h1 mb-3">@FormatNumber(_data.Stats.Removed)</div>
+                <div id="spark-removed"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-2">
+        <div class="card app-card">
+            <div class="card-body">
+                <div class="subheader mb-2">Avg. Time to Completion</div>
+                <div class="h1 mb-3">@FormatDuration(_data.Stats.AverageCompletionTime)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-2">
+        <div class="card app-card">
+            <div class="card-body">
+                <div class="subheader mb-2">Data Downloaded</div>
+                <div class="h1 mb-3">@FormatBytes(_data.Stats.DataDownloaded)</div>
+                <div id="spark-data"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="row row-cards mb-3">
+    <div class="col-lg-4">
+        <div class="card app-card h-100">
+            <div class="card-header">
+                <h3 class="card-title">Activity Over Time</h3>
+            </div>
+            <div class="card-body">
+                <div id="history-activity-chart" class="chart-lg"></div>
+                <div class="mt-3">
+                    @foreach (var s in ActivitySeries)
+                    {
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="me-2"
+                                  style="display:inline-block;width:16px;height:0;border-top:3px solid @s.Color;border-radius:2px;"></span>
+                            <div class="flex-fill">@s.Label</div>
+                            <div class="text-secondary">@FormatNumber(s.Total)</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card app-card h-100">
+            <div class="card-header">
+                <h3 class="card-title">Acquisitions Over Time</h3>
+            </div>
+            <div class="card-body">
+                <div id="history-search-chart" class="chart-lg"></div>
+                <div class="mt-3">
+                    @foreach (var s in ActivitySeries)
+                    {
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="me-2"
+                                  style="display:inline-block;width:16px;height:0;border-top:3px solid @s.Color;border-radius:2px;"></span>
+                            <div class="flex-fill">@s.Label</div>
+                            <div class="text-secondary">@FormatNumber(s.Total)</div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="card app-card h-100">
+            <div class="card-header">
+                <h3 class="card-title">Activity Breakdown</h3>
+            </div>
+            <div class="card-body">
+                <ChartHost Id="history-breakdown-chart" Class="chart-lg"/>
+
+                <div class="mt-3">
+                    @foreach (var item in _data.Breakdown)
+                    {
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge @BreakdownDotClass(item.Label) me-2">&nbsp;</span>
+                            <div class="flex-fill">@item.Label</div>
+                            <div class="text-secondary">@FormatNumber(item.Count) (@FormatPercent(item.Percent))</div>
+                        </div>
+                    }
+
+                    @if (_data.Breakdown.Count == 0)
+                    {
+                        <div class="empty">
+                            <div class="empty-icon">
+                                <i class="ti ti-chart-pie"></i>
+                            </div>
+                            <p class="empty-title">No breakdown data</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="history-table" class="card app-card">
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs">
+            <li class="nav-item">
+                <button type="button"
+                        class="@TabClass(HistoryTab.DownloadEvents)"
+                        @onclick="() => SetTab(HistoryTab.DownloadEvents)">
+                    <i class="ti ti-download me-2"></i>Download Events
+                </button>
+            </li>
+            <li class="nav-item">
+                <button type="button" class="@TabClass(HistoryTab.Events)" @onclick="() => SetTab(HistoryTab.Events)">
+                    <i class="ti ti-clipboard-list me-2"></i>Events
+                </button>
+            </li>
+            <li class="nav-item">
+                <button type="button"
+                        class="@TabClass(HistoryTab.Searches)"
+                        @onclick="() => SetTab(HistoryTab.Searches)">
+                    <i class="ti ti-search me-2"></i>Searches
+                </button>
+            </li>
+            <li class="nav-item">
+                <button type="button" class="@TabClass(HistoryTab.Health)" @onclick="() => SetTab(HistoryTab.Health)">
+                    <i class="ti ti-heartbeat me-2"></i>Health
+                </button>
+            </li>
+            <li class="nav-item">
+                <button type="button" class="@TabClass(HistoryTab.Changes)" @onclick="() => SetTab(HistoryTab.Changes)">
+                    <i class="ti ti-history me-2"></i>Changes
+                </button>
+            </li>
+        </ul>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-vcenter table-nowrap card-table table-surface @TableDensityClass">
+            <thead>
+            <tr>
+                <th>
+                    <button class="@SortClass("date")" @onclick='() => SortBy("date")'>Date / Time</button>
+                </th>
+                <th>
+                    <button class="@SortClass("event")" @onclick='() => SortBy("event")'>Event</button>
+                </th>
+                <th>
+                    <button class="@SortClass("item")" @onclick='() => SortBy("item")'>Item</button>
+                </th>
+                <th>
+                    <button class="@SortClass("type")" @onclick='() => SortBy("type")'>Type</button>
+                </th>
+                <th>
+                    <button class="@SortClass("server")" @onclick='() => SortBy("server")'>Server</button>
+                </th>
+                <th>
+                    <button class="table-sort">Profile</button>
+                </th>
+                <th>
+                    <button class="@SortClass("status")" @onclick='() => SortBy("status")'>Status</button>
+                </th>
+                <th>Details</th>
+            </tr>
+            </thead>
+            <tbody class="table-tbody">
+            @if (IsLoading)
+            {
+                <tr>
+                    <td colspan="8" class="text-center text-secondary py-4">
+                        <div class="spinner-border spinner-border-sm me-2"></div>
+                        Loading history...
+                    </td>
+                </tr>
+            }
+            else if (!PagedRows.Any())
+            {
+                <tr>
+                    <td colspan="8" class="text-center text-secondary py-4">No history entries found</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var row in PagedRows)
+                {
+                    <tr>
+                        <td>@FormatDate(row.OccurredAt)</td>
+                        <td>
+                            <span class="@EventIconClass(row)"><i class="@EventIcon(row)"></i></span>
+                            <span class="ms-2">@row.Event</span>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="avatar avatar-xs me-2"><i class="ti ti-photo"></i></span>
+                                <span>@row.Item</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="@TypeBadgeClass(row.MediaType)">@DisplayType(row.MediaType)</span>
+                        </td>
+                        <td>@row.Server</td>
+                        <td>@row.Profile</td>
+                        <td>
+                            <span class="@StatusBadgeClass(row.Status)">@row.Status</span>
+                        </td>
+                        <td class="text-secondary">@row.Details</td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card-footer d-flex align-items-center">
+        <p class="m-0 text-secondary">Showing @PagedRows.Count() of @FormatNumber(SortedRows.Count) events</p>
+        <ul class="pagination m-0 ms-auto">
+            <li class="page-item @(_page <= 1 ? "disabled" : "")">
+                <button class="page-link" @onclick="Prev">Prev</button>
+            </li>
+            <li class="page-item">
+                <span class="page-link">@_page / @TotalPages</span>
+            </li>
+            <li class="page-item @(_page >= TotalPages ? "disabled" : "")">
+                <button class="page-link" @onclick="Next">Next</button>
+            </li>
+        </ul>
     </div>
 </div>

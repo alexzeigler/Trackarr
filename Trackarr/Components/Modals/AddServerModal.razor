@@ -1,7 +1,9 @@
 ﻿@using Trackarr.Core.Server
 @using Trackarr.Services.Media
+@using Trackarr.Services.Settings
 @inject IJSRuntime Js
 @inject MediaServerService ServerService
+@inject SettingsService Settings
 
 <div id="serverModal" class="modal modal-blur fade" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -154,28 +156,53 @@
 
                 <div class="row g-3 mb-3">
                     <div class="col-6">
-                        <label class="form-label">API Path
-                            <span class="text-secondary fw-normal">(optional)</span>
-                        </label> <input class="form-control" placeholder="/api/v3"/>
-                        <div class="form-text">Leave blank for default.</div>
+                        <label class="form-label">Timeout</label>
+                        <div class="input-group">
+                            <input type="number"
+                                   class="form-control"
+                                   placeholder="Default"
+                                   @bind="Model.RequestTimeoutSeconds"/>
+                            <span class="input-group-text">sec</span>
+                        </div>
+                        <div class="form-text">Leave empty to use global default.</div>
                     </div>
                     <div class="col-6">
-                        <label class="form-label">Timeout (seconds)</label> <input type="number" class="form-control"/>
-                        <div class="form-text">Request timeout in seconds.</div>
+                        <label class="form-label">Priority</label> <input type="number"
+                                                                          class="form-control"
+                                                                          @bind="Model.Priority"/>
+                        <div class="form-text">Lower numbers run first.</div>
                     </div>
                 </div>
 
-                <div class="row g-3 mb-3">
-                    <div class="col-6">
-                        <label class="form-label">Use SSL</label> <select class="form-select" @bind="Model.UseHttps">
-                            <option value="false">No</option>
-                            <option value="true">Yes</option>
-                        </select>
-                        <div class="form-text">Enable if your server uses HTTPS.</div>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Priority</label> <input type="number" class="form-control"/>
-                        <div class="form-text">Lower numbers have higher priority.</div>
+                <div class="mb-3">
+                    <label class="form-label mb-2">Behavior Overrides
+                        <span class="text-secondary fw-normal">— leave unset to use global defaults</span>
+                    </label>
+                    <div class="row g-3">
+                        <div class="col-4">
+                            <label class="form-label small text-muted">Monitor Queue</label>
+                            <select class="form-select form-select-sm" @bind="_monitorQueue">
+                                <option value="">Use Default</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small text-muted">Auto-Remove</label>
+                            <select class="form-select form-select-sm" @bind="_autoRemove">
+                                <option value="">Use Default</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small text-muted">Search Missing</label>
+                            <select class="form-select form-select-sm" @bind="_searchMissing">
+                                <option value="">Use Default</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -237,10 +264,10 @@
             </div>
 
             <div class="modal-footer px-4 border-top border-secondary-subtle">
-                <button class="btn btn-outline-secondary me-auto" @onclick="Close" disabled="@IsBusy">
+                <button class="btn btn-app-ghost me-auto" @onclick="Close" disabled="@IsBusy">
                     Cancel
                 </button>
-                <button class="btn app-btn-primary " @onclick="Save" disabled="@(!CanSave)">
+                <button class="btn btn-app-primary" @onclick="Save" disabled="@(!CanSave)">
                     @if (IsSaving)
                     {
                         <span class="spinner-border spinner-border-sm me-1"></span>

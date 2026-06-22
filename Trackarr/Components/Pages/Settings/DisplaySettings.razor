@@ -1,0 +1,296 @@
+@page "/settings/display"
+@using Trackarr.Core.UI
+@using Trackarr.Services.Settings
+@layout SettingsLayout
+@inject SettingsService SettingsService
+
+<div class="subheader mb-2">Date & Time</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label">Date Format</label> <select class="form-select"
+                                                                      @bind="_dateFormat"
+                                                                      @bind:after="MarkDirty">
+                    <option value="MMM d, yyyy h:mm tt">Jun 22, 2026 3:45 PM</option>
+                    <option value="yyyy-MM-dd HH:mm">2026-06-22 15:45</option>
+                    <option value="dd/MM/yyyy HH:mm">22/06/2026 15:45</option>
+                    <option value="MM/dd/yyyy h:mm tt">06/22/2026 3:45 PM</option>
+                    <option value="d MMM yyyy HH:mm">22 Jun 2026 15:45</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Time Ago Threshold</label>
+                <div class="input-group">
+                    <input type="number"
+                           class="form-control"
+                           min="1"
+                           max="168"
+                           @bind="_timeAgoThreshold"
+                           @bind:after="MarkDirty"/>
+                    <span class="input-group-text">hours</span>
+                </div>
+                <div class="form-text">After this many hours, show absolute date instead of "time ago".</div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-check form-switch"> <input class="form-check-input"
+                                                              type="checkbox"
+                                                              @bind="_useTimeAgo"
+                                                              @bind:after="MarkDirty"/>
+                    <span class="form-check-label">Use Friendly "Time Ago"</span>
+                </label>
+                <div class="form-text">Show relative time like "5m ago" instead of absolute dates.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="subheader mb-2">Tables</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-3">
+                <label class="form-label">Queue Page Size</label> <select class="form-select"
+                                                                          @bind="_queuePageSize"
+                                                                          @bind:after="MarkDirty">
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">Missing Page Size</label> <select class="form-select"
+                                                                            @bind="_missingPageSize"
+                                                                            @bind:after="MarkDirty">
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">History Page Size</label> <select class="form-select"
+                                                                            @bind="_historyPageSize"
+                                                                            @bind:after="MarkDirty">
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">Events Page Size</label> <select class="form-select"
+                                                                           @bind="_eventsPageSize"
+                                                                           @bind:after="MarkDirty">
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Table Density</label> <select class="form-select"
+                                                                        @bind="_tableDensity"
+                                                                        @bind:after="MarkDirty">
+                    <option value="compact">Compact</option>
+                    <option value="normal">Normal</option>
+                    <option value="comfortable">Comfortable</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="subheader mb-2">Charts & Visuals</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <label class="form-check form-switch"> <input class="form-check-input"
+                                                              type="checkbox"
+                                                              @bind="_showQueueCharts"
+                                                              @bind:after="MarkDirty"/>
+                    <span class="form-check-label">Show Queue Charts</span>
+                </label>
+                <div class="form-text">Display activity and trend charts on the Queue page.</div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-check form-switch"> <input class="form-check-input"
+                                                              type="checkbox"
+                                                              @bind="_showMissingCharts"
+                                                              @bind:after="MarkDirty"/>
+                    <span class="form-check-label">Show Missing Charts</span>
+                </label>
+                <div class="form-text">Display activity and trend charts on the Missing page.</div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-check form-switch"> <input class="form-check-input"
+                                                              type="checkbox"
+                                                              @bind="_showHealthBadges"
+                                                              @bind:after="MarkDirty"/>
+                    <span class="form-check-label">Show Health Score Badges</span>
+                </label>
+                <div class="form-text">Display score badges on queue items.</div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-check form-switch"> <input class="form-check-input"
+                                                              type="checkbox"
+                                                              @bind="_showServerIcons"
+                                                              @bind:after="MarkDirty"/>
+                    <span class="form-check-label">Show Server Icons in Queue</span>
+                </label>
+                <div class="form-text">Display server type icons next to queue items.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="subheader mb-2">Grouping</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label">Default Queue Grouping</label> <select class="form-select"
+                                                                                 @bind="_defaultGrouping"
+                                                                                 @bind:after="MarkDirty">
+                    <option value="none">None</option>
+                    <option value="server">By Server</option>
+                    <option value="status">By Status</option>
+                    <option value="mediaType">By Media Type</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-check form-switch mt-4"> <input class="form-check-input"
+                                                                   type="checkbox"
+                                                                   @bind="_expandGroups"
+                                                                   @bind:after="MarkDirty"/>
+                    <span class="form-check-label">Expand Groups by Default</span>
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private SettingsPageContext Context { get; set; } = null!;
+
+    private string _dateFormat = "";
+    private bool _useTimeAgo;
+    private int _timeAgoThreshold;
+    private int _queuePageSize;
+    private int _missingPageSize;
+    private int _historyPageSize;
+    private int _eventsPageSize;
+    private string _tableDensity = "";
+    private bool _showQueueCharts;
+    private bool _showMissingCharts;
+    private bool _showHealthBadges;
+    private bool _showServerIcons;
+    private string _defaultGrouping = "";
+    private bool _expandGroups;
+
+    private string _origDateFormat = "";
+    private bool _origUseTimeAgo;
+    private int _origTimeAgoThreshold;
+    private int _origQueuePageSize;
+    private int _origMissingPageSize;
+    private int _origHistoryPageSize;
+    private int _origEventsPageSize;
+    private string _origTableDensity = "";
+    private bool _origShowQueueCharts;
+    private bool _origShowMissingCharts;
+    private bool _origShowHealthBadges;
+    private bool _origShowServerIcons;
+    private string _origDefaultGrouping = "";
+    private bool _origExpandGroups;
+
+    protected override void OnInitialized()
+    {
+        LoadValues();
+        Context.SaveAsync = SaveAsync;
+        Context.DiscardAsync = DiscardAsync;
+    }
+
+    private void LoadValues()
+    {
+        _dateFormat = SettingsService.GetString("Display", "DateFormat", "MMM d, yyyy h:mm tt");
+        _useTimeAgo = SettingsService.GetBool("Display", "UseTimeAgo", true);
+        _timeAgoThreshold = SettingsService.GetInt("Display", "TimeAgoThresholdHours", 24);
+        _queuePageSize = SettingsService.GetInt("Display", "QueuePageSize", 10);
+        _missingPageSize = SettingsService.GetInt("Display", "MissingPageSize", 10);
+        _historyPageSize = SettingsService.GetInt("Display", "HistoryPageSize", 25);
+        _eventsPageSize = SettingsService.GetInt("Display", "EventsPageSize", 50);
+        _tableDensity = SettingsService.GetString("Display", "TableDensity", "normal");
+        _showQueueCharts = SettingsService.GetBool("Display", "ShowQueueCharts", true);
+        _showMissingCharts = SettingsService.GetBool("Display", "ShowMissingCharts", true);
+        _showHealthBadges = SettingsService.GetBool("Display", "ShowHealthScoreBadges", true);
+        _showServerIcons = SettingsService.GetBool("Display", "ShowServerIconsInQueue", true);
+        _defaultGrouping = SettingsService.GetString("Display", "DefaultQueueGrouping", "none");
+        _expandGroups = SettingsService.GetBool("Display", "ExpandQueueGroupsByDefault", true);
+
+        _origDateFormat = _dateFormat;
+        _origUseTimeAgo = _useTimeAgo;
+        _origTimeAgoThreshold = _timeAgoThreshold;
+        _origQueuePageSize = _queuePageSize;
+        _origMissingPageSize = _missingPageSize;
+        _origHistoryPageSize = _historyPageSize;
+        _origEventsPageSize = _eventsPageSize;
+        _origTableDensity = _tableDensity;
+        _origShowQueueCharts = _showQueueCharts;
+        _origShowMissingCharts = _showMissingCharts;
+        _origShowHealthBadges = _showHealthBadges;
+        _origShowServerIcons = _showServerIcons;
+        _origDefaultGrouping = _defaultGrouping;
+        _origExpandGroups = _expandGroups;
+    }
+
+    private void MarkDirty()
+    {
+        Context.HasChanges = _dateFormat != _origDateFormat || _useTimeAgo != _origUseTimeAgo || _timeAgoThreshold != _origTimeAgoThreshold || _queuePageSize != _origQueuePageSize || _missingPageSize != _origMissingPageSize || _historyPageSize != _origHistoryPageSize || _eventsPageSize != _origEventsPageSize || _tableDensity != _origTableDensity || _showQueueCharts != _origShowQueueCharts || _showMissingCharts != _origShowMissingCharts || _showHealthBadges != _origShowHealthBadges || _showServerIcons != _origShowServerIcons || _defaultGrouping != _origDefaultGrouping || _expandGroups != _origExpandGroups;
+        Context.NotifyChanged();
+    }
+
+    private async Task SaveAsync()
+    {
+        await SettingsService.SaveCategoryAsync("Display", new Dictionary<string, string>
+        {
+            ["DateFormat"] = _dateFormat,
+            ["UseTimeAgo"] = _useTimeAgo.ToString(),
+            ["TimeAgoThresholdHours"] = _timeAgoThreshold.ToString(),
+            ["QueuePageSize"] = _queuePageSize.ToString(),
+            ["MissingPageSize"] = _missingPageSize.ToString(),
+            ["HistoryPageSize"] = _historyPageSize.ToString(),
+            ["EventsPageSize"] = _eventsPageSize.ToString(),
+            ["TableDensity"] = _tableDensity,
+            ["ShowQueueCharts"] = _showQueueCharts.ToString(),
+            ["ShowMissingCharts"] = _showMissingCharts.ToString(),
+            ["ShowHealthScoreBadges"] = _showHealthBadges.ToString(),
+            ["ShowServerIconsInQueue"] = _showServerIcons.ToString(),
+            ["DefaultQueueGrouping"] = _defaultGrouping,
+            ["ExpandQueueGroupsByDefault"] = _expandGroups.ToString()
+        });
+        LoadValues();
+    }
+
+    private Task DiscardAsync()
+    {
+        _dateFormat = _origDateFormat;
+        _useTimeAgo = _origUseTimeAgo;
+        _timeAgoThreshold = _origTimeAgoThreshold;
+        _queuePageSize = _origQueuePageSize;
+        _missingPageSize = _origMissingPageSize;
+        _historyPageSize = _origHistoryPageSize;
+        _eventsPageSize = _origEventsPageSize;
+        _tableDensity = _origTableDensity;
+        _showQueueCharts = _origShowQueueCharts;
+        _showMissingCharts = _origShowMissingCharts;
+        _showHealthBadges = _origShowHealthBadges;
+        _showServerIcons = _origShowServerIcons;
+        _defaultGrouping = _origDefaultGrouping;
+        _expandGroups = _origExpandGroups;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+}

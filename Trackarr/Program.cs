@@ -1,12 +1,16 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Trackarr;
 using Trackarr.Components;
 using Trackarr.Core.Routine;
 using Trackarr.Data;
 using Trackarr.Services.Diagnostics;
 using Trackarr.Services.Media;
 using Trackarr.Services.Routines;
+using Trackarr.Services.Settings;
+using Trackarr.Services.SystemInfo;
+using Trackarr.Services.UI;
 using Trackarr.Tasks;
 using _Imports = Trackarr.Client._Imports;
 
@@ -34,6 +38,7 @@ builder.Services.AddSingleton<IRoutine, HeartbeatRoutine>();
 builder.Services.AddSingleton<IRoutine, QueueRefreshRoutine>();
 builder.Services.AddSingleton<IRoutine, QueueEvaluationRoutine>();
 builder.Services.AddSingleton<IRoutine, MissingMediaFetchRoutine>();
+builder.Services.AddSingleton<IRoutine, DatabaseCleanupRoutine>();
 
 builder.Services.AddSingleton<EventService>();
 builder.Services.AddSingleton<RoutineRunner>();
@@ -42,6 +47,13 @@ builder.Services.AddSingleton<MediaServerService>();
 builder.Services.AddSingleton<MissingService>();
 builder.Services.AddSingleton<HealthService>();
 builder.Services.AddSingleton<HistoryService>();
+builder.Services.AddSingleton<QueueStatsService>();
+builder.Services.AddSingleton<MissingStatsService>();
+builder.Services.AddSingleton<SystemStatusService>();
+builder.Services.AddSingleton<SettingsService>();
+builder.Services.AddSingleton<BlacklistService>();
+
+builder.Services.AddScoped<AppStateService>();
 
 builder.Services.AddHttpClient();
 
@@ -86,6 +98,11 @@ using (var scope = app.Services.CreateScope())
     var eventService = scope.ServiceProvider.GetRequiredService<EventService>();
     await eventService.IngestCrashReportsAsync();
 }
+
+var settingsService = app.Services.GetRequiredService<SettingsService>();
+await settingsService.InitializeAsync();
+Utils.Configure(settingsService);
+settingsService.OnSettingsChanged += () => Utils.Configure(settingsService);
 
 if (app.Environment.IsDevelopment()) app.UseHttpsRedirection();
 

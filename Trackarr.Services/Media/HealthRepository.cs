@@ -189,12 +189,24 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
             ? HealthState.Unknown
             : activeSnapshots.OrderBy(e => e.VisibleScore).First().State;
 
-        var isStuck = summary.FailureCount >= 3 || summary.RemovalCount >= 3 || decision?.ShouldRemove == true;
+        var isStuckFromDownloads =
+            summary.FailureCount >= 3 || summary.RemovalCount >= 3 || decision?.ShouldRemove == true;
 
-        summary.IsStuck = isStuck;
-        summary.StuckSince = isStuck ? summary.StuckSince ?? now : null;
-        summary.StuckReasonKey = isStuck ? "repeated-download-failure" : null;
-        summary.StuckReasonMessage = isStuck ? "Media has repeated failed or removed download attempts." : null;
+        if (isStuckFromDownloads)
+        {
+            summary.IsStuck = true;
+            summary.StuckSince ??= now;
+            summary.StuckReasonKey = "repeated-download-failure";
+            summary.StuckReasonMessage = "Media has repeated failed or removed download attempts.";
+        }
+        else if (summary.StuckReasonKey != "abandoned-search")
+        {
+            summary.IsStuck = false;
+            summary.StuckSince = null;
+            summary.StuckReasonKey = null;
+            summary.StuckReasonMessage = null;
+        }
+
         summary.UpdatedAt = now;
     }
 

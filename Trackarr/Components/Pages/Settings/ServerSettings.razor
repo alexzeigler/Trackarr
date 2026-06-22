@@ -1,0 +1,112 @@
+@page "/settings/services"
+@using Trackarr.Core.UI
+@using Trackarr.Services.Settings
+@layout SettingsLayout
+@inject SettingsService SettingsService
+
+<div class="subheader mb-2">Global Server Defaults</div>
+<p class="text-muted mb-4">These defaults apply to all servers unless overridden on the individual server.</p>
+
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <label class="form-check form-switch"> <input class="form-check-input"
+                                                              type="checkbox"
+                                                              @bind="_monitorQueue"
+                                                              @bind:after="MarkDirty"/>
+                    <span class="form-check-label">Monitor Queue</span>
+                </label>
+                <div class="form-text">Fetch and display queue items from servers.</div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-check form-switch"> <input class="form-check-input"
+                                                              type="checkbox"
+                                                              @bind="_autoRemove"
+                                                              @bind:after="MarkDirty"/>
+                    <span class="form-check-label">Auto-Remove Downloads</span>
+                </label>
+                <div class="form-text">Automatically remove downloads that meet the removal threshold.</div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-check form-switch"> <input class="form-check-input"
+                                                              type="checkbox"
+                                                              @bind="_searchMissing"
+                                                              @bind:after="MarkDirty"/>
+                    <span class="form-check-label">Search Missing Media</span>
+                </label>
+                <div class="form-text">Trigger searches for missing movies and episodes.</div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Request Timeout</label>
+                <div class="input-group">
+                    <input type="number"
+                           class="form-control"
+                           min="5"
+                           max="300"
+                           @bind="_timeout"
+                           @bind:after="MarkDirty"/>
+                    <span class="input-group-text">seconds</span>
+                </div>
+                <div class="form-text">How long to wait for a response from a server before timing out.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private SettingsPageContext Context { get; set; } = null!;
+
+    private bool _monitorQueue;
+    private bool _autoRemove;
+    private bool _searchMissing;
+    private int _timeout;
+
+    private bool _origMonitorQueue;
+    private bool _origAutoRemove;
+    private bool _origSearchMissing;
+    private int _origTimeout;
+
+    protected override void OnInitialized()
+    {
+        LoadValues();
+        Context.SaveAsync = SaveAsync;
+        Context.DiscardAsync = DiscardAsync;
+    }
+
+    private void LoadValues()
+    {
+        _monitorQueue = SettingsService.GetBool("Servers", "MonitorQueue", true);
+        _autoRemove = SettingsService.GetBool("Servers", "AutoRemoveDownloads", true);
+        _searchMissing = SettingsService.GetBool("Servers", "SearchMissing", true);
+        _timeout = SettingsService.GetInt("Servers", "RequestTimeoutSeconds", 30);
+
+        _origMonitorQueue = _monitorQueue;
+        _origAutoRemove = _autoRemove;
+        _origSearchMissing = _searchMissing;
+        _origTimeout = _timeout;
+    }
+
+    private void MarkDirty()
+    {
+        Context.HasChanges = _monitorQueue != _origMonitorQueue || _autoRemove != _origAutoRemove || _searchMissing != _origSearchMissing || _timeout != _origTimeout;
+        Context.NotifyChanged();
+    }
+
+    private async Task SaveAsync()
+    {
+        await SettingsService.SaveCategoryAsync("Servers", new Dictionary<string, string> { ["MonitorQueue"] = _monitorQueue.ToString(), ["AutoRemoveDownloads"] = _autoRemove.ToString(), ["SearchMissing"] = _searchMissing.ToString(), ["RequestTimeoutSeconds"] = _timeout.ToString() });
+        LoadValues();
+    }
+
+    private Task DiscardAsync()
+    {
+        _monitorQueue = _origMonitorQueue;
+        _autoRemove = _origAutoRemove;
+        _searchMissing = _origSearchMissing;
+        _timeout = _origTimeout;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+}

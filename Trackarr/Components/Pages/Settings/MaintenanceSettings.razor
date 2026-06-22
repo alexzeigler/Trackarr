@@ -1,0 +1,224 @@
+@page "/settings/maintenance"
+@using Trackarr.Core.UI
+@using Trackarr.Services.Routines
+@using Trackarr.Services.Settings
+@layout SettingsLayout
+@inject SettingsService SettingsService
+@inject RoutineRunner RoutineRunner
+
+<div class="subheader mb-2">Data Retention</div>
+<p class="text-muted mb-4">Configure how long different types of data are kept before automatic cleanup.</p>
+
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label">Health Event Retention</label>
+                <div class="input-group">
+                    <input type="number"
+                           class="form-control"
+                           min="7"
+                           max="365"
+                           @bind="_healthRetention"
+                           @bind:after="MarkDirty"/>
+                    <span class="input-group-text">days</span>
+                </div>
+                <div class="form-text">Health events for completed downloads older than this are purged.</div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Routine Run Retention</label>
+                <div class="input-group">
+                    <input type="number"
+                           class="form-control"
+                           min="7"
+                           max="365"
+                           @bind="_routineRetention"
+                           @bind:after="MarkDirty"/>
+                    <span class="input-group-text">days</span>
+                </div>
+                <div class="form-text">Individual routine run records older than this are purged.</div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Log Event Retention</label>
+                <div class="input-group">
+                    <input type="number"
+                           class="form-control"
+                           min="1"
+                           max="365"
+                           @bind="_logRetention"
+                           @bind:after="MarkDirty"/>
+                    <span class="input-group-text">days</span>
+                </div>
+                <div class="form-text">System event log entries older than this are purged.</div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Source Summary Retention</label>
+                <div class="input-group">
+                    <input type="number"
+                           class="form-control"
+                           min="7"
+                           max="365"
+                           @bind="_summaryRetention"
+                           @bind:after="MarkDirty"/>
+                    <span class="input-group-text">days</span>
+                </div>
+                <div class="form-text">Source reputation summaries not seen in this many days are purged.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="subheader mb-2">Cleanup Behavior</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <label class="form-check form-switch"> <input class="form-check-input"
+                                                              type="checkbox"
+                                                              @bind="_vacuumAfter"
+                                                              @bind:after="MarkDirty"/>
+                    <span class="form-check-label">Vacuum After Cleanup</span>
+                </label>
+                <div class="form-text">Run SQLite VACUUM after cleanup to reclaim disk space. May briefly lock the
+                    database.
+                </div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Cleanup Interval</label>
+                <div class="input-group">
+                    <input type="number"
+                           class="form-control"
+                           min="1"
+                           max="168"
+                           @bind="_cleanupInterval"
+                           @bind:after="MarkDirty"/>
+                    <span class="input-group-text">hours</span>
+                </div>
+                <div class="form-text">How often the database cleanup routine runs.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="subheader mb-2">Manual Actions</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="d-flex align-items-center gap-3">
+            <button class="btn btn-app-ghost" disabled="@_runningCleanup" @onclick="RunCleanupNow">
+                @if (_runningCleanup)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                }
+                else
+                {
+                    <i class="ti ti-trash me-1"></i>
+                }
+                Run Cleanup Now
+            </button>
+            @if (_cleanupResult is not null)
+            {
+                <span class="text-muted small">@_cleanupResult</span>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private SettingsPageContext Context { get; set; } = null!;
+
+    private int _healthRetention;
+    private int _routineRetention;
+    private int _logRetention;
+    private int _summaryRetention;
+    private bool _vacuumAfter;
+    private int _cleanupInterval;
+
+    private int _origHealthRetention;
+    private int _origRoutineRetention;
+    private int _origLogRetention;
+    private int _origSummaryRetention;
+    private bool _origVacuumAfter;
+    private int _origCleanupInterval;
+
+    private bool _runningCleanup;
+    private string? _cleanupResult;
+
+    protected override void OnInitialized()
+    {
+        LoadValues();
+        Context.SaveAsync = SaveAsync;
+        Context.DiscardAsync = DiscardAsync;
+    }
+
+    private void LoadValues()
+    {
+        _healthRetention = SettingsService.GetInt("Maintenance", "HealthEventRetentionDays", 90);
+        _routineRetention = SettingsService.GetInt("Maintenance", "RoutineRunRetentionDays", 30);
+        _logRetention = SettingsService.GetInt("Maintenance", "LogEventRetentionDays", 14);
+        _summaryRetention = SettingsService.GetInt("Maintenance", "SourceSummaryRetentionDays", 90);
+        _vacuumAfter = SettingsService.GetBool("Maintenance", "VacuumAfterCleanup", true);
+        _cleanupInterval = SettingsService.GetInt("Maintenance", "CleanupIntervalHours", 24);
+
+        _origHealthRetention = _healthRetention;
+        _origRoutineRetention = _routineRetention;
+        _origLogRetention = _logRetention;
+        _origSummaryRetention = _summaryRetention;
+        _origVacuumAfter = _vacuumAfter;
+        _origCleanupInterval = _cleanupInterval;
+    }
+
+    private void MarkDirty()
+    {
+        Context.HasChanges = _healthRetention != _origHealthRetention || _routineRetention != _origRoutineRetention || _logRetention != _origLogRetention || _summaryRetention != _origSummaryRetention || _vacuumAfter != _origVacuumAfter || _cleanupInterval != _origCleanupInterval;
+        Context.NotifyChanged();
+    }
+
+    private async Task SaveAsync()
+    {
+        await SettingsService.SaveCategoryAsync("Maintenance", new Dictionary<string, string>
+        {
+            ["HealthEventRetentionDays"] = _healthRetention.ToString(),
+            ["RoutineRunRetentionDays"] = _routineRetention.ToString(),
+            ["LogEventRetentionDays"] = _logRetention.ToString(),
+            ["SourceSummaryRetentionDays"] = _summaryRetention.ToString(),
+            ["VacuumAfterCleanup"] = _vacuumAfter.ToString(),
+            ["CleanupIntervalHours"] = _cleanupInterval.ToString()
+        });
+        LoadValues();
+    }
+
+    private Task DiscardAsync()
+    {
+        _healthRetention = _origHealthRetention;
+        _routineRetention = _origRoutineRetention;
+        _logRetention = _origLogRetention;
+        _summaryRetention = _origSummaryRetention;
+        _vacuumAfter = _origVacuumAfter;
+        _cleanupInterval = _origCleanupInterval;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async Task RunCleanupNow()
+    {
+        _runningCleanup = true;
+        _cleanupResult = null;
+        StateHasChanged();
+
+        try
+        {
+            RoutineRunner.RunAsync("database-cleanup");
+            await Task.Delay(500);
+            _cleanupResult = "Cleanup triggered successfully.";
+        }
+        catch (Exception ex)
+        {
+            _cleanupResult = $"Failed: {ex.Message}";
+        }
+        finally
+        {
+            _runningCleanup = false;
+        }
+    }
+
+}

@@ -6,6 +6,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+      <Version>0.1.0</Version>
+      <SourceRevisionId>$([System.DateTime]::UtcNow.ToString("yyyyMMddHHmmss"))</SourceRevisionId>
     </PropertyGroup>
 
     <ItemGroup>
@@ -37,10 +39,6 @@
         <_ContentIncludedByDefault Remove="Settings\Jobs.razor"/>
         <_ContentIncludedByDefault Remove="Settings\Services.razor"/>
         <_ContentIncludedByDefault Remove="Settings\Settings.razor"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <AdditionalFiles Include="Components\Pages\Settings\General.razor"/>
     </ItemGroup>
 
 </Project>

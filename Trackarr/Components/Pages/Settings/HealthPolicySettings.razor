@@ -1,0 +1,394 @@
+@page "/settings/health"
+@using Trackarr.Core.Health
+@using Trackarr.Core.UI
+@using Trackarr.Services.Settings
+@layout SettingsLayout
+@inject SettingsService SettingsService
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="subheader mb-0">Health Scoring Policy</div>
+    <button class="btn btn-sm btn-app-ghost" @onclick="ResetToDefaults">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to Defaults
+    </button>
+</div>
+<p class="text-muted mb-4">Configure how download health is scored, when penalties and rewards are applied, and when
+    items are eligible for removal.</p>
+
+<div class="subheader mb-2">Score Bounds</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-4">
+                <label class="form-label">Starting Score</label> <input type="number"
+                                                                        class="form-control"
+                                                                        @bind="_policy.StartingScore"
+                                                                        @bind:after="MarkDirty"/>
+                <div class="form-text">Score assigned to new downloads.</div>
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label">Maximum Score</label> <input type="number"
+                                                                       class="form-control"
+                                                                       @bind="_policy.MaximumScore"
+                                                                       @bind:after="MarkDirty"/>
+                <div class="form-text">Highest possible score.</div>
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label">Minimum Visible Score</label> <input type="number"
+                                                                               class="form-control"
+                                                                               @bind="_policy.MinimumVisibleScore"
+                                                                               @bind:after="MarkDirty"/>
+                <div class="form-text">Scores below this are clamped for display.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="subheader mb-2">Removal Thresholds</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-4">
+                <label class="form-label">Removal Confidence Threshold</label> <input type="number"
+                                                                                      class="form-control"
+                                                                                      @bind="_policy.RemovalConfidenceThreshold"
+                                                                                      @bind:after="MarkDirty"/>
+                <div class="form-text">Minimum confidence before removal is considered.</div>
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label">Startup Grace Period</label>
+                <div class="input-group">
+                    <input type="number"
+                           class="form-control"
+                           @bind="_policy.StartupGracePeriodMinutes"
+                           @bind:after="MarkDirty"/>
+                    <span class="input-group-text">min</span>
+                </div>
+                <div class="form-text">Minutes after first seen before removal is eligible.</div>
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label">Min Bad Scans Before Removal</label> <input type="number"
+                                                                                      class="form-control"
+                                                                                      @bind="_policy.MinimumBadScansBeforeRemoval"
+                                                                                      @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label">Rolling Window Size</label> <input type="number"
+                                                                             class="form-control"
+                                                                             @bind="_policy.RollingWindowSize"
+                                                                             @bind:after="MarkDirty"/>
+                <div class="form-text">Number of recent observations to analyze.</div>
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label">Required Bad Scans in Window</label> <input type="number"
+                                                                                      class="form-control"
+                                                                                      @bind="_policy.RequiredBadScansInWindow"
+                                                                                      @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label">Recent Recovery Protection</label>
+                <div class="input-group">
+                    <input type="number"
+                           class="form-control"
+                           @bind="_policy.RecentRecoveryProtectionScans"
+                           @bind:after="MarkDirty"/>
+                    <span class="input-group-text">scans</span>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label">Recovery Credit Max</label> <input type="number"
+                                                                             class="form-control"
+                                                                             @bind="_policy.RecoveryCreditMax"
+                                                                             @bind:after="MarkDirty"/>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="subheader mb-2">Streak Multipliers</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-3">
+                <label class="form-label">Penalty Streak Escalation</label> <input type="number"
+                                                                                   step="0.1"
+                                                                                   class="form-control"
+                                                                                   @bind="_policy.PenaltyStreakEscalation"
+                                                                                   @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">Penalty Streak Cap</label> <input type="number"
+                                                                            step="0.1"
+                                                                            class="form-control"
+                                                                            @bind="_policy.PenaltyStreakCap"
+                                                                            @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">Reward Streak Escalation</label> <input type="number"
+                                                                                  step="0.1"
+                                                                                  class="form-control"
+                                                                                  @bind="_policy.RewardStreakEscalation"
+                                                                                  @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">Reward Streak Cap</label> <input type="number"
+                                                                           step="0.1"
+                                                                           class="form-control"
+                                                                           @bind="_policy.RewardStreakCap"
+                                                                           @bind:after="MarkDirty"/>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="subheader mb-2">State Thresholds</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <p class="text-muted mb-3">Score ranges that determine the health state label. Higher values are stricter.</p>
+        <div class="row g-3">
+            <div class="col-12 col-md-3">
+                <label class="form-label">
+                    <span class="badge bg-success-lt text-success me-1">Healthy</span> &ge; </label>
+                <input type="number" class="form-control" @bind="_policy.HealthyThreshold" @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">
+                    <span class="badge bg-blue-lt text-blue me-1">Stable</span> &ge; </label> <input type="number"
+                                                                                                     class="form-control"
+                                                                                                     @bind="_policy.StableThreshold"
+                                                                                                     @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">
+                    <span class="badge bg-warning-lt text-warning me-1">Watching</span> &ge; </label>
+                <input type="number" class="form-control" @bind="_policy.WatchingThreshold" @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">
+                    <span class="badge bg-danger-lt text-danger me-1">Degrading</span> &ge; </label>
+                <input type="number" class="form-control" @bind="_policy.DegradingThreshold" @bind:after="MarkDirty"/>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="subheader mb-2">Rewards</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <p class="text-muted mb-3">Points added to the score when positive events are observed.</p>
+        <div class="row g-3">
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Progress Increase</label> <input type="number"
+                                                                           class="form-control"
+                                                                           @bind="_policy.ProgressIncreaseReward"
+                                                                           @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Size Left Decrease</label> <input type="number"
+                                                                            class="form-control"
+                                                                            @bind="_policy.SizeLeftDecreaseReward"
+                                                                            @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Speed Positive</label> <input type="number"
+                                                                        class="form-control"
+                                                                        @bind="_policy.SpeedPositiveReward"
+                                                                        @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">ETA Improved</label> <input type="number"
+                                                                      class="form-control"
+                                                                      @bind="_policy.EtaImprovedReward"
+                                                                      @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Error Cleared</label> <input type="number"
+                                                                       class="form-control"
+                                                                       @bind="_policy.ErrorClearedReward"
+                                                                       @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Recovery</label> <input type="number"
+                                                                  class="form-control"
+                                                                  @bind="_policy.RecoveryReward"
+                                                                  @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Sustained Progress</label> <input type="number"
+                                                                            class="form-control"
+                                                                            @bind="_policy.SustainedProgressReward"
+                                                                            @bind:after="MarkDirty"/>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="subheader mb-2">Penalties</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <p class="text-muted mb-3">Points deducted from the score when negative events are observed. Use negative
+            values.</p>
+        <div class="row g-3">
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">No Progress</label> <input type="number"
+                                                                     class="form-control"
+                                                                     @bind="_policy.NoProgressPenalty"
+                                                                     @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Warning</label> <input type="number"
+                                                                 class="form-control"
+                                                                 @bind="_policy.WarningPenalty"
+                                                                 @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Error</label> <input type="number"
+                                                               class="form-control"
+                                                               @bind="_policy.ErrorPenalty"
+                                                               @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Stalled</label> <input type="number"
+                                                                 class="form-control"
+                                                                 @bind="_policy.StalledPenalty"
+                                                                 @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Stalled (No Connections)</label> <input type="number"
+                                                                                  class="form-control"
+                                                                                  @bind="_policy.StalledNoConnectionsPenalty"
+                                                                                  @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Repeated Error</label> <input type="number"
+                                                                        class="form-control"
+                                                                        @bind="_policy.RepeatedErrorPenalty"
+                                                                        @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Previous Media Failure</label> <input type="number"
+                                                                                class="form-control"
+                                                                                @bind="_policy.PreviousMediaFailurePenalty"
+                                                                                @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Quality Downgraded Still Failing</label> <input type="number"
+                                                                                          class="form-control"
+                                                                                          @bind="_policy.QualityDowngradedStillFailingPenalty"
+                                                                                          @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Fetching Metadata</label> <input type="number"
+                                                                           step="0.1"
+                                                                           class="form-control"
+                                                                           @bind="_policy.FetchingMetadataPenalty"
+                                                                           @bind:after="MarkDirty"/>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Byte Progress Protection</label>
+                <div class="input-group">
+                    <input type="number"
+                           class="form-control"
+                           @bind="_policy.ByteProgressProtectionMinutes"
+                           @bind:after="MarkDirty"/>
+                    <span class="input-group-text">min</span>
+                </div>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label">Good Observation Bad Scan Decay</label> <input type="number"
+                                                                                         class="form-control"
+                                                                                         @bind="_policy.GoodObservationBadScanDecay"
+                                                                                         @bind:after="MarkDirty"/>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private SettingsPageContext Context { get; set; } = null!;
+
+    private HealthPolicy _policy = new();
+    private HealthPolicy _origPolicy = new();
+
+    protected override void OnInitialized()
+    {
+        LoadValues();
+        Context.SaveAsync = SaveAsync;
+        Context.DiscardAsync = DiscardAsync;
+    }
+
+    private void LoadValues()
+    {
+        _policy = SettingsService.GetHealthPolicy();
+        _origPolicy = SettingsService.GetHealthPolicy();
+    }
+
+    private void MarkDirty()
+    {
+        Context.HasChanges = !PolicyEquals(_policy, _origPolicy);
+        Context.NotifyChanged();
+    }
+
+    private void ResetToDefaults()
+    {
+        _policy = new HealthPolicy();
+        MarkDirty();
+    }
+
+    private async Task SaveAsync()
+    {
+        await SettingsService.SaveCategoryAsync("HealthPolicy", new Dictionary<string, string>
+        {
+            ["StartingScore"] = _policy.StartingScore.ToString(),
+            ["MaximumScore"] = _policy.MaximumScore.ToString(),
+            ["MinimumVisibleScore"] = _policy.MinimumVisibleScore.ToString(),
+            ["RemovalConfidenceThreshold"] = _policy.RemovalConfidenceThreshold.ToString(),
+            ["StartupGracePeriodMinutes"] = _policy.StartupGracePeriodMinutes.ToString(),
+            ["MinimumBadScansBeforeRemoval"] = _policy.MinimumBadScansBeforeRemoval.ToString(),
+            ["RollingWindowSize"] = _policy.RollingWindowSize.ToString(),
+            ["RequiredBadScansInWindow"] = _policy.RequiredBadScansInWindow.ToString(),
+            ["RecentRecoveryProtectionScans"] = _policy.RecentRecoveryProtectionScans.ToString(),
+            ["RecoveryCreditMax"] = _policy.RecoveryCreditMax.ToString(),
+            ["PenaltyStreakEscalation"] = _policy.PenaltyStreakEscalation.ToString(),
+            ["PenaltyStreakCap"] = _policy.PenaltyStreakCap.ToString(),
+            ["RewardStreakEscalation"] = _policy.RewardStreakEscalation.ToString(),
+            ["RewardStreakCap"] = _policy.RewardStreakCap.ToString(),
+            ["HealthyThreshold"] = _policy.HealthyThreshold.ToString(),
+            ["StableThreshold"] = _policy.StableThreshold.ToString(),
+            ["WatchingThreshold"] = _policy.WatchingThreshold.ToString(),
+            ["DegradingThreshold"] = _policy.DegradingThreshold.ToString(),
+            ["ProgressIncreaseReward"] = _policy.ProgressIncreaseReward.ToString(),
+            ["SizeLeftDecreaseReward"] = _policy.SizeLeftDecreaseReward.ToString(),
+            ["SpeedPositiveReward"] = _policy.SpeedPositiveReward.ToString(),
+            ["EtaImprovedReward"] = _policy.EtaImprovedReward.ToString(),
+            ["ErrorClearedReward"] = _policy.ErrorClearedReward.ToString(),
+            ["RecoveryReward"] = _policy.RecoveryReward.ToString(),
+            ["SustainedProgressReward"] = _policy.SustainedProgressReward.ToString(),
+            ["NoProgressPenalty"] = _policy.NoProgressPenalty.ToString(),
+            ["WarningPenalty"] = _policy.WarningPenalty.ToString(),
+            ["ErrorPenalty"] = _policy.ErrorPenalty.ToString(),
+            ["StalledPenalty"] = _policy.StalledPenalty.ToString(),
+            ["StalledNoConnectionsPenalty"] = _policy.StalledNoConnectionsPenalty.ToString(),
+            ["RepeatedErrorPenalty"] = _policy.RepeatedErrorPenalty.ToString(),
+            ["PreviousMediaFailurePenalty"] = _policy.PreviousMediaFailurePenalty.ToString(),
+            ["QualityDowngradedStillFailingPenalty"] = _policy.QualityDowngradedStillFailingPenalty.ToString(),
+            ["ByteProgressProtectionMinutes"] = _policy.ByteProgressProtectionMinutes.ToString(),
+            ["FetchingMetadataPenalty"] = _policy.FetchingMetadataPenalty.ToString(),
+            ["GoodObservationBadScanDecay"] = _policy.GoodObservationBadScanDecay.ToString()
+        });
+        LoadValues();
+    }
+
+    private Task DiscardAsync()
+    {
+        _policy = SettingsService.GetHealthPolicy();
+        _origPolicy = SettingsService.GetHealthPolicy();
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private static bool PolicyEquals(HealthPolicy a, HealthPolicy b)
+    {
+        return a.StartingScore == b.StartingScore && a.MaximumScore == b.MaximumScore && a.MinimumVisibleScore == b.MinimumVisibleScore && a.RemovalConfidenceThreshold == b.RemovalConfidenceThreshold && a.StartupGracePeriodMinutes == b.StartupGracePeriodMinutes && a.MinimumBadScansBeforeRemoval == b.MinimumBadScansBeforeRemoval && a.RollingWindowSize == b.RollingWindowSize && a.RequiredBadScansInWindow == b.RequiredBadScansInWindow && a.RecentRecoveryProtectionScans == b.RecentRecoveryProtectionScans && a.RecoveryCreditMax == b.RecoveryCreditMax && a.PenaltyStreakEscalation == b.PenaltyStreakEscalation && a.PenaltyStreakCap == b.PenaltyStreakCap && a.RewardStreakEscalation == b.RewardStreakEscalation && a.RewardStreakCap == b.RewardStreakCap && a.HealthyThreshold == b.HealthyThreshold && a.StableThreshold == b.StableThreshold && a.WatchingThreshold == b.WatchingThreshold && a.DegradingThreshold == b.DegradingThreshold && a.ProgressIncreaseReward == b.ProgressIncreaseReward && a.SizeLeftDecreaseReward == b.SizeLeftDecreaseReward && a.SpeedPositiveReward == b.SpeedPositiveReward && a.EtaImprovedReward == b.EtaImprovedReward && a.ErrorClearedReward == b.ErrorClearedReward && a.RecoveryReward == b.RecoveryReward && a.SustainedProgressReward == b.SustainedProgressReward && a.NoProgressPenalty == b.NoProgressPenalty && a.WarningPenalty == b.WarningPenalty && a.ErrorPenalty == b.ErrorPenalty && a.StalledPenalty == b.StalledPenalty && a.StalledNoConnectionsPenalty == b.StalledNoConnectionsPenalty && a.RepeatedErrorPenalty == b.RepeatedErrorPenalty && a.PreviousMediaFailurePenalty == b.PreviousMediaFailurePenalty && a.QualityDowngradedStillFailingPenalty == b.QualityDowngradedStillFailingPenalty && a.ByteProgressProtectionMinutes == b.ByteProgressProtectionMinutes && a.FetchingMetadataPenalty == b.FetchingMetadataPenalty && a.GoodObservationBadScanDecay == b.GoodObservationBadScanDecay;
+    }
+
+}

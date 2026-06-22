@@ -1,388 +1,318 @@
-﻿@page "/servers"
+@page "/servers"
 @inject IJSRuntime Js
 @inject MediaServerService MediaServerService
 @using Trackarr.Components.Modals
 @using Trackarr.Services.Media
 @using static Utils
 @implements IAsyncDisposable
+
 <AddServerModal @ref="_serverModal"/>
 <ConfirmationDialog @ref="_confirmModal" Text="@_confirmText" OnConfirm="@(() => SendDeleteToDb(_selectedServerId))"/>
+
 <div class="d-flex flex-column gap-3">
-    <div class="row g-3">
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card stat-card">
+    <div class="subheader mt-2 mb-2">Server Overview</div>
+    <div class="row row-cards mb-3">
+        <div class="col-sm-6 col-xl-2">
+            <div class="card app-card">
                 <div class="card-body">
-                    <div class="stat-icon stat-icon-purple">
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                             width="24"
-                             height="24"
-                             viewBox="0 0 24 24"
-                             fill="none"
-                             stroke="currentColor"
-                             stroke-width="2"
-                             stroke-linecap="round"
-                             stroke-linejoin="round"
-                             class="icon icon-tabler icons-tabler-outline icon-tabler-server">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                            <path d="M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3"/>
-                            <path d="M3 15a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -2"/>
-                            <path d="M7 8l0 .01"/>
-                            <path d="M7 16l0 .01"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <div class="stat-label">Total Servers</div>
-                        <div class="stat-value">@_servers.Count</div>
-                        <div class="stat-subtitle">All connected servers</div>
-                    </div>
+                    <div class="subheader mb-2">Servers</div>
+                    <div class="h1 mb-0">@_servers.Count</div>
                 </div>
             </div>
         </div>
 
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card stat-card">
+        <div class="col-sm-6 col-xl-2">
+            <div class="card app-card">
                 <div class="card-body">
-                    <div class="stat-icon stat-icon-success">
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                             width="24"
-                             height="24"
-                             viewBox="0 0 24 24"
-                             fill="none"
-                             stroke="currentColor"
-                             stroke-width="2"
-                             stroke-linecap="round"
-                             stroke-linejoin="round"
-                             class="icon icon-tabler icons-tabler-outline icon-tabler-checks">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                            <path d="M7 12l5 5l10 -10"/>
-                            <path d="M2 12l5 5m5 -5l5 -5"/>
-                        </svg>
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="subheader">Online</div>
+                        @if (_servers.Count > 0)
+                        {
+                            var allOnline = _servers.All(s => s.IsOnline);
+                            <div class="ms-auto d-flex align-items-center @(allOnline ? "text-green" : "text-red")">
+                                <i class="@(allOnline ? "ti ti-circle-check" : "ti ti-alert-triangle")"></i>
+                            </div>
+                        }
                     </div>
-                    <div>
-                        <div class="stat-label">Online</div>
-                        <div class="stat-value">@_servers.Count(x => x.IsOnline)</div>
-                        <div class="stat-subtitle">All servers are online</div>
-                    </div>
+                    <div class="h1 mb-0">@_servers.Count(x => x.IsOnline) / @_servers.Count</div>
                 </div>
             </div>
         </div>
 
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card stat-card">
+        <div class="col-sm-6 col-xl-2">
+            <div class="card app-card">
                 <div class="card-body">
-                    <div class="stat-icon stat-icon-warning">
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                             width="24"
-                             height="24"
-                             viewBox="0 0 24 24"
-                             fill="none"
-                             stroke="currentColor"
-                             stroke-width="2"
-                             stroke-linecap="round"
-                             stroke-linejoin="round"
-                             class="icon icon-tabler icons-tabler-outline icon-tabler-activity">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                            <path d="M3 12h4l3 8l4 -16l3 8h4"/>
-                        </svg>
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="subheader">Verified</div>
+                        @if (_servers.Count > 0)
+                        {
+                            var allAuth = _servers.All(s => s.IsAuthenticated);
+                            <div class="ms-auto d-flex align-items-center @(allAuth ? "text-green" : "text-red")">
+                                <i class="@(allAuth ? "ti ti-circle-check" : "ti ti-alert-triangle")"></i>
+                            </div>
+                        }
                     </div>
-                    <div>
-                        <div class="stat-label">Sync OK</div>
-                        <div class="stat-value">@_servers.Count(x => x.IsAuthenticated)</div>
-                        <div class="stat-subtitle">All servers are healthy</div>
-                    </div>
+                    <div class="h1 mb-0">@_servers.Count(x => x.IsAuthenticated) / @_servers.Count</div>
                 </div>
             </div>
         </div>
 
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card stat-card">
+        <div class="col-sm-6 col-xl-2">
+            <div class="card app-card">
                 <div class="card-body">
-                    <div class="stat-icon stat-icon-primary">
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                             width="24"
-                             height="24"
-                             viewBox="0 0 24 24"
-                             fill="none"
-                             stroke="currentColor"
-                             stroke-width="2"
-                             stroke-linecap="round"
-                             stroke-linejoin="round"
-                             class="icon icon-tabler icons-tabler-outline icon-tabler-refresh">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                            <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
-                            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <div class="stat-label">Last Sync</div>
-                        <div class="stat-value">@(_servers.Count == 0 ? "Never" : TimeAgo(_servers.Max(x => x.LastAuthenticatedAt)))</div>
-                    </div>
+                    <div class="subheader mb-2">Total in Queue</div>
+                    <div class="h1 mb-0">@(_servers.Sum(x => x.LastQueueCount ?? 0))</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-2">
+            <div class="card app-card">
+                <div class="card-body">
+                    <div class="subheader mb-2">Total Missing</div>
+                    <div class="h1 mb-0">@(_servers.Sum(x => x.LastMissingCount ?? 0))</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-2">
+            <div class="card app-card">
+                <div class="card-body">
+                    <div class="subheader mb-2">Last Sync</div>
+                    <div class="h1 mb-0">@(_servers.Count == 0 ? "—" : TimeAgo(_servers.Max(x => x.LastQueueFetchAt)))</div>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="card app-card">
-        <div class="card-table">
-            <div class="app-table-toolbar">
-                <div class="p-3 border-bottom">
-                    <div class="row g-3 align-items-start">
-                        <div class="col-12 col-md-5 col-xl-4">
-                            <div class="input-group input-group-flat">
-                                <span class="input-group-text">
-                                    <svg xmlns="http://www.w3.org/2000/svg"
-                                         width="24"
-                                         height="24"
-                                         viewBox="0 0 24 24"
-                                         fill="none"
-                                         stroke="currentColor"
-                                         stroke-width="2"
-                                         stroke-linecap="round"
-                                         stroke-linejoin="round"
-                                         class="icon icon-tabler icons-tabler-outline icon-tabler-search">
-                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                        <path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"/>
-                                        <path d="M21 21l-6 -6"/>
-                                    </svg>
-                                </span>
-                                <input id="servers-table-search"
-                                       type="text"
-                                       class="form-control"
-                                       placeholder="Search servers..."
-                                       autocomplete="off">
-                            </div>
-                        </div>
+        <div class="card-header">
+            <div class="d-flex flex-wrap align-items-center gap-2 w-100">
+                <div class="ms-auto d-flex flex-wrap btn-list">
+                    @if (HasActiveFilters)
+                    {
+                        <button class="btn btn-app-ghost" @onclick="ClearFilters">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 width="16"
+                                 height="16"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 class="icon m-0 me-1">
+                                <path d="M18 6l-12 12"/>
+                                <path d="M6 6l12 12"/>
+                            </svg>
+                            Clear
+                        </button>
+                    }
 
-                        <div class="col-12 col-md-auto">
-                            <div class="d-flex flex-wrap gap-2"></div>
-                        </div>
+                    <select class="form-select w-auto" @onchange="OnTypeFilterChanged">
+                        <option value="" selected="@(_typeFilter == null)">All Types</option>
+                        @foreach (var type in AvailableTypes)
+                        {
+                            <option value="@type" selected="@(_typeFilter == type)">@type</option>
+                        } </select>
 
-                        <div class="col-12 col-xl">
-                            <div class="d-flex flex-wrap justify-content-start justify-content-xl-end gap-2">
-                                <button class="btn btn-app-primary" @onclick="AddServer">
-                                    <svg xmlns="http://www.w3.org/2000/svg"
-                                         width="24"
-                                         height="24"
-                                         viewBox="0 0 24 24"
-                                         fill="none"
-                                         stroke="currentColor"
-                                         stroke-width="2"
-                                         stroke-linecap="round"
-                                         stroke-linejoin="round"
-                                         class="icon icon-tabler icons-tabler-outline icon-tabler-plus">
-                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                        <path d="M12 5l0 14"/>
-                                        <path d="M5 12l14 0"/>
-                                    </svg>
-                                    Add Server
-                                </button>
-                                <button class="btn btn-app-ghost" @onclick="SyncAll" disabled="@IsRefreshing">
-                                    @if (IsRefreshing)
-                                    {
-                                        <svg xmlns="http://www.w3.org/2000/svg"
-                                             width="20"
-                                             height="20"
-                                             viewBox="0 0 24 24"
-                                             fill="none"
-                                             stroke="currentColor"
-                                             stroke-width="2"
-                                             stroke-linecap="round"
-                                             stroke-linejoin="round"
-                                             class="icon icon-tabler icon-tabler-refresh m-0 @(IsRefreshing ? "spinner" : "")">
-                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                            <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
-                                            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
-                                        </svg>
-                                    }
-                                    else
-                                    {
-                                        <span>Sync All</span>
-                                    }
-                                </button>
-                            </div>
-                        </div>
+                    <select class="form-select w-auto" @onchange="OnStatusFilterChanged">
+                        <option value="" selected="@(_statusFilter == null)">All Statuses</option>
+                        <option value="online" selected="@(_statusFilter == "online")">Online</option>
+                        <option value="offline" selected="@(_statusFilter == "offline")">Offline</option>
+                        <option value="error" selected="@(_statusFilter == "error")">Error</option>
+                    </select>
+
+                    <button class="btn btn-app-primary" @onclick="AddServer">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             width="20"
+                             height="20"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="2"
+                             stroke-linecap="round"
+                             stroke-linejoin="round"
+                             class="icon m-0 me-1">
+                            <path d="M12 5l0 14"/>
+                            <path d="M5 12l14 0"/>
+                        </svg>
+                        Add Server
+                    </button>
+
+                    <button class="btn btn-app-ghost" @onclick="SyncAll" disabled="@IsRefreshing">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             width="20"
+                             height="20"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="2"
+                             stroke-linecap="round"
+                             stroke-linejoin="round"
+                             class="icon icon-tabler icon-tabler-refresh m-0 @(IsRefreshing ? "spinner" : "")">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                            <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+                            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+                        </svg>
+                    </button>
+
+                    <div class="input-group input-group-flat w-auto">
+                        <span class="input-group-text">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 width="24"
+                                 height="24"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 class="icon icon-1">
+                                <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"></path>
+                                <path d="M21 21l-6 -6"></path>
+                            </svg>
+                        </span>
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               autocomplete="off"
+                               placeholder="Search servers..."
+                               value="@_searchTerm"
+                               @oninput="OnSearchChanged">
                     </div>
                 </div>
-
             </div>
+        </div>
 
-            <div id="servers-table">
-                <div class="table table-responsive">
-                    <table class="table table-vcenter card-table ">
-                        <thead>
-                        <tr>
-                            <th style="min-width: 500px;">
-                                <button class="table-sort d-flex justify-content-between" data-sort="sort-name">Name
-                                </button>
-                            </th>
-                            <th style="width: 100px;">
-                                <button class="table-sort d-flex justify-content-between" data-sort="sort-type">Type
-                                </button>
-                            </th>
-                            <th>
-                                <button class="table-sort d-flex justify-content-between" data-sort="sort-url">URL
-                                </button>
-                            </th>
-                            <th>
-                                <button class="table-sort d-flex justify-content-between" data-sort="sort-status">
-                                    Added
-                                </button>
-                            </th>
-                            <th>
-                                <button class="table-sort d-flex justify-content-between" data-sort="sort-status">
-                                    Fallback Profile
-                                </button>
-                            </th>
-                            <th style="width: 75px;">
-                                <button class="table-sort d-flex justify-content-between" data-sort="sort-sync">Enabled
-                                </button>
-                            </th>
-                            <th style="width: 75px;">
-                                <button class="table-sort d-flex justify-content-between" data-sort="sort-sync">Online
-                                </button>
-                            </th>
-                            <th style="width: 75px;">
-                                <button class="table-sort d-flex justify-content-between" data-sort="sort-sync">Verified
-                                </button>
-                            </th>
-
-                            <th style="width: 75px;">
-                                <button class="table-sort d-flex justify-content-between" data-sort="sort-sync">Queue
-                                </button>
-                            </th>
-                            <th style="width: 75px;">
-                                <button class="table-sort d-flex justify-content-between" data-sort="sort-sync">Missing
-                                </button>
-                            </th>
-                            <th>
-                                <button class="table-sort d-flex justify-content-between" data-sort="sort-last-sync">
-                                    Last Sync
-                                </button>
-                            </th>
-                            <th>
-                                <button class="table-sort d-flex justify-content-between" data-sort="sort-version">
-                                    Version
-                                </button>
-                            </th>
-                            <th class="text-end" style="width: 130px;"></th>
-                        </tr>
-                        </thead>
-
-                        <tbody class="table-tbody">
-                        @if (_servers.Count == 0)
-                        {
-                            <tr>
-                                <td colspan="8" class="text-center text-muted py-4">No servers configured</td>
-                            </tr>
-                        }
-
-                        @foreach (var row in _servers)
-                        {
-                            <tr @key="row.Id">
-                                <td class="sort-name fw-semibold border-secondary-subtle bordeoverflow-hidden">
-                                    <div class="item-title-cell">
-                                        @GetServerIcon(row.ServiceType)
-                                        <div>
-                                            <div class="item-title h3 m-0">@row.Name</div>
+        <div class="table-responsive">
+            <table class="table table-vcenter table-nowrap">
+                <thead>
+                <tr>
+                    <th>
+                        <button class="@SortClass("name")" @onclick='() => SortBy("name")'>Server</button>
+                    </th>
+                    <th style="width: 90px">
+                        <button class="@SortClass("type")" @onclick='() => SortBy("type")'>Type</button>
+                    </th>
+                    <th style="width: 80px">
+                        <button class="@SortClass("status")" @onclick='() => SortBy("status")'>Status</button>
+                    </th>
+                    <th style="width: 75px" class="text-end">
+                        <button class="@SortClass("queue")" @onclick='() => SortBy("queue")'>Queue</button>
+                    </th>
+                    <th style="width: 75px" class="text-end">
+                        <button class="@SortClass("missing")" @onclick='() => SortBy("missing")'>Missing</button>
+                    </th>
+                    <th style="width: 75px" class="text-end">
+                        <button class="@SortClass("ping")" @onclick='() => SortBy("ping")'>Ping</button>
+                    </th>
+                    <th style="width: 100px" class="text-end">
+                        <button class="@SortClass("sync")" @onclick='() => SortBy("sync")'>Last Sync</button>
+                    </th>
+                    <th style="width: 90px">
+                        <button class="@SortClass("version")" @onclick='() => SortBy("version")'>Version</button>
+                    </th>
+                    <th style="width: 130px" class="text-end"></th>
+                </tr>
+                </thead>
+                <tbody class="table-tbody">
+                @if (FilteredServers.Count == 0)
+                {
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">No servers found</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var row in FilteredServers)
+                    {
+                        <tr @key="row.Id">
+                            <td>
+                                <div class="item-title-cell">
+                                    @GetServerIcon(row.ServiceType)
+                                    <div>
+                                        <div class="item-title fw-semibold">@row.Name</div>
+                                        <div class="item-meta">
+                                            <a href="@row.BaseUrl"
+                                               target="_blank"
+                                               class="text-secondary text-decoration-none">
+                                                @row.BaseUrl
+                                            </a>
+                                            @if (!string.IsNullOrWhiteSpace(row.FallbackProfile?.Name))
+                                            {
+                                                <span class="text-secondary ms-2">
+                                                    Fallback: @row.FallbackProfile.Name</span>
+                                            }
                                         </div>
                                     </div>
-                                </td>
+                                </div>
+                            </td>
 
-                                <td class="sort-type border-secondary-subtle border">
-                                    <span class="@GetTypeBadgeClass(row.ServiceType)">@row.ServiceType.ToString()</span>
-                                </td>
+                            <td>
+                                <span class="@GetTypeBadgeClass(row.ServiceType)">@row.ServiceType</span>
+                            </td>
 
-                                <td class="sort-url fw-semibold border-secondary-subtle border">
-                                    <a href="@row.BaseUrl" target="_blank" class="text-decoration-none text-white">
-                                        @row.BaseUrl
-                                        <svg xmlns="http://www.w3.org/2000/svg"
-                                             width="24"
-                                             height="24"
-                                             viewBox="0 0 24 24"
-                                             fill="none"
-                                             stroke="currentColor"
-                                             stroke-width="2"
-                                             stroke-linecap="round"
-                                             stroke-linejoin="round"
-                                             class="icon icon-tabler icons-tabler-outline icon-tabler-external-link">
-                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                            <path d="M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6"/>
-                                            <path d="M11 13l9 -9"/>
-                                            <path d="M15 4h5v5"/>
-                                        </svg>
-                                    </a>
-                                </td>
+                            <td>
+                                <span class="@GetServerStatusBadge(row)">@GetServerStatusText(row)</span>
+                            </td>
 
-                                <td class="sort-status fw-semibold border-secondary-subtle border">
-                                    <span class="">@TimeAgo(row.CreatedAt)</span>
-                                </td>
-                                <td class="sort-status fw-semibold border-secondary-subtle border">
-                                    <span class="">@TextDisplay(row.FallbackProfile?.Name)</span>
-                                </td>
+                            <td class="text-end fw-semibold">
+                                @IntDisplay(row.LastQueueCount)
+                            </td>
 
-                                <td class="sort-sync fw-semibold border border-secondary-subtle">
-                                    <span class="">@GetChecked(row.IsEnabled)</span>
-                                </td>
+                            <td class="text-end fw-semibold">
+                                @IntDisplay(row.LastMissingCount)
+                            </td>
 
-                                <td class="sort-sync fw-semibold border border-secondary-subtle">
-                                    <span class="">@GetChecked(row.IsOnline)</span>
-                                </td>
+                            <td class="text-end text-secondary">
+                                @(row.LastPingMs.HasValue ? $"{row.LastPingMs}ms" : "—")
+                            </td>
 
-                                <td class="sort-sync fw-semibold border border-secondary-subtle">
-                                    <span class="">@GetChecked(row.IsAuthenticated)</span>
-                                </td>
-                                <td class="sort-sync fw-semibold border border-secondary-subtle">
-                                    <span class="">@IntDisplay(row.LastQueueCount)</span>
-                                </td>
-                                <td class="sort-sync fw-semibold border border-secondary-subtle">
-                                    <span class="">@IntDisplay(row.LastMissingCount)</span>
-                                </td>
+                            <td class="text-end text-secondary" title="@DateTimeDisplay(row.LastQueueFetchAt)">
+                                @TimeAgo(row.LastQueueFetchAt)
+                            </td>
 
+                            <td class="text-secondary text-nowrap">
+                                @(row.Metadata?.Version ?? "—")
+                            </td>
 
-                                <td class="sort-last-sync fw-semibold border-secondary-subtle border"
-                                    data-sort="@row.LastAuthenticatedAt">
-                                    @TimeAgo(row.LastQueueFetchAt)
-                                </td>
-
-                                <td class="sort-version text-nowrap border-secondary-subtle border">@row.Metadata?.Version</td>
-
-                                <td class="text-end border-secondary-subtle border">
-                                    <div class="btn-group" @onclick:stopPropagation="true">
-                                        <button class="btn btn-app-ghost text-white" @onclick="() => EditServer(row)">
-                                            Edit
+                            <td class="text-end">
+                                <div class="btn-group" @onclick:stopPropagation="true">
+                                    <button class="btn btn-app-ghost btn-sm" @onclick="() => EditServer(row)">
+                                        Edit
+                                    </button>
+                                    <button data-bs-toggle="dropdown"
+                                            data-bs-strategy="fixed"
+                                            type="button"
+                                            class="btn btn-app-ghost btn-sm dropdown-toggle dropdown-toggle-split"
+                                            aria-expanded="false"></button>
+                                    <div class="dropdown-menu dropdown-menu-end">
+                                        <button class="dropdown-item" type="button" @onclick="() => SyncServer(row)">
+                                            Sync Now
                                         </button>
-                                        <button data-bs-toggle="dropdown"
-                                                data-bs-strategy="fixed"
+                                        <button class="dropdown-item"
                                                 type="button"
-                                                class="btn btn-app-ghost dropdown-toggle dropdown-toggle-split text-white"
-                                                aria-expanded="false"></button>
-                                        <div class="dropdown-menu dropdown-menu-end">
-                                            <button class="dropdown-item"
-                                                    type="button"
-                                                    @onclick="() => SyncServer(row)">Sync Now
-                                            </button>
-                                            <button class="dropdown-item"
-                                                    type="button"
-                                                    @onclick="() => TestConnection(row)">Test
-                                            </button>
-                                            <button class="dropdown-item text-status-failed"
-                                                    type="button"
-                                                    @onclick="() => RemoveServer(row)">Remove
-                                            </button>
-                                        </div>
+                                                @onclick="() => TestConnection(row)">
+                                            Test Connection
+                                        </button>
+                                        <div class="dropdown-divider"></div>
+                                        <button class="dropdown-item text-danger"
+                                                type="button"
+                                                @onclick="() => RemoveServer(row)">
+                                            Remove
+                                        </button>
                                     </div>
-                                </td>
-                            </tr>
-                        }
-                        </tbody>
-                    </table>
-                </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
 
-                <div class="card-footer d-flex align-items-center justify-content-between gap-4">
-                    <div id="servers-page-count" class="fw-semibold"></div>
-                    <ul class="pagination mb-0 gap-2"></ul>
-                </div>
-            </div>
+        <div class="card-footer d-flex align-items-center justify-content-end">
+            <div class="fw-semibold">@FilteredServers.Count of @_servers.Count servers</div>
         </div>
     </div>
 </div>

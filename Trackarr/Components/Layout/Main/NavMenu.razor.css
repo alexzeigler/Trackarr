@@ -49,13 +49,6 @@
     padding-bottom: 1rem;
 }
 
-.active-group {
-    border-left: 3px solid var(--color-primary);
-}
-
-.inactive-group {
-    border-left: 3px solid transparent;
-}
 
 .inactive-group:hover {
     border-left-color: var(--bs-secondary-bg-subtle);
@@ -78,6 +71,7 @@
 .nav-item ::deep a.active {
     color: var(--color-primary);
 }
+
 
 .nav-item ::deep .nav-link.nav-parent.active {
     background: var(--bs-gray-800);

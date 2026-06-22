@@ -1,0 +1,115 @@
+@page "/settings/general"
+@using Trackarr.Core.UI
+@using Trackarr.Services.Settings
+@layout SettingsLayout
+@inject SettingsService SettingsService
+
+<div class="subheader mb-2">Application</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label">Application Name</label> <input class="form-control"
+                                                                          @bind="_appName"
+                                                                          @bind:event="oninput"
+                                                                          @bind:after="MarkDirty"/>
+                <div class="form-text">Display name shown in the sidebar and browser tab.</div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Default Server Type</label> <select class="form-select"
+                                                                              @bind="_defaultServerType"
+                                                                              @bind:after="MarkDirty">
+                    <option value="Radarr">Radarr</option>
+                    <option value="Sonarr">Sonarr</option>
+                </select>
+                <div class="form-text">Default type when adding a new server.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="subheader mb-2">Behavior</div>
+<div class="card app-card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label">Disabled Server Behavior</label> <select class="form-select"
+                                                                                   @bind="_disabledBehavior"
+                                                                                   @bind:after="MarkDirty">
+                    <option value="hidden">Hidden — exclude from all views</option>
+                    <option value="grayed">Grayed Out — visible but inactive</option>
+                </select>
+                <div class="form-text">How disabled servers and their items appear throughout the app.</div>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-check form-switch mt-4"> <input class="form-check-input"
+                                                                   type="checkbox"
+                                                                   @bind="_autoStartRoutines"
+                                                                   @bind:after="MarkDirty"/>
+                    <span class="form-check-label">Auto-Start Routines</span>
+                </label>
+                <div class="form-text">Automatically start all routines when the application starts.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private SettingsPageContext Context { get; set; } = null!;
+
+    private string _appName = "";
+    private string _disabledBehavior = "hidden";
+    private bool _autoStartRoutines = true;
+    private string _defaultServerType = "Radarr";
+
+    private string _origAppName = "";
+    private string _origDisabledBehavior = "hidden";
+    private bool _origAutoStartRoutines = true;
+    private string _origDefaultServerType = "Radarr";
+
+    protected override void OnInitialized()
+    {
+        LoadValues();
+        Context.SaveAsync = SaveAsync;
+        Context.DiscardAsync = DiscardAsync;
+    }
+
+    private void LoadValues()
+    {
+        _appName = SettingsService.GetString("General", "AppName", "Trackarr");
+        _disabledBehavior = SettingsService.GetString("General", "DisabledServerBehavior", "hidden");
+        _autoStartRoutines = SettingsService.GetBool("General", "AutoStartRoutines", true);
+        _defaultServerType = SettingsService.GetString("General", "DefaultServerType", "Radarr");
+
+        _origAppName = _appName;
+        _origDisabledBehavior = _disabledBehavior;
+        _origAutoStartRoutines = _autoStartRoutines;
+        _origDefaultServerType = _defaultServerType;
+    }
+
+    private void MarkDirty()
+    {
+        Context.HasChanges = _appName != _origAppName || _disabledBehavior != _origDisabledBehavior || _autoStartRoutines != _origAutoStartRoutines || _defaultServerType != _origDefaultServerType;
+        Context.NotifyChanged();
+    }
+
+    private async Task SaveAsync()
+    {
+        await SettingsService.SaveCategoryAsync("General", new Dictionary<string, string> { ["AppName"] = _appName, ["DisabledServerBehavior"] = _disabledBehavior, ["AutoStartRoutines"] = _autoStartRoutines.ToString(), ["DefaultServerType"] = _defaultServerType });
+        _origAppName = _appName;
+        _origDisabledBehavior = _disabledBehavior;
+        _origAutoStartRoutines = _autoStartRoutines;
+        _origDefaultServerType = _defaultServerType;
+    }
+
+    private Task DiscardAsync()
+    {
+        _appName = _origAppName;
+        _disabledBehavior = _origDisabledBehavior;
+        _autoStartRoutines = _origAutoStartRoutines;
+        _defaultServerType = _origDefaultServerType;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+}

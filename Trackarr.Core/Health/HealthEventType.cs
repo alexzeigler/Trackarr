@@ -21,5 +21,6 @@ public enum HealthEventType
     RemovedByTrackarr,
     ImportedSuccessfully,
     FailedExternally,
-    FetchingMetadata
+    FetchingMetadata,
+    ManualOverride
 }

@@ -1,4 +1,5 @@
-﻿@using Trackarr.Services.Media
+@using System.Net
+@using Trackarr.Services.Media
 @using static Utils
 @using static Core.Queue.StatusMessageDecode
 @inject IJSRuntime Js
@@ -29,57 +30,51 @@
                                         <span class="px-1"> @GetEpisodeString(_episode)</span>
                                     }
                                 </h1>
-                                <span class="badge bg-secondary-lt text-secondary">@TypeLabel</span>
+                                <span class="@MediaTypeBadgeClass(TypeLabel)">@TypeLabel</span>
                             </div>
                             <div class="text-secondary fs-3 mt-1 text-truncate">@QualityDisplay</div>
                             <div class="row g-0 mt-4">
-                                <div class="col-6 col-md-4 col-xl px-4 border-end border-secondary-subtle overflow-hidden">
-                                    <div class="small fw-bold text-uppercase text-secondary mb-2 text-truncate">
-                                        First Seen At
+                                <div class="col-6 col-md-3 col-xl px-4 border-end border-secondary-subtle overflow-hidden">
+                                    <div class="small fw-bold text-uppercase text-secondary mb-2 text-truncate"
+                                         data-bs-toggle="tooltip"
+                                         title="The media server instance managing this item">
+                                        Server
                                     </div>
-                                    <span class="fw-semibold text-truncate">
-                                        @TimeAgo(_mediaHealthSummary?.CreatedAt)
-                                    </span>
+                                    <div class="fw-semibold text-truncate"
+                                         data-bs-toggle="tooltip"
+                                         title="@_server?.Name">
+                                        @TextDisplay(_server?.Name)
+                                    </div>
                                 </div>
-                                <div class="col-6 col-md-4 col-xl px-4 border-end border-secondary-subtle overflow-hidden">
-                                    <div class="small fw-bold text-uppercase text-secondary mb-2 text-truncate">
+
+                                <div class="col-6 col-md-3 col-xl px-4 border-end border-secondary-subtle overflow-hidden">
+                                    <div class="small fw-bold text-uppercase text-secondary mb-2 text-truncate"
+                                         data-bs-toggle="tooltip"
+                                         title="Release year">
+                                        Year
+                                    </div>
+                                    <div class="fw-semibold text-truncate">
+                                        @(_media?.Year > 0 ? _media.Year.ToString() : "—")
+                                    </div>
+                                </div>
+
+                                <div class="col-6 col-md-3 col-xl px-4 border-end border-secondary-subtle overflow-hidden">
+                                    <div class="small fw-bold text-uppercase text-secondary mb-2 text-truncate"
+                                         data-bs-toggle="tooltip"
+                                         title="When this item was added to the library">
                                         Added
                                     </div>
-                                    <div class="fw-semibold text-truncate" title="@AddedDisplay">
+                                    <div class="fw-semibold text-truncate"
+                                         data-bs-toggle="tooltip"
+                                         title="@DateTimeDisplay(_media?.Added)">
                                         @AddedDisplay
                                     </div>
                                 </div>
 
-                                <div class="col-6 col-md-4 col-xl px-4 border-end border-secondary-subtle overflow-hidden">
-                                    <div class="small fw-bold text-uppercase text-secondary mb-2 text-truncate">
-                                        Last Searched
-                                    </div>
-                                    <span class="fw-semibold text-truncate">
-                                        @LastSearchDisplay
-                                    </span>
-                                </div>
-
-                                <div class="col-6 col-md-4 col-xl px-4 border-end border-secondary-subtle overflow-hidden">
-                                    <div class="small fw-bold text-uppercase text-secondary mb-2 text-truncate">
-                                        Has File
-                                    </div>
-                                    <span class="fw-semibold text-truncate">
-                                        @HasFileDisplay
-                                    </span>
-                                </div>
-
-
-                                <div class="col-6 col-md-4 col-xl px-4 border-end border-secondary-subtle overflow-hidden">
-                                    <div class="small fw-bold text-uppercase text-secondary mb-2 text-truncate">
-                                        Last Progress
-                                    </div>
-                                    <div class="fw-semibold text-truncate" title="@LastProgress">
-                                        @LastProgress
-                                    </div>
-                                </div>
-
-                                <div class="col-6 col-md-4 col-xl ps-4 overflow-hidden">
-                                    <div class="small fw-bold text-uppercase text-secondary mb-2 text-truncate">
+                                <div class="col-6 col-md-3 col-xl ps-4 overflow-hidden">
+                                    <div class="small fw-bold text-uppercase text-secondary mb-2 text-truncate"
+                                         data-bs-toggle="tooltip"
+                                         title="Quality profile assigned to this item">
                                         Profile
                                     </div>
                                     <div class="fw-semibold text-truncate">
@@ -99,20 +94,24 @@
 
                 @* ── Tab bar ── *@
                 <div class="modal-tabs px-5 d-flex align-items-center justify-content-between border-bottom border-secondary-subtle">
-                    <ul class="nav nav-underline tab-contorl">
+                    <ul class="nav nav-underline tab-control">
                         <li class="nav-item">
                             <a class="nav-link py-3 @(_activeTab == "overview" ? "active" : "")"
                                @onclick='() => _activeTab = "overview"'><i class="bi bi-grid me-1"></i>Overview
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link py-3 @(_activeTab == "history" ? "active" : "")"
-                               @onclick='() => _activeTab = "history"'><i class="bi bi-clock-history me-1"></i>History
+                            <a class="nav-link py-3 @(_activeTab == "attempts" ? "active" : "")"
+                               @onclick='() => _activeTab = "attempts"'><i class="bi bi-arrow-repeat me-1"></i>Attempts
+                                @if (_downloadAttempts.Count > 0)
+                                {
+                                    <span class="badge bg-secondary-lt text-secondary ms-1">@_downloadAttempts.Count</span>
+                                }
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link py-3 @(_activeTab == "attempts" ? "active" : "")"
-                               @onclick='() => _activeTab = "attempts"'><i class="bi bi-arrow-repeat me-1"></i>Attempts
+                            <a class="nav-link py-3 @(_activeTab == "activity" ? "active" : "")"
+                               @onclick='() => _activeTab = "activity"'><i class="bi bi-activity me-1"></i>Activity
                             </a>
                         </li>
                         @if (_series != null || _episode != null)
@@ -128,47 +127,102 @@
                                 </a>
                             </li>
                         }
-                        <li class="nav-item">
-                            <a class="nav-link py-3 @(_activeTab == "logs" ? "active" : "")"
-                               @onclick='() => _activeTab = "logs"'><i class="bi bi-terminal me-1"></i>Logs
-                            </a>
-                        </li>
                     </ul>
-                    @if (_queueItem != null)
-                    {
-                        <div class="dropdown">
-                            <button class="btn btn-app-ghost btn-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                                Actions
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li>
-                                    <button type="button" class="dropdown-item" @onclick="EvaluateItem">Evaluate
-                                    </button>
-                                </li>
-                                <li>
-                                    <button type="button" class="dropdown-item" @onclick="ForceRecheck">Force recheck
-                                    </button>
-                                </li>
-                                <li>
-                                    <button type="button" class="dropdown-item" @onclick="RemoveFromQueue">Remove from
-                                        queue
-                                    </button>
-                                </li>
-                            </ul>
-                        </div>
-                    }
+                    <div class="btn-list">
+                        <button class="btn btn-app-ghost" disabled="@_isRefreshing" @onclick="RefreshAsync">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 width="20"
+                                 height="20"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 class="icon icon-tabler icon-tabler-refresh m-0 @(_isRefreshing ? "spinner" : "")">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+                                <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+                            </svg>
+                        </button>
+                        @if (_queueItem != null)
+                        {
+                            <div class="dropdown">
+                                <button class="btn btn-app-ghost btn-secondary dropdown-toggle"
+                                        data-bs-toggle="dropdown">
+                                    Actions
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <button type="button" class="dropdown-item" @onclick="EvaluateItem">Evaluate
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button type="button" class="dropdown-item" @onclick="ForceRecheck">Force
+                                            recheck
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button type="button" class="dropdown-item" @onclick="RemoveFromQueue">Remove
+                                            from queue
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        }
+                    </div>
                 </div>
 
                 @* ── Body ── *@
                 <div class="modal-body p-3">
+
+                    @* ═══════════════ OVERVIEW TAB ═══════════════ *@
                     @if (_activeTab == "overview")
                     {
-                        var latestEvent = LatestHealthEvent;
-                        var currentAttempt = CurrentAttempt;
+                        var snapshot = ActiveSnapshot;
+                        var latestEvent = ActiveLatestEvent;
+                        var attempt = ActiveAttempt;
+                        var queueItem = ActiveQueueItem;
+                        var confidencePercent = ActiveConfidencePercent;
+                        var healthBadge = HealthBadgeClass(snapshot?.State);
 
                         <div class="row g-3">
+
+                            @* ── Download Pagination ── *@
+                            @if (_activeContexts.Count > 1)
+                            {
+                                <div class="col-12">
+                                    <div class="d-flex align-items-center gap-2 py-1">
+                                        <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                                            <button class="btn btn-sm btn-app-ghost"
+                                                    disabled="@(_activeContextIndex == 0)"
+                                                    @onclick="() => _activeContextIndex--">
+                                                <i class="bi bi-chevron-left"></i>
+                                            </button>
+                                            <span class="fw-semibold small text-nowrap">
+                                                @(_activeContextIndex + 1) / @_activeContexts.Count
+                                            </span>
+                                            <button class="btn btn-sm btn-app-ghost"
+                                                    disabled="@(_activeContextIndex >= _activeContexts.Count - 1)"
+                                                    @onclick="() => _activeContextIndex++">
+                                                <i class="bi bi-chevron-right"></i>
+                                            </button>
+                                        </div>
+                                        @if (SelectedContext != null)
+                                        {
+                                            <span class="text-truncate min-w-0"
+                                                  data-bs-toggle="tooltip"
+                                                  title="@SelectedContext.QueueItem.Title">
+                                                @TextDisplay(SelectedContext.QueueItem.Title)
+                                            </span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+
+                            @* ── Health Card ── *@
                             <div class="col-12 col-xl-6">
-                                <div class="card h-100">
+                                <div class="card app-card h-100">
                                     <div class="card-header d-flex align-items-center justify-content-between">
                                         <div>
                                             <div class="h3 fw-bold mb-0">Health</div>
@@ -176,59 +230,74 @@
                                                 Trackarr's current read on this download
                                             </div>
                                         </div>
-                                        <span class="app-badge @HealthStateBadgeClass">@HealthStateDisplay</span>
+                                        <span class="@healthBadge">@TextDisplay(snapshot?.State.ToString())</span>
                                     </div>
 
                                     <div class="card-body">
                                         <div class="row g-3">
                                             <div class="col-6 col-md-3">
-                                                <div class="small fw-bold text-uppercase text-secondary mb-1">
+                                                <div class="small fw-bold text-uppercase text-secondary mb-1"
+                                                     data-bs-toggle="tooltip"
+                                                     title="Health score from 0–100">
                                                     Score
                                                 </div>
-                                                <div class="h2 mb-0 fw-semibold">@IntDisplay(_mostRecentSnapshot?.VisibleScore)</div>
+                                                <div class="h2 mb-0 fw-semibold">@IntDisplay(snapshot?.VisibleScore)</div>
                                             </div>
 
                                             <div class="col-6 col-md-3">
-                                                <div class="small fw-bold text-uppercase text-secondary mb-1">
+                                                <div class="small fw-bold text-uppercase text-secondary mb-1"
+                                                     data-bs-toggle="tooltip"
+                                                     title="How confident Trackarr is in the score">
                                                     Confidence
                                                 </div>
-                                                <div class="h2 mb-0 fw-semibold">@IntDisplay(_mostRecentSnapshot?.Confidence)</div>
+                                                <div class="h2 mb-0 fw-semibold">@IntDisplay(snapshot?.Confidence)</div>
                                             </div>
 
                                             <div class="col-6 col-md-3">
-                                                <div class="small fw-bold text-uppercase text-secondary mb-1">
+                                                <div class="small fw-bold text-uppercase text-secondary mb-1"
+                                                     data-bs-toggle="tooltip"
+                                                     title="When this download was first observed">
                                                     First Seen
                                                 </div>
-                                                <div class="h2 mb-0 fw-semibold">@TimeAgo(currentAttempt?.FirstSeenAt)</div>
+                                                <div class="h2 mb-0 fw-semibold"
+                                                     data-bs-toggle="tooltip"
+                                                     title="@DateTimeDisplay(attempt?.FirstSeenAt)">
+                                                    @TimeAgo(attempt?.FirstSeenAt)
+                                                </div>
                                             </div>
 
                                             <div class="col-6 col-md-3">
-                                                <div class="small fw-bold text-uppercase text-secondary mb-1">
+                                                <div class="small fw-bold text-uppercase text-secondary mb-1"
+                                                     data-bs-toggle="tooltip"
+                                                     title="When Trackarr last evaluated health">
                                                     Last Evaluated
                                                 </div>
-                                                <div class="h2 mb-0 fw-semibold">@TimeAgo(latestEvent?.OccurredAt)</div>
+                                                <div class="h2 mb-0 fw-semibold"
+                                                     data-bs-toggle="tooltip"
+                                                     title="@DateTimeDisplay(latestEvent?.OccurredAt)">
+                                                    @TimeAgo(latestEvent?.OccurredAt)
+                                                </div>
                                             </div>
                                         </div>
 
                                         <div class="mt-4">
                                             <div class="row align-items-center">
-                                                <div class="col-12 col-lg-auto">@($"Confidence: {ConfidencePercent}")</div>
+                                                <div class="col-12 col-lg-auto">@($"Confidence: {confidencePercent}")</div>
                                                 <div class="col">
                                                     <div class="progress progress-2 app-progress">
                                                         <div class="progress-bar"
-                                                             style="width: @ConfidencePercent%"
+                                                             style="width: @confidencePercent%"
                                                              role="progressbar"
-                                                             aria-valuenow="@ConfidencePercent"
+                                                             aria-valuenow="@confidencePercent"
                                                              aria-valuemin="0"
                                                              aria-valuemax="100"
-                                                             aria-label="@($"{ConfidencePercent}% Complete")">
-                                                            <span class="visually-hidden">@($"{ConfidencePercent}% Complete")</span>
+                                                             aria-label="@($"{confidencePercent}% Complete")">
+                                                            <span class="visually-hidden">@($"{confidencePercent}% Complete")</span>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-
 
                                         <div class="mt-4">
                                             <div class="small fw-bold text-uppercase text-secondary mb-2">
@@ -238,7 +307,7 @@
                                             @if (latestEvent != null)
                                             {
                                                 <div class="d-flex align-items-start gap-2">
-                                                    <span class="@SeverityBadgeClass(latestEvent.Severity) app-badge mt-1">@latestEvent.Severity</span>
+                                                    <span class="@SeverityBadgeClass(latestEvent.Severity) mt-1">@latestEvent.Severity</span>
                                                     <div class="min-w-0">
                                                         <div class="fw-semibold text-truncate">@TextDisplay(latestEvent.ReasonKey)</div>
                                                         <div class="text-secondary small">@TextDisplay(latestEvent.Message)</div>
@@ -256,236 +325,194 @@
                                 </div>
                             </div>
 
+                            @* ── Current Download Card ── *@
                             <div class="col-12 col-xl-6">
-                                <div class="card h-100">
-                                    <div class="card-header">
-                                        <div class="h3 fw-bold mb-0">Decision Factors</div>
-                                    </div>
-
-                                    <DetailRow Label="Queue Status"
-                                               IsBadge="true"
-                                               Value="@StatusText"
-                                               BadgeClass="@StatusBadgeClass(_queueItem?.Status)"/>
-
-                                    <DetailRow Label="Queue State" Value="@QueueStateText"/>
-
-                                    @if (_queueItem != null)
-                                    {
-                                        <DetailRow Label="Status Message"
-                                                   MarkupString="@FormatStatusMessages(_queueItem.StatusMessagesJson)"/>
-
-                                        <DetailRow Label="Tracked Status"
-                                                   Value="@TextDisplay(_queueItem.TrackedDownloadStatus)"/>
-
-                                        <DetailRow Label="Last Progress" Value="@LastProgress"/>
-
-                                        <DetailRow Label="Error Message" Value="@TextDisplay(_queueItem.ErrorMessage)"/>
-                                    }
-                                    else
-                                    {
-                                        <DetailRow Label="Status Message" Value="Not currently downloading"/>
-                                    }
-                                </div>
-                            </div>
-
-                            <div class="col-12">
-                                <div class="card h-100">
+                                <div class="card app-card h-100">
                                     <div class="card-header d-flex align-items-center justify-content-between">
                                         <div>
-                                            <div class="h3 fw-bold mb-0">Current Attempt</div>
-                                            <div class="text-secondary small">The active or most recent download attempt
-                                            </div>
+                                            <div class="h3 fw-bold mb-0">Current Download</div>
+                                            <div class="text-secondary small">What's in the queue right now</div>
                                         </div>
-
-                                        @if (currentAttempt != null)
+                                        @if (queueItem != null)
                                         {
-                                            <span class="@AttemptStatusBadgeClass(currentAttempt.Status) app-badge">@currentAttempt.Status</span>
+                                            <div class="d-flex align-items-center gap-2">
+                                                @if (_activeContexts.Count > 1)
+                                                {
+                                                    <span class="badge bg-blue-lt text-blue"
+                                                          data-bs-toggle="tooltip"
+                                                          title="@_activeContexts.Count active downloads for this media">
+                                                        @_activeContexts.Count active
+                                                    </span>
+                                                }
+                                                <span class="@StatusBadgeClass(queueItem.Status)">@TextDisplay(queueItem.Status)</span>
+                                            </div>
                                         }
                                     </div>
 
-                                    <div class="card-body p-0">
-                                        @if (currentAttempt != null)
+                                    <div class="p-0">
+                                        @if (queueItem != null)
                                         {
-                                            <DetailRow Label="Attempt"
-                                                       Value="@IntDisplay(currentAttempt.ReplacementAttemptNumber)"/>
+                                            <DetailRow Label="Queue State"
+                                                       Value="@TextDisplay(queueItem.State.ToString())"/>
 
-                                            <DetailRow Label="Release" Value="@TextDisplay(currentAttempt.Title)"/>
+                                            <DetailRow Label="Release" Value="@TextDisplay(queueItem.Title)"/>
 
                                             <DetailRow Label="Download Client"
                                                        IsBadge="true"
-                                                       Value="@TextDisplay(currentAttempt.DownloadClient)"
-                                                       BadgeClass="app-badge-muted"/>
+                                                       Value="@TextDisplay(queueItem.DownloadClient)"
+                                                       BadgeClass="badge bg-secondary-lt text-secondary"/>
 
-                                            <DetailRow Label="Indexer" Value="@TextDisplay(currentAttempt.Indexer)"/>
+                                            <DetailRow Label="Progress" Value="@($"{queueItem.DownloadPercent}%")"/>
 
-                                            <DetailRow Label="Started" Value="@TimeAgo(currentAttempt.FirstSeenAt)"/>
+                                            @if (!string.IsNullOrWhiteSpace(queueItem.TimeLeft))
+                                            {
+                                                <DetailRow Label="Time Left" Value="@queueItem.TimeLeft"/>
+                                            }
 
-                                            <div class="detail-row border-bottom border-secondary-subtle">
-                                                <span class="data-label">Result</span>
-                                                <div class="data-value d-flex flex-wrap gap-1">
-                                                    @if (currentAttempt.WasImported)
-                                                    {
-                                                        <span class="app-badge app-badge-success">Imported</span>
-                                                    }
-
-                                                    @if (currentAttempt.WasSuccessful)
-                                                    {
-                                                        <span class="app-badge app-badge-success">Success</span>
-                                                    }
-
-                                                    @if (currentAttempt.WasRemovedByTrackarr)
-                                                    {
-                                                        <span class="app-badge app-badge-warning">Removed</span>
-                                                    }
-
-                                                    @if (currentAttempt.IsProtected)
-                                                    {
-                                                        <span class="app-badge app-badge-info">Protected</span>
-                                                    }
-
-                                                    @if (!currentAttempt.WasImported && !currentAttempt.WasSuccessful && !currentAttempt.WasRemovedByTrackarr && !currentAttempt.IsProtected)
-                                                    {
-                                                        <span class="app-badge app-badge-muted">Watching</span>
-                                                    }
+                                            @if (SelectedContext is { FileCount: > 0 })
+                                            {
+                                                <div class="detail-row border-bottom border-secondary-subtle">
+                                                    <span class="data-label">Files</span>
+                                                    <div class="data-value">
+                                                        <span data-bs-toggle="tooltip"
+                                                              data-bs-html="true"
+                                                              title="@string.Join("", SelectedContext.FileNames.Select(n => $"<div>{WebUtility.HtmlEncode(n)}</div>"))"
+                                                              class="cursor-help border-bottom border-dotted">
+                                                            @SelectedContext.FileCount @(SelectedContext.FileCount == 1 ? "file" : "files")
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            }
+
+                                            <DetailRow Label="Status Message"
+                                                       MarkupString="@FormatStatusMessages(queueItem.StatusMessagesJson)"/>
+
+                                            @if (!string.IsNullOrWhiteSpace(queueItem.ErrorMessage))
+                                            {
+                                                <DetailRow Label="Error" Value="@queueItem.ErrorMessage"/>
+                                            }
                                         }
                                         else
                                         {
-                                            <div class="text-center text-secondary py-4">No attempts recorded yet.
+                                            <div class="text-center text-secondary py-4">
+                                                Not currently in queue
                                             </div>
                                         }
                                     </div>
                                 </div>
                             </div>
+
+                            @* ── About Card ── *@
+                            <div class="col-12">
+                                <div class="card app-card">
+                                    <div class="card-header">
+                                        <div class="h3 fw-bold mb-0">About</div>
+                                    </div>
+                                    <div class="card-body">
+                                        @if (!string.IsNullOrWhiteSpace(OverviewText))
+                                        {
+                                            <p class="text-secondary mb-3">@OverviewText</p>
+                                        }
+                                        else
+                                        {
+                                            <p class="text-secondary mb-3 fst-italic">No synopsis available.</p>
+                                        }
+
+                                        <div class="row g-3">
+                                            @if (_media?.Genres?.Count > 0)
+                                            {
+                                                <div class="col-12 col-md-6">
+                                                    <div class="small fw-bold text-uppercase text-secondary mb-1">
+                                                        Genres
+                                                    </div>
+                                                    <div class="d-flex flex-wrap gap-1">
+                                                        @foreach (var genre in _media.Genres)
+                                                        {
+                                                            <span class="badge bg-secondary-lt text-secondary">@genre</span>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            }
+
+                                            @if (_media?.Runtime > 0)
+                                            {
+                                                <div class="col-6 col-md-3">
+                                                    <div class="small fw-bold text-uppercase text-secondary mb-1">
+                                                        Runtime
+                                                    </div>
+                                                    <div class="fw-semibold">@(_media.Runtime)m</div>
+                                                </div>
+                                            }
+
+                                            @if (!string.IsNullOrWhiteSpace(StudioOrNetwork))
+                                            {
+                                                <div class="col-6 col-md-3">
+                                                    <div class="small fw-bold text-uppercase text-secondary mb-1">
+                                                        @(_movie != null ? "Studio" : "Network")
+                                                    </div>
+                                                    <div class="fw-semibold">@StudioOrNetwork</div>
+                                                </div>
+                                            }
+
+                                            @if (!string.IsNullOrWhiteSpace(_media?.Certification))
+                                            {
+                                                <div class="col-6 col-md-3">
+                                                    <div class="small fw-bold text-uppercase text-secondary mb-1">
+                                                        Rating
+                                                    </div>
+                                                    <div class="fw-semibold">@_media.Certification</div>
+                                                </div>
+                                            }
+
+                                            @if (_media?.OriginalLanguage != null)
+                                            {
+                                                <div class="col-6 col-md-3">
+                                                    <div class="small fw-bold text-uppercase text-secondary mb-1">
+                                                        Language
+                                                    </div>
+                                                    <div class="fw-semibold">@_media.OriginalLanguage.Name</div>
+                                                </div>
+                                            }
+
+                                            @if (!string.IsNullOrWhiteSpace(_media?.Status))
+                                            {
+                                                <div class="col-6 col-md-3">
+                                                    <div class="small fw-bold text-uppercase text-secondary mb-1">
+                                                        Status
+                                                    </div>
+                                                    <div class="fw-semibold">@_media.Status</div>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     }
-                    @if (_activeTab == "history")
-                    {
-                        @if (_activeTab == "history")
-                        {
-                            <div>
-                                <button class="btn btn-app-ghost" @onclick="@(async () =>
-                                                                            {
-                                                                                if (Item != null)
-                                                                                {
-                                                                                    await LoadHealthDataAsync();
-                                                                                }
-                                                                            })">
-                                    <svg xmlns="http://www.w3.org/2000/svg"
-                                         width="20"
-                                         height="20"
-                                         viewBox="0 0 24 24"
-                                         fill="none"
-                                         stroke="currentColor"
-                                         stroke-width="2"
-                                         stroke-linecap="round"
-                                         stroke-linejoin="round"
-                                         class="icon icon-tabler icons-tabler-outline icon-tabler-refresh">
-                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                        <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
-                                        <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
-                                    </svg>
-                                    Refresh
-                                </button>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="table table-vcenter card-table app-table">
-                                    <thead>
-                                    <tr>
-                                        <th>Time</th>
-                                        <th>Event</th>
-                                        <th>Severity</th>
-                                        <th>Reason</th>
-                                        <th class="text-end">Score</th>
-                                        <th class="text-end">Confidence</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody class="table-tbody">
-                                    @if (_healthEvents.Count == 0)
-                                    {
-                                        <tr>
-                                            <td colspan="6" class="text-center text-muted py-4">No history</td>
-                                        </tr>
-                                    }
-                                    @foreach (var ev in _healthEvents)
-                                    {
-                                        <tr @key="ev.Id">
-                                            <td class="text-nowrap fw-semibold small"
-                                                data-bs-toggle="tooltip"
-                                                data-bs-placement="top"
-                                                title="@DateTimeDisplay(ev.OccurredAt)">
-                                                @TimeAgo(ev.OccurredAt)
-                                            </td>
-                                            <td>
-                                                <span class="app-badge app-badge-muted">@ev.EventType</span>
-                                            </td>
-                                            <td>
-                                                <span class="@SeverityBadgeClass(ev.Severity) app-badge">@ev.Severity</span>
-                                            </td>
-                                            <td>
-                                                <span class="@(string.IsNullOrWhiteSpace(ev.Message) ? "" : "cursor-help border-bottom border-dotted")"
-                                                      data-bs-toggle="@(string.IsNullOrWhiteSpace(ev.Message) ? null : "tooltip")"
-                                                      data-bs-placement="top"
-                                                      title="@ev.Message">
-                                                    @TextDisplay(ev.ReasonKey)
-                                                </span>
-                                            </td>
-                                            <td class="text-end text-nowrap">
-                                                <span class="text-secondary">@ev.ScoreBefore.ToString("0.#")</span>
-                                                <i class="bi bi-arrow-right mx-1 text-muted"></i>
-                                                <span class="fw-semibold">@ev.ScoreAfter.ToString("0.#")</span>
-                                                <span class="@DeltaClass(ev.ScoreDelta) small ms-1">@DeltaDisplay(ev.ScoreDelta)</span>
-                                            </td>
-                                            <td class="text-end text-nowrap">
-                                                <span class="fw-semibold">@ev.ConfidenceAfter</span>
-                                                <span class="@DeltaClass(ev.ConfidenceDelta) small ms-1">@DeltaDisplay(ev.ConfidenceDelta)</span>
-                                            </td>
-                                        </tr>
-                                    }
-                                    </tbody>
-                                </table>
-                            </div>
-                        }
-                    }
+
+                    @* ═══════════════ ATTEMPTS TAB ═══════════════ *@
                     @if (_activeTab == "attempts")
                     {
-                        <div>
-                            <button class="btn btn-app-ghost" @onclick="@(async () =>
-                                                                        {
-                                                                            if (Item != null)
-                                                                            {
-                                                                                await LoadHealthDataAsync();
-                                                                            }
-                                                                        })">
-                                <svg xmlns="http://www.w3.org/2000/svg"
-                                     width="20"
-                                     height="20"
-                                     viewBox="0 0 24 24"
-                                     fill="none"
-                                     stroke="currentColor"
-                                     stroke-width="2"
-                                     stroke-linecap="round"
-                                     stroke-linejoin="round"
-                                     class="icon icon-tabler icons-tabler-outline icon-tabler-refresh">
-                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                    <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
-                                    <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
-                                </svg>
-                                Refresh
-                            </button>
-                        </div>
-
                         <div class="table-responsive">
-                            <table class="table table-vcenter card-table app-table">
+                            <table class="table table-vcenter card-table app-table table-nowrap mb-0"
+                                   style="table-layout: fixed; width: 100%;">
+                                <colgroup>
+                                    <col style="width: 7rem;"/>
+                                    <col style="width: 11rem;"/>
+                                    <col style="width: 5rem;"/>
+                                    <col/>
+                                    <col style="width: 5rem;"/>
+                                    <col style="width: 8rem;"/>
+                                    <col style="width: 9rem;"/>
+                                </colgroup>
                                 <thead>
                                 <tr>
                                     <th>Seen</th>
                                     <th>Status</th>
                                     <th>Attempt</th>
                                     <th>Release</th>
+                                    <th data-bs-toggle="tooltip" title="Number of files in this download">Files</th>
                                     <th>Source</th>
-                                    <th>Reason</th>
                                     <th class="text-end">Result</th>
                                 </tr>
                                 </thead>
@@ -493,24 +520,34 @@
                                 @if (_downloadAttempts.Count == 0)
                                 {
                                     <tr>
-                                        <td colspan="7" class="text-center text-muted py-4">No attempts</td>
+                                        <td colspan="7" class="text-center text-muted py-4">No attempts recorded yet
+                                        </td>
                                     </tr>
                                 }
 
                                 @foreach (var attempt in _downloadAttempts)
                                 {
-                                    <tr @key="attempt.Id">
+                                    var isExpanded = _selectedAttemptId == attempt.Id;
+                                    var files = GetAttemptFiles(attempt);
+
+                                    <tr @key="attempt.Id"
+                                        class="cursor-pointer @(isExpanded ? "table-active" : "")"
+                                        @onclick="() => ToggleAttemptExpand(attempt.Id)">
                                         <td class="text-nowrap">
-                                            <div class="fw-semibold small"
-                                                 data-bs-toggle="tooltip"
-                                                 data-bs-placement="top"
-                                                 title="@DateTimeDisplay(attempt.FirstSeenAt)">
-                                                @TimeAgo(attempt.FirstSeenAt)
+                                            <div class="d-flex align-items-center gap-1">
+                                                <i class="bi @(isExpanded ? "bi-chevron-down" : "bi-chevron-right") small text-muted"></i>
+                                                <span class="fw-semibold small"
+                                                      data-bs-toggle="tooltip"
+                                                      title="@DateTimeDisplay(attempt.FirstSeenAt)">
+                                                    @TimeAgo(attempt.FirstSeenAt)
+                                                </span>
                                             </div>
                                         </td>
 
                                         <td>
-                                            <span class="@AttemptStatusBadgeClass(attempt.Status) badge">
+                                            <span class="@AttemptStatusBadgeClass(attempt.Status)"
+                                                  data-bs-toggle="@(string.IsNullOrWhiteSpace(attempt.FinalMessage) ? null : "tooltip")"
+                                                  title="@attempt.FinalMessage">
                                                 @attempt.Status
                                             </span>
                                         </td>
@@ -520,62 +557,327 @@
                                         </td>
 
                                         <td class="min-w-0">
-                                            <div class="fw-semibold text-truncate" title="@attempt.Title">
+                                            <div class="fw-semibold text-truncate"
+                                                 data-bs-toggle="tooltip"
+                                                 title="@attempt.Title">
                                                 @TextDisplay(attempt.Title)
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="d-flex flex-wrap gap-1">
-                                                <span class="app-badge app-badge-muted">@TextDisplay(attempt.DownloadClient)</span>
                                             </div>
                                         </td>
 
                                         <td>
-                                            <span class="@(string.IsNullOrWhiteSpace(attempt.FinalMessage) ? "" : "cursor-help border-bottom border-dotted")"
-                                                  data-bs-toggle="@(string.IsNullOrWhiteSpace(attempt.FinalMessage) ? null : "tooltip")"
-                                                  data-bs-placement="top"
-                                                  title="@attempt.FinalMessage">
-                                                @TextDisplay(attempt.FinalReasonKey)
-                                            </span>
+                                            @if (files.Count > 0)
+                                            {
+                                                <span class="cursor-help border-bottom border-dotted fw-semibold"
+                                                      data-bs-toggle="tooltip"
+                                                      data-bs-html="true"
+                                                      title="@GetFileListTooltip(attempt)">
+                                                    @files.Count
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+
+                                        <td>
+                                            <div class="d-flex flex-wrap gap-1">
+                                                <span class="badge bg-secondary-lt text-secondary"
+                                                      data-bs-toggle="tooltip"
+                                                      title="@TextDisplay(attempt.Indexer)">
+                                                    @TextDisplay(attempt.DownloadClient)
+                                                </span>
+                                            </div>
                                         </td>
 
                                         <td class="text-end">
                                             <div class="d-flex justify-content-end flex-wrap gap-1">
-                                                @if (attempt.WasImported)
-                                                {
-                                                    <span class="app-badge app-badge-success">Imported</span>
-                                                }
-
                                                 @if (attempt.WasSuccessful)
                                                 {
-                                                    <span class="app-badge app-badge-success">Success</span>
+                                                    <span class="badge bg-success-lt text-success">Success</span>
                                                 }
 
                                                 @if (attempt.WasRemovedByTrackarr)
                                                 {
-                                                    <span class="app-badge app-badge-warning">Removed</span>
+                                                    <span class="badge bg-orange-lt text-orange">Removed</span>
                                                 }
 
                                                 @if (attempt.IsProtected)
                                                 {
-                                                    <span class="app-badge app-badge-info">Protected</span>
+                                                    <span class="badge bg-blue-lt text-blue">Protected</span>
                                                 }
 
                                                 @if (!attempt.WasImported && !attempt.WasSuccessful && !attempt.WasRemovedByTrackarr && !attempt.IsProtected)
                                                 {
-                                                    <span class="app-badge app-badge-muted">—</span>
+                                                    <span class="badge bg-secondary-lt text-secondary">—</span>
                                                 }
                                             </div>
                                         </td>
                                     </tr>
+
+                                    @* ── Drill-down: Health Events for this attempt ── *@
+                                    @if (isExpanded)
+                                    {
+                                        <tr>
+                                            <td colspan="7" class="p-0 border-0">
+                                                <div class="px-4 py-3" style="background: rgba(0,0,0,.15);">
+                                                    @if (_attemptEvents.TryGetValue(attempt.Id, out var events) && events.Count > 0)
+                                                    {
+                                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                                            <div class="small fw-bold text-uppercase text-secondary">
+                                                                Health Event History (@events.Count)
+                                                            </div>
+                                                            @if (GetEventPageCount(attempt.Id) > 1)
+                                                            {
+                                                                <div class="d-flex align-items-center gap-1">
+                                                                    <button class="btn btn-sm btn-app-ghost py-0 px-1"
+                                                                            disabled="@(GetEventPage(attempt.Id) == 0)"
+                                                                            @onclick="() => SetEventPage(attempt.Id, GetEventPage(attempt.Id) - 1)">
+                                                                        <i class="bi bi-chevron-left small"></i>
+                                                                    </button>
+                                                                    <span class="small text-secondary text-nowrap">
+                                                                        @(GetEventPage(attempt.Id) + 1) / @GetEventPageCount(attempt.Id)
+                                                                    </span>
+                                                                    <button class="btn btn-sm btn-app-ghost py-0 px-1"
+                                                                            disabled="@(GetEventPage(attempt.Id) >= GetEventPageCount(attempt.Id) - 1)"
+                                                                            @onclick="() => SetEventPage(attempt.Id, GetEventPage(attempt.Id) + 1)">
+                                                                        <i class="bi bi-chevron-right small"></i>
+                                                                    </button>
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                        <div class="table-responsive">
+                                                            <table class="table table-vcenter app-table table-sm mb-0">
+                                                                <thead>
+                                                                <tr>
+                                                                    <th class="w-1 text-nowrap">Time</th>
+                                                                    <th class="w-1 text-nowrap">Event</th>
+                                                                    <th class="w-1 text-nowrap">Severity</th>
+                                                                    <th>Reason</th>
+                                                                    <th class="w-1 text-nowrap">Score</th>
+                                                                    <th class="w-1 text-nowrap">Confidence</th>
+                                                                </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                @foreach (var ev in GetPagedEvents(attempt.Id))
+                                                                {
+                                                                    <tr @key="ev.Id">
+                                                                        <td class="w-1 text-nowrap fw-semibold small"
+                                                                            data-bs-toggle="tooltip"
+                                                                            title="@DateTimeDisplay(ev.OccurredAt)">
+                                                                            @TimeAgo(ev.OccurredAt)
+                                                                        </td>
+                                                                        <td class="w-1 text-nowrap">
+                                                                            <span class="@EventTypeBadgeClass(ev.EventType.ToString())">@ev.EventType</span>
+                                                                        </td>
+                                                                        <td class="w-1 text-nowrap">
+                                                                            <span class="@SeverityBadgeClass(ev.Severity)">@ev.Severity</span>
+                                                                        </td>
+                                                                        <td>
+                                                                            <span class="@(string.IsNullOrWhiteSpace(ev.Message) ? "" : "cursor-help border-bottom border-dotted")"
+                                                                                  data-bs-toggle="@(string.IsNullOrWhiteSpace(ev.Message) ? null : "tooltip")"
+                                                                                  data-bs-html="true"
+                                                                                  title="@GetReasonTooltip(ev.Message)">
+                                                                                @TextDisplay(ev.ReasonKey)
+                                                                            </span>
+                                                                        </td>
+                                                                        <td class="text-nowrap cursor-help"
+                                                                            data-bs-toggle="tooltip"
+                                                                            data-bs-html="true"
+                                                                            title="@GetScoreMathTooltip(ev)">
+                                                                            <div class="row g-0 align-items-center"
+                                                                                 style="font-variant-numeric: tabular-nums; min-width: 9rem;">
+                                                                                <div class="col-3 text-end text-secondary">@ev.ScoreBefore.ToString("0.#")</div>
+                                                                                <div class="col-2 text-center text-muted p-1">
+                                                                                    <i class="bi bi-arrow-right"></i>
+                                                                                </div>
+                                                                                <div class="col-3 fw-semibold">@ev.ScoreAfter.ToString("0.#")</div>
+                                                                                <div class="col-3 text-end small @DeltaClass(ev.ScoreDelta)">
+                                                                                    @(ev.ScoreDelta != 0 ? DeltaDisplay(ev.ScoreDelta) : "")
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                        <td class="text-nowrap cursor-help"
+                                                                            data-bs-toggle="tooltip"
+                                                                            data-bs-html="true"
+                                                                            title="@GetConfidenceMathTooltip(ev)">
+                                                                            <div class="row g-0 align-items-center"
+                                                                                 style="font-variant-numeric: tabular-nums; min-width: 9rem;">
+                                                                                <div class="col-3 text-end text-secondary">@ev.ConfidenceBefore</div>
+                                                                                <div class="col-2 text-center text-muted">
+                                                                                    <i class="bi bi-arrow-right"></i>
+                                                                                </div>
+                                                                                <div class="col-3 fw-semibold">@ev.ConfidenceAfter</div>
+                                                                                <div class="col-3 text-end small @DeltaClass(ev.ConfidenceDelta)">
+                                                                                    @(ev.ConfidenceDelta != 0 ? DeltaDisplay(ev.ConfidenceDelta) : "")
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                }
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    }
+                                                    else if (_attemptEvents.ContainsKey(attempt.Id))
+                                                    {
+                                                        <div class="text-center text-muted py-2">No health events for
+                                                            this attempt
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="text-center text-muted py-2">
+                                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                                            Loading events…
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
                                 }
                                 </tbody>
                             </table>
                         </div>
                     }
+
+                    @* ═══════════════ ACTIVITY TAB ═══════════════ *@
+                    @if (_activeTab == "activity")
+                    {
+                        <div class="row g-3">
+                            @if (_mediaHealthSummary?.IsStuck == true)
+                            {
+                                <div class="col-12">
+                                    <div class="alert alert-warning d-flex align-items-start gap-2 mb-0">
+                                        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+                                        <div>
+                                            <div class="fw-bold">This item is stuck</div>
+                                            @if (!string.IsNullOrWhiteSpace(_mediaHealthSummary.StuckReasonMessage))
+                                            {
+                                                <div class="small">@_mediaHealthSummary.StuckReasonMessage</div>
+                                            }
+                                            @if (_mediaHealthSummary.StuckSince.HasValue)
+                                            {
+                                                <div class="small text-muted">
+                                                    Since @TimeAgo(_mediaHealthSummary.StuckSince)
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            <div class="col-12">
+                                <div class="card app-card">
+                                    <div class="card-header">
+                                        <div class="h3 fw-bold mb-0">Tracking Summary</div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-3">
+                                            <div class="col-6 col-md-4 col-lg-2">
+                                                <div class="small fw-bold text-uppercase text-secondary mb-1"
+                                                     data-bs-toggle="tooltip"
+                                                     title="Total download attempts Trackarr has tracked">Attempts
+                                                </div>
+                                                <div class="h2 mb-0 fw-semibold">@IntDisplay(_mediaHealthSummary?.AttemptCount)</div>
+                                            </div>
+                                            <div class="col-6 col-md-4 col-lg-2">
+                                                <div class="small fw-bold text-uppercase text-secondary mb-1"
+                                                     data-bs-toggle="tooltip"
+                                                     title="Downloads that completed successfully">Successful
+                                                </div>
+                                                <div class="h2 mb-0 fw-semibold text-success">@IntDisplay(_mediaHealthSummary?.SuccessCount)</div>
+                                            </div>
+                                            <div class="col-6 col-md-4 col-lg-2">
+                                                <div class="small fw-bold text-uppercase text-secondary mb-1"
+                                                     data-bs-toggle="tooltip"
+                                                     title="Downloads that failed">Failed
+                                                </div>
+                                                <div class="h2 mb-0 fw-semibold text-danger">@IntDisplay(_mediaHealthSummary?.FailureCount)</div>
+                                            </div>
+                                            <div class="col-6 col-md-4 col-lg-2">
+                                                <div class="small fw-bold text-uppercase text-secondary mb-1"
+                                                     data-bs-toggle="tooltip"
+                                                     title="Downloads removed by Trackarr">Removals
+                                                </div>
+                                                <div class="h2 mb-0 fw-semibold">@IntDisplay(_mediaHealthSummary?.RemovalCount)</div>
+                                            </div>
+                                            <div class="col-6 col-md-4 col-lg-2">
+                                                <div class="small fw-bold text-uppercase text-secondary mb-1"
+                                                     data-bs-toggle="tooltip"
+                                                     title="Times a download was replaced with a new one">Replacements
+                                                </div>
+                                                <div class="h2 mb-0 fw-semibold">@IntDisplay(_mediaHealthSummary?.ReplacementCount)</div>
+                                            </div>
+                                            <div class="col-6 col-md-4 col-lg-2">
+                                                <div class="small fw-bold text-uppercase text-secondary mb-1"
+                                                     data-bs-toggle="tooltip"
+                                                     title="Times Trackarr triggered a search for this item">Searches
+                                                </div>
+                                                <div class="h2 mb-0 fw-semibold">@IntDisplay(_mediaHealthSummary?.SearchAttemptCount)</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-xl-6">
+                                <div class="card app-card h-100">
+                                    <div class="card-header">
+                                        <div class="h3 fw-bold mb-0">Current Status</div>
+                                    </div>
+                                    <div class="p-0">
+                                        @if (IsFilePresent.HasValue)
+                                        {
+                                            <DetailRow Label="Has File" IsMonitored="IsFilePresent"/>
+                                        }
+                                        @if (IsMonitoredValue.HasValue)
+                                        {
+                                            <DetailRow Label="Monitored" IsMonitored="IsMonitoredValue"/>
+                                        }
+                                        <DetailRow Label="Health State"
+                                                   IsBadge="true"
+                                                   Value="@TextDisplay(_mediaHealthSummary?.CurrentState.ToString())"
+                                                   BadgeClass="@HealthStateBadgeClass"/>
+                                        @if (_mediaHealthSummary?.IsStuck == true)
+                                        {
+                                            <DetailRow Label="Stuck Reason"
+                                                       Value="@TextDisplay(_mediaHealthSummary.StuckReasonMessage)"/>
+                                        }
+                                        <DetailRow Label="Last Searched" Value="@LastSearchDisplay"/>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-xl-6">
+                                <div class="card app-card h-100">
+                                    <div class="card-header">
+                                        <div class="h3 fw-bold mb-0">Timeline</div>
+                                    </div>
+                                    <div class="p-0">
+                                        <DetailRow Label="First Tracked"
+                                                   Value="@TimeAgo(_mediaHealthSummary?.CreatedAt)"/>
+                                        <DetailRow Label="Last Attempt"
+                                                   Value="@TimeAgo(_mediaHealthSummary?.LastAttemptAt)"/>
+                                        <DetailRow Label="Last Success"
+                                                   Value="@TimeAgo(_mediaHealthSummary?.LastSuccessAt)"/>
+                                        <DetailRow Label="Last Failure"
+                                                   Value="@TimeAgo(_mediaHealthSummary?.LastFailureAt)"/>
+                                        <DetailRow Label="Last Removal"
+                                                   Value="@TimeAgo(_mediaHealthSummary?.LastRemovalAt)"/>
+                                        <DetailRow Label="Last Replacement"
+                                                   Value="@TimeAgo(_mediaHealthSummary?.LastReplacementAt)"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    @* ═══════════════ EPISODES TAB ═══════════════ *@
                     @if (_activeTab == "episodes")
                     {
-                        <div class="card">
+                        <div class="card app-card">
                             <div class="list-group list-group-flush overflow-auto" style="max-height: 35rem">
                                 @if (_episodes.Count == 0 && _movie == null)
                                 {
@@ -602,7 +904,7 @@
                                                         </span>
                                                     </div>
                                                     <div class="col-auto">
-                                                        <span class="app-badge @st.Css">@st.Label</span>
+                                                        <span class="@st.Css">@st.Label</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -616,7 +918,7 @@
                                         <div class="row align-items-center">
                                             <div class="col text-truncate text-body">@_movie.Title</div>
                                             <div class="col-auto">
-                                                <span class="app-badge @st.Css">@st.Label</span>
+                                                <span class="@st.Css">@st.Label</span>
                                             </div>
                                         </div>
                                     </div>
@@ -628,7 +930,7 @@
 
                 @* ── Footer ── *@
                 <div class="modal-footer">
-                    <button class="btn app-btn-primary btn-app-ghost" data-bs-dismiss="modal">Close</button>
+                    <button class="btn btn-app-ghost" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>

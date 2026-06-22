@@ -1386,6 +1386,9 @@ namespace Trackarr.Data.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool?>("AutoRemoveDownloads")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
@@ -1439,12 +1442,24 @@ namespace Trackarr.Data.Migrations
                     b.Property<DateTime>("LastQueueFetchAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool?>("MonitorQueue")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Port")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RequestTimeoutSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("SearchMissing")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ServiceType")
@@ -1621,6 +1636,73 @@ namespace Trackarr.Data.Migrations
                     b.HasKey("ServerId");
 
                     b.ToTable("ServerMetadata");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Settings.AppSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category", "Key")
+                        .IsUnique();
+
+                    b.ToTable("AppSettings");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Settings.BlacklistEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsRegex")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Pattern")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Type");
+
+                    b.ToTable("Blacklist");
                 });
 
             modelBuilder.Entity("Trackarr.Core.Health.DownloadAttempt", b =>

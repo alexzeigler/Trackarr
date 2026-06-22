@@ -1,11 +1,13 @@
 ﻿<div class="detail-row border-bottom border-secondary-subtle">
     <span class="data-label">@Label</span>
-    <div class="data-value">
+    <div class="data-value min-w-0 text-break overflow-hidden">
         @if (IsMonitored.HasValue)
         {
             @if (IsMonitored.Value)
             {
-                <span class="text-success"><i class="bi bi-check2 me-1"></i>Yes</span>
+                <span class="text-success">
+                    <i class="bi bi-check2 me-1"></i>Yes
+                </span>
             }
             else
             {
@@ -14,21 +16,23 @@
         }
         else if (!string.IsNullOrWhiteSpace(LinkUrl))
         {
-            <a href="@LinkUrl" target="@LinkTarget" rel="@LinkRel" class="@LinkClass">
+            <a href="@LinkUrl" target="@LinkTarget" rel="@LinkRel" class="@LinkClass text-break">
                 @(string.IsNullOrWhiteSpace(LinkText) ? Value : LinkText)
             </a>
         }
         else if (IsBadge)
         {
-            <span class="badge @BadgeClass">@Value</span>
+            <span class="@BadgeClass">@Value</span>
         }
         else if (MarkupString.HasValue)
         {
-            @MarkupString.Value
+            <div class="text-break overflow-hidden">
+                @MarkupString.Value
+            </div>
         }
         else
         {
-            <span class="@(Mono ? "font-monospace small" : "")">@Value</span>
+            <span class="@(Mono ? "font-monospace small text-break" : "text-break")">@Value</span>
         }
     </div>
 </div>

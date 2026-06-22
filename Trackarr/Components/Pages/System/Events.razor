@@ -1,179 +1,139 @@
-﻿@page "/system/events"
+@page "/system/events"
 @using Trackarr.Services.Diagnostics
 @using static Utils
 @inject EventService EventService
 @inject ILogger<Events> Logger
+@inject IJSRuntime Js
 
 <PageTitle>Logs</PageTitle>
 
-<div class="page-body">
-    <div class="d-flex align-items-center justify-content-between mb-3">
-        <div>
-            <h2 class="page-title mb-1">Logs</h2>
-            <div class="text-muted small">System events and application diagnostics</div>
-        </div>
-
-        <div class="btn-list">
-            <button type="button" class="btn btn-outline-secondary" disabled="@_isRefreshing" @onclick="LoadLogsAsync">
-                @if (_isRefreshing)
-                {
-                    <i class="ti ti-refresh spinner me-2"></i>
-                    <span>Refreshing</span>
-                }
-                else
-                {
-                    <i class="ti ti-refresh me-2"></i>
-                    <span>Refresh</span>
-                }
-            </button>
-
-            <button type="button" class="btn btn-outline-danger" disabled="@_isRefreshing" @onclick="DeleteAllLogs">
-                <i class="ti ti-trash me-2"></i> Clear
-            </button>
-        </div>
-    </div>
-
-    <div class="row row-cards mb-3">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card app-card">
-                <div class="card-body">
-                    <div class="text-muted small">Total Logs</div>
-                    <div class="h2 mb-0">@_logs.Count</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-lg-3">
-            <div class="card app-card">
-                <div class="card-body">
-                    <div class="text-muted small">Warnings</div>
-                    <div class="h2 mb-0">@WarningCount</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-lg-3">
-            <div class="card app-card">
-                <div class="card-body">
-                    <div class="text-muted small">Errors</div>
-                    <div class="h2 mb-0">@ErrorCount</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-lg-3">
-            <div class="card app-card">
-                <div class="card-body">
-                    <div class="text-muted small">Last 15 Minutes</div>
-                    <div class="h2 mb-0">@RecentCount</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
+<div class="d-flex flex-column gap-3">
     <div class="card app-card">
         <div class="card-header">
-            <div>
-                <h3 class="card-title">Events</h3>
-                <div class="text-muted small">Showing @PageStart - @PageEnd of @FilteredLogs.Count</div>
-            </div>
+            <div class="d-flex flex-wrap align-items-center gap-2 w-100">
+                <div class="ms-auto d-flex flex-wrap btn-list">
+                    @if (HasActiveFilters)
+                    {
+                        <button class="btn btn-app-ghost" @onclick="ClearFilters">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 width="16"
+                                 height="16"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 class="icon m-0 me-1">
+                                <path d="M18 6l-12 12"/>
+                                <path d="M6 6l12 12"/>
+                            </svg>
+                            Clear
+                        </button>
+                    }
 
-            <div class="ms-auto d-flex flex-wrap gap-2">
-                <div class="input-icon">
-                    <span class="input-icon-addon">
-                        <i class="ti ti-search"></i>
-                    </span>
-                    <input class="form-control" placeholder="Filter logs..." @bind="FilterText" @bind:event="oninput"/>
+                    <select class="form-select w-auto" value="@_selectedLevel" @onchange="OnLevelChanged">
+                        <option value="">All Levels</option>
+                        <option value="@LogLevel.Trace">Trace</option>
+                        <option value="@LogLevel.Debug">Debug</option>
+                        <option value="@LogLevel.Information">Information</option>
+                        <option value="@LogLevel.Warning">Warning</option>
+                        <option value="@LogLevel.Error">Error</option>
+                        <option value="@LogLevel.Critical">Critical</option>
+                    </select>
+
+                    <button type="button" class="btn btn-app-ghost" disabled="@_isRefreshing" @onclick="LoadLogsAsync">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             width="20"
+                             height="20"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="2"
+                             stroke-linecap="round"
+                             stroke-linejoin="round"
+                             class="icon icon-tabler icon-tabler-refresh m-0 @(_isRefreshing ? "spinner" : "")">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                            <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+                            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+                        </svg>
+                    </button>
+
+                    <button type="button" class="btn btn-app-ghost" disabled="@_isRefreshing" @onclick="DeleteAllLogs">
+                        <i class="ti ti-trash me-1"></i> Clear Logs
+                    </button>
+
+                    <div class="input-group input-group-flat w-auto">
+                        <span class="input-group-text">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 width="24"
+                                 height="24"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 class="icon icon-1">
+                                <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"></path>
+                                <path d="M21 21l-6 -6"></path>
+                            </svg>
+                        </span>
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               autocomplete="off"
+                               placeholder="Search logs..."
+                               value="@_filterText"
+                               @oninput="OnSearchChanged"/>
+                    </div>
                 </div>
-
-                <select class="form-select w-auto" @bind="SelectedLevel">
-                    <option value="">All Levels</option>
-                    <option value="@LogLevel.Trace">Trace</option>
-                    <option value="@LogLevel.Debug">Debug</option>
-                    <option value="@LogLevel.Information">Information</option>
-                    <option value="@LogLevel.Warning">Warning</option>
-                    <option value="@LogLevel.Error">Error</option>
-                    <option value="@LogLevel.Critical">Critical</option>
-                </select>
             </div>
         </div>
 
         <div class="table-responsive">
-            <table class="table table-vcenter table-nowrap card-table">
+            <table class="table table-vcenter table-nowrap @TableDensityClass">
                 <thead>
                 <tr>
                     <th class="w-1"></th>
-                    <th>
-                        <button type="button"
-                                class="table-sort border-0 bg-transparent p-0 text-reset"
-                                @onclick="@(() => SortBy("time"))">
-                            Time <i class="@SortIcon("time") ms-1"></i>
-                        </button>
+                    <th style="width: 140px">
+                        <button class="@SortClass("time")" @onclick='() => SortBy("time")'>Time</button>
                     </th>
-                    <th>
-                        <button type="button"
-                                class="table-sort border-0 bg-transparent p-0 text-reset"
-                                @onclick="@(() => SortBy("level"))">
-                            Level <i class="@SortIcon("level") ms-1"></i>
-                        </button>
+                    <th style="width: 100px">
+                        <button class="@SortClass("level")" @onclick='() => SortBy("level")'>Level</button>
                     </th>
-                    <th>
-                        <button type="button"
-                                class="table-sort border-0 bg-transparent p-0 text-reset"
-                                @onclick="@(() => SortBy("source"))">
-                            Component <i class="@SortIcon("source") ms-1"></i>
-                        </button>
+                    <th style="width: 180px">
+                        <button class="@SortClass("source")" @onclick='() => SortBy("source")'>Component</button>
                     </th>
                     <th>Message</th>
-                    <th class="w-1"></th>
                 </tr>
                 </thead>
-
-                <tbody>
-                @foreach (var log in PagedLogs)
-                {
-                    <tr>
-                        <td>
-                            <i class="@LevelIcon(log.LogLevel)" title="@log.LogLevel"></i>
-                        </td>
-
-                        <td class="text-muted" title="@log.TimeStamp.ToLocalTime().ToString("f")">
-                            @log.TimeStamp.ToLocalTime().ToString("MMM d, h:mm tt").ToLower()
-                        </td>
-
-                        <td>
-                            <span class="badge @LevelBadgeClass(log.LogLevel)">
-                                @log.LogLevel
-                            </span>
-                        </td>
-
-                        <td class="text-muted">
-                            @TextDisplay(log.Source)
-                        </td>
-
-                        <td class="text-truncate" title="@log.Message">
-                            @TextDisplay(log.Message)
-                        </td>
-
-                        <td>
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-secondary"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#logDetailsModal"
-                                    @onclick="() => SelectLog(log)">
-                                Details
-                            </button>
-                        </td>
-                    </tr>
-                }
-
+                <tbody class="table-tbody">
                 @if (!PagedLogs.Any())
                 {
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">
-                            No logs found.
-                        </td>
+                        <td colspan="5" class="text-center text-muted py-4">No logs found</td>
                     </tr>
+                }
+                else
+                {
+                    @foreach (var log in PagedLogs)
+                    {
+                        <tr style="cursor:pointer" @onclick="() => ShowLog(log)">
+                            <td>
+                                <i class="@LevelIcon(log.LogLevel)" title="@log.LogLevel"></i>
+                            </td>
+                            <td class="text-secondary" title="@log.TimeStamp.ToLocalTime().ToString("f")">
+                                @log.TimeStamp.ToLocalTime().ToString("MMM d, h:mm tt").ToLower()
+                            </td>
+                            <td>
+                                <span class="@LevelBadgeClass(log.LogLevel)">@log.LogLevel</span>
+                            </td>
+                            <td class="text-secondary">@TextDisplay(log.Source)</td>
+                            <td class="text-truncate" style="max-width: 600px" title="@log.Message">
+                                @TextDisplay(log.Message)
+                            </td>
+                        </tr>
+                    }
                 }
                 </tbody>
             </table>
@@ -181,8 +141,8 @@
 
         <div class="card-footer d-flex align-items-center">
             <div class="d-flex align-items-center gap-2">
-                <span class="text-muted small">Rows</span>
-                <select class="form-select form-select-sm w-auto" @bind="PageSize">
+                <span class="text-secondary">Rows</span>
+                <select class="form-select form-select-sm w-auto" value="@_pageSize" @onchange="OnPageSizeChanged">
                     <option value="10">10</option>
                     <option value="25">25</option>
                     <option value="50">50</option>
@@ -191,111 +151,93 @@
                 </select>
             </div>
 
-            <ul class="pagination m-0 ms-auto">
-                <li class="page-item @(_currentPage <= 1 ? "disabled" : "")">
-                    <button type="button" class="page-link" @onclick="FirstPage">
-                        <i class="ti ti-chevrons-left"></i>
-                    </button>
-                </li>
-
-                <li class="page-item @(_currentPage <= 1 ? "disabled" : "")">
-                    <button type="button" class="page-link" @onclick="PreviousPage">
-                        <i class="ti ti-chevron-left"></i>
-                    </button>
-                </li>
-
-                <li class="page-item active">
-                    <span class="page-link">
-                        @_currentPage / @TotalPages
-                    </span>
-                </li>
-
-                <li class="page-item @(_currentPage >= TotalPages ? "disabled" : "")">
-                    <button type="button" class="page-link" @onclick="NextPage">
-                        <i class="ti ti-chevron-right"></i>
-                    </button>
-                </li>
-
-                <li class="page-item @(_currentPage >= TotalPages ? "disabled" : "")">
-                    <button type="button" class="page-link" @onclick="LastPage">
-                        <i class="ti ti-chevrons-right"></i>
-                    </button>
-                </li>
-            </ul>
+            <div class="ms-auto d-flex align-items-center gap-3">
+                <div class="fw-semibold">@PageStart–@PageEnd of @FilteredLogs.Count</div>
+                <ul class="pagination m-0">
+                    <li class="page-item @(_currentPage <= 1 ? "disabled" : "")">
+                        <button type="button" class="page-link" @onclick="FirstPage">
+                            <i class="ti ti-chevrons-left"></i>
+                        </button>
+                    </li>
+                    <li class="page-item @(_currentPage <= 1 ? "disabled" : "")">
+                        <button type="button" class="page-link" @onclick="PreviousPage">
+                            <i class="ti ti-chevron-left"></i>
+                        </button>
+                    </li>
+                    <li class="page-item active">
+                        <span class="page-link">@_currentPage / @TotalPages</span>
+                    </li>
+                    <li class="page-item @(_currentPage >= TotalPages ? "disabled" : "")">
+                        <button type="button" class="page-link" @onclick="NextPage">
+                            <i class="ti ti-chevron-right"></i>
+                        </button>
+                    </li>
+                    <li class="page-item @(_currentPage >= TotalPages ? "disabled" : "")">
+                        <button type="button" class="page-link" @onclick="LastPage">
+                            <i class="ti ti-chevrons-right"></i>
+                        </button>
+                    </li>
+                </ul>
+            </div>
         </div>
     </div>
-</div>
 
-<div class="modal fade" id="logDetailsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div>
+    <div class="modal modal-blur fade" id="logDetailsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header border-bottom border-secondary-subtle">
                     <h3 class="modal-title">Log Details</h3>
+                    <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body">
                     @if (_selectedLog is not null)
                     {
-                        <div class="text-muted small">
-                            @_selectedLog.TimeStamp.ToLocalTime().ToString("f")
+                        <div class="row row-cards mb-3">
+                            <div class="col-md-4">
+                                <div class="card app-card">
+                                    <div class="card-body">
+                                        <div class="subheader">Level</div>
+                                        <span class="@LevelBadgeClass(_selectedLog.LogLevel)">@_selectedLog.LogLevel</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card app-card">
+                                    <div class="card-body">
+                                        <div class="subheader">Component</div>
+                                        <div>@TextDisplay(_selectedLog.Source)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card app-card">
+                                    <div class="card-body">
+                                        <div class="subheader">Time</div>
+                                        <div>@_selectedLog.TimeStamp.ToLocalTime().ToString("MMM d, yyyy h:mm:ss tt")</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+
+                        <div class="mb-3">
+                            <div class="subheader mb-1">Message</div>
+                            <pre class="app-card border-0 font-monospace p-3 rounded small user-select-all mb-0">@_selectedLog.Message</pre>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(_selectedLog.Exception))
+                        {
+                            <div>
+                                <div class="subheader mb-1">Exception</div>
+                                <pre class="app-card border-0 font-monospace p-3 rounded small user-select-all mb-0 text-danger">@_selectedLog.Exception</pre>
+                            </div>
+                        }
                     }
                 </div>
 
-                <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal"></button>
-            </div>
-
-            <div class="modal-body">
-                @if (_selectedLog is not null)
-                {
-                    <div class="row row-cards mb-3">
-                        <div class="col-md-4">
-                            <div class="card app-card">
-                                <div class="card-body">
-                                    <div class="text-muted small">Level</div>
-                                    <span class="badge @LevelBadgeClass(_selectedLog.LogLevel)">
-                                        @_selectedLog.LogLevel
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <div class="card app-card">
-                                <div class="card-body">
-                                    <div class="text-muted small">Component</div>
-                                    <div>@TextDisplay(_selectedLog.Source)</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-md-4">
-                            <div class="card app-card">
-                                <div class="card-body">
-                                    <div class="text-muted small">Time</div>
-                                    <div>@_selectedLog.TimeStamp.ToLocalTime().ToString("MMM d, yyyy h:mm:ss tt")</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="text-muted small mb-1">Message</div>
-                        <pre class="border font-monospace p-3 rounded small user-select-all mb-0">@_selectedLog.Message</pre>
-                    </div>
-
-                    @if (!string.IsNullOrWhiteSpace(_selectedLog.Exception))
-                    {
-                        <div>
-                            <div class="text-muted small mb-1">Exception</div>
-                            <pre class="border font-monospace p-3 rounded small user-select-all mb-0">@_selectedLog.Exception</pre>
-                        </div>
-                    }
-                }
-            </div>
-
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-                    Close
-                </button>
+                <div class="modal-footer border-top border-secondary-subtle">
+                    <button type="button" class="btn btn-app-ghost" data-bs-dismiss="modal">Close</button>
+                </div>
             </div>
         </div>
     </div>

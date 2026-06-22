@@ -6,33 +6,45 @@ using Trackarr.Core.Queue;
 using Trackarr.Core.Routine;
 using Trackarr.Core.Server;
 using Trackarr.Data;
+using Trackarr.Services.Settings;
 
 namespace Trackarr;
 
 public static class Utils
 {
+    private static string _dateFormat = "MMM d, yyyy h:mm tt";
+    private static bool _useTimeAgo = true;
+    private static int _timeAgoThresholdHours = 24;
+
+    public static void Configure(SettingsService settings)
+    {
+        _dateFormat = settings.GetString("Display", "DateFormat", "MMM d, yyyy h:mm tt");
+        _useTimeAgo = settings.GetBool("Display", "UseTimeAgo", true);
+        _timeAgoThresholdHours = settings.GetInt("Display", "TimeAgoThresholdHours", 24);
+    }
+
     public static string StatusBadgeClass(string? status)
     {
         return status?.ToLowerInvariant() switch
         {
-            "stuck" => "status-badge status-stalled",
-            "stalled" => "status-badge status-stalled",
-            "warning" => "status-badge status-stalled",
-            "waiting" => "status-badge status-paused",
-            "delay" => "status-badge status-paused",
-            "paused" => "status-badge status-paused",
-            "queued" => "status-badge status-queued",
-            "importing" => "status-badge status-importing",
-            "importpending" => "status-badge status-importing",
-            "importblocked" => "status-badge status-stalled",
-            "downloading" => "status-badge status-downloading",
-            "completed" => "status-badge status-paused",
-            "failed" => "status-badge status-failed",
-            "error" => "status-badge status-failed",
-            "failedpending" => "status-badge status-failed",
-            "downloadclientunavailable" => "status-badge status-failed",
-            "missing" => "status-badge status-missing",
-            _ => "status-badge status-paused"
+            "stuck" => "badge bg-warning-lt text-warning",
+            "stalled" => "badge bg-warning-lt text-warning",
+            "warning" => "badge bg-warning-lt text-warning",
+            "waiting" => "badge bg-secondary-lt text-secondary",
+            "delay" => "badge bg-secondary-lt text-secondary",
+            "paused" => "badge bg-secondary-lt text-secondary",
+            "queued" => "badge bg-purple-lt text-purple",
+            "importing" => "badge bg-blue-lt text-blue",
+            "importpending" => "badge bg-blue-lt text-blue",
+            "importblocked" => "badge bg-warning-lt text-warning",
+            "downloading" => "badge bg-success-lt text-success",
+            "completed" => "badge bg-success-lt text-success",
+            "failed" => "badge bg-danger-lt text-danger",
+            "error" => "badge bg-danger-lt text-danger",
+            "failedpending" => "badge bg-danger-lt text-danger",
+            "downloadclientunavailable" => "badge bg-danger-lt text-danger",
+            "missing" => "badge bg-orange-lt text-orange",
+            _ => "badge bg-secondary-lt text-secondary"
         };
     }
 
@@ -48,7 +60,7 @@ public static class Utils
 
     public static string DateTimeDisplay(DateTime? value)
     {
-        return value?.ToString("MMM d, yyyy h:mm tt") ?? "—";
+        return value?.ToString(_dateFormat) ?? "—";
     }
 
     public static string TimeAgo(DateTime? value)
@@ -65,6 +77,9 @@ public static class Utils
         var diff = DateTime.UtcNow - utcValue;
 
         if (diff.TotalSeconds < 0) diff = TimeSpan.Zero;
+
+        if (!_useTimeAgo || diff.TotalHours > _timeAgoThresholdHours)
+            return DateTimeDisplay(value);
 
         return diff switch
         {
@@ -96,19 +111,18 @@ public static class Utils
     {
         switch (score)
         {
-            case < 0:
-                return "score-badge score-removed";
             case null:
-                return "score-badge-muted";
+            case <= 0:
+                return "score-badge score-badge-muted";
             default:
                 score = Math.Clamp((int)score, 0, 100);
 
                 return score switch
                 {
-                    <= 39 => "score-badge-red",
-                    <= 69 => "score-badge-orange",
-                    <= 89 => "score-badge-yellow",
-                    _ => "score-badge-green"
+                    <= 39 => "score-badge score-badge-red",
+                    <= 69 => "score-badge score-badge-orange",
+                    <= 89 => "score-badge score-badge-yellow",
+                    _ => "score-badge score-badge-green"
                 };
         }
     }
@@ -174,6 +188,48 @@ public static class Utils
         };
     }
 
+    public static string MediaTypeBadgeClass(string? type)
+    {
+        return type?.ToLowerInvariant() switch
+        {
+            "movie" => "badge bg-purple-lt text-purple",
+            "episode" => "badge bg-blue-lt text-blue",
+            "series" => "badge bg-indigo-lt text-indigo",
+            "season" => "badge bg-indigo-lt text-indigo",
+            "system" => "badge bg-secondary-lt text-secondary",
+            _ => "badge bg-secondary-lt text-secondary"
+        };
+    }
+
+    public static string EventTypeBadgeClass(string? eventType)
+    {
+        return eventType?.ToLowerInvariant() switch
+        {
+            "progressincreased" => "badge bg-success-lt text-success",
+            "sizeleftdecreased" => "badge bg-success-lt text-success",
+            "sustainedprogress" => "badge bg-success-lt text-success",
+            "errorcleared" => "badge bg-success-lt text-success",
+            "recoverystarted" => "badge bg-success-lt text-success",
+            "recoverycreditapplied" => "badge bg-success-lt text-success",
+            "importedsuccessfully" => "badge bg-success-lt text-success",
+            "noprogress" => "badge bg-warning-lt text-warning",
+            "warningreported" => "badge bg-warning-lt text-warning",
+            "stalled" => "badge bg-warning-lt text-warning",
+            "stallednoconnections" => "badge bg-warning-lt text-warning",
+            "statusworsened" => "badge bg-warning-lt text-warning",
+            "errorreported" => "badge bg-danger-lt text-danger",
+            "errorrepeated" => "badge bg-danger-lt text-danger",
+            "failedexternally" => "badge bg-danger-lt text-danger",
+            "removedbytrackarr" => "badge bg-orange-lt text-orange",
+            "firstseen" => "badge bg-blue-lt text-blue",
+            "queueseen" => "badge bg-blue-lt text-blue",
+            "queuemissing" => "badge bg-blue-lt text-blue",
+            "fetchingmetadata" => "badge bg-blue-lt text-blue",
+            "manualoverride" => "badge bg-purple-lt text-purple",
+            _ => "badge bg-secondary-lt text-secondary"
+        };
+    }
+
     public static MarkupString GetChecked(bool value, int size = 24)
     {
         if (value)
@@ -214,21 +270,24 @@ public static class Utils
         };
     }
 
-    public static string RoutineStatusBadge(RoutineDefinition routine)
+    public static string RoutineStatusBadge(RoutineDefinition routine, bool isQueued = false)
     {
-        return RoutineStatusText(routine) switch
+        return RoutineStatusText(routine, isQueued) switch
         {
-            "Running" => "bg-primary-lt",
-            "Paused" => "bg-warning-lt",
-            "Disabled" => "bg-secondary-lt",
-            "Failed" => "bg-danger-lt",
-            _ => "bg-success-lt"
+            "Running" => "badge bg-primary-lt text-primary",
+            "Queued" => "badge bg-blue-lt text-blue",
+            "Paused" => "badge bg-warning-lt text-warning",
+            "Disabled" => "badge bg-secondary-lt text-secondary",
+            "Failed" => "badge bg-danger-lt text-danger",
+            _ => "badge bg-success-lt text-success"
         };
     }
 
-    public static string RoutineStatusText(RoutineDefinition routine)
+    public static string RoutineStatusText(RoutineDefinition routine, bool isQueued = false)
     {
         if (routine.IsRunning) return "Running";
+
+        if (isQueued) return "Queued";
 
         if (!routine.Enabled) return "Disabled";
 

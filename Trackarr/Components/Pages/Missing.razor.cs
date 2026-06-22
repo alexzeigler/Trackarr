@@ -1,61 +1,206 @@
-﻿using System.Text.Json;
+using System.Globalization;
+using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.JSInterop;
 using Trackarr.Components.Modals;
 using Trackarr.Core.Media.Missing;
 using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Media.Shows;
+using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Data;
+using Trackarr.Services.Media;
+using Trackarr.Services.Settings;
+using Trackarr.Services.UI;
 using static Trackarr.Utils;
 
 namespace Trackarr.Components.Pages;
 
-public partial class Missing : ComponentBase
+public partial class Missing : ComponentBase, IAsyncDisposable
 {
+    private readonly CancellationTokenSource _disposeCancellation = new();
+    private bool _chartsInitialized;
+    private bool _chartsPending;
+
     private MediaDetailsModal _detailsModal = null!;
     private Dictionary<string, Episode> _episodes = [];
-
-
     private List<MissingMediaRecord> _missingItems = [];
     private List<MissingMediaRow> _missingRows = [];
     private Dictionary<string, Movie> _movies = [];
-    private Dictionary<string, Series> _series = [];
-    private Dictionary<int, MediaServer> _servers = [];
-    [Inject] private IDbContextFactory<AppDbContext> DbFactory { get; set; } = null!;
 
-    private int PageSize { get; } = 10;
+    private MissingPageData _pageData = new();
+
+    private string _searchTerm = string.Empty;
+    private Dictionary<string, Series> _series = [];
+    private string? _serverFilter;
+    private Dictionary<int, MediaServer> _servers = [];
+    private string _sortColumn = "firstSeen";
+    private bool _sortDescending = true;
+    private string? _stateFilter;
+    private string? _typeFilter;
+    [Inject] private AppStateService AppState { get; set; } = null!;
+    [Inject] private IDbContextFactory<AppDbContext> DbFactory { get; set; } = null!;
+    [Inject] private MissingStatsService MissingStatsService { get; set; } = null!;
+    [Inject] private SettingsService Settings { get; set; } = null!;
+    [Inject] private IJSRuntime Js { get; set; } = null!;
+
+    private string TableDensityClass =>
+        Settings.GetString("Display", "TableDensity", "normal") switch
+        {
+            "compact" => "table-density-compact",
+            "comfortable" => "table-density-comfortable",
+            _ => ""
+        };
+
     private bool IsRefreshing { get; set; }
 
-    private int TotalMissingCount => _missingItems.Count;
-    private int SearchReadyCount => _missingItems.Count(IsSearchReady);
-    private int FallbackLoweredCount => _missingItems.Count(x => x.LoweredToFallback);
-    private int FailedSearchCount => _missingItems.Count(x => x.FailedSearchCount > 0);
+    private bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(_searchTerm) || _stateFilter != null || _serverFilter != null || _typeFilter != null;
 
-    private Dictionary<string, Func<MissingMediaRow, object>> MissingSorts =>
-        new()
+    private List<string> AvailableStates =>
+        _missingRows.Select(GetStateDisplay).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(s => s).ToList();
+
+    private List<string> AvailableTypes =>
+        _missingRows.Select(GetMissingType).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(t => t).ToList();
+
+    private (string Class, string Icon) SearchTrendDisplay =>
+        _pageData.Stats.SearchTrend switch
         {
-            ["name"] = row => GetTitle(row),
-            ["server"] = row => GetServer(row)?.Name ?? string.Empty,
-            ["count"] = row => row.MissingCount,
-            ["tier"] = row => GetTierDisplay(row),
-            ["state"] = row => GetStateDisplay(row),
-            ["failed"] = row => row.FailedSearchCount,
-            ["fallback"] = row => row.LoweredToFallback ? 1 : 0,
-            ["firstSeen"] = row => GetSortTicks(row.FirstSeenMissingAt),
-            ["lastSearch"] = row => GetSortTicks(row.LastSearchPushedAt),
-            ["lastEval"] = row => GetSortTicks(row.LastEvaluatedAt)
+            Trend.Up => ("text-green", "ti ti-trending-up"),
+            Trend.Down => ("text-red", "ti ti-trending-down"),
+            _ => ("text-warning", "ti ti-minus")
         };
+
+    private (string Class, string Icon) ResolvedTrendDisplay =>
+        _pageData.Stats.ResolvedTrend switch
+        {
+            Trend.Up => ("text-green", "ti ti-trending-up"),
+            Trend.Down => ("text-red", "ti ti-trending-down"),
+            _ => ("text-warning", "ti ti-minus")
+        };
+
+    private List<SeriesLegend> ActivityLegend =>
+    [
+        new("Pushed", "#7738e9", _pageData.Activity.Sum(p => p.Pushed)),
+        new("Cascaded", "#4299e1", _pageData.Activity.Sum(p => p.Cascaded)),
+        new("Resolved", "#2fb344", _pageData.Activity.Sum(p => p.Resolved)),
+        new("Failed", "#d63939", _pageData.Activity.Sum(p => p.Failed))
+    ];
+
+    private List<MissingMediaRow> FilteredRows => BuildFilteredRows();
+
+    private List<MissingMediaRow> BuildFilteredRows()
+    {
+        var rows = _missingRows.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+            rows = rows.Where(r => MatchesSearch(r, _searchTerm.Trim()));
+
+        if (_stateFilter != null)
+            rows = rows.Where(r => string.Equals(GetStateDisplay(r), _stateFilter, StringComparison.OrdinalIgnoreCase));
+
+        if (_serverFilter != null)
+        {
+            rows = rows.Where(r =>
+                string.Equals(GetServer(r)?.Name, _serverFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (_typeFilter != null)
+            rows = rows.Where(r => string.Equals(GetMissingType(r), _typeFilter, StringComparison.OrdinalIgnoreCase));
+
+        rows = _sortColumn switch
+        {
+            "state" => _sortDescending
+                ? rows.OrderByDescending(r => GetStateDisplay(r))
+                : rows.OrderBy(r => GetStateDisplay(r)),
+            "count" => _sortDescending
+                ? rows.OrderByDescending(r => r.MissingCount)
+                : rows.OrderBy(r => r.MissingCount),
+            "lastSearch" => _sortDescending
+                ? rows.OrderByDescending(r => GetSortTicks(r.LastSearchPushedAt))
+                : rows.OrderBy(r => GetSortTicks(r.LastSearchPushedAt)),
+            "firstSeen" => _sortDescending
+                ? rows.OrderByDescending(r => r.FirstSeenMissingAt)
+                : rows.OrderBy(r => r.FirstSeenMissingAt),
+            _ => _sortDescending ? rows.OrderByDescending(r => GetTitle(r)) : rows.OrderBy(r => GetTitle(r))
+        };
+
+        return rows.ToList();
+    }
+
+    private record SeriesLegend(string Label, string Color, int Total);
+
+    #region Lifecycle
 
     protected override async Task OnInitializedAsync()
     {
+        AppState.OnRefreshRequested += RefreshAsync;
         await RefreshAsync();
+        await RefreshChartsAsync();
+        _ = ChartRefreshLoopAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        AppState.OnRefreshRequested -= RefreshAsync;
+        await _disposeCancellation.CancelAsync();
+        _disposeCancellation.Dispose();
+
+        try
+        {
+            await Js.InvokeVoidAsync("trackarrMissingCharts.destroyAll");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_chartsPending) return;
+        _chartsPending = false;
+
+        try
+        {
+            await Js.InvokeVoidAsync("trackarrMissingCharts.renderActivity", "missing-activity-chart",
+                ActivityChartPayload());
+
+            await Js.InvokeVoidAsync("trackarrMissingCharts.renderStateBreakdown", "missing-state-chart",
+                StateBreakdownPayload());
+
+            _chartsInitialized = true;
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    private async Task ChartRefreshLoopAsync()
+    {
+        try
+        {
+            using PeriodicTimer timer = new(TimeSpan.FromSeconds(30));
+            while (await timer.WaitForNextTickAsync(_disposeCancellation.Token))
+                await RefreshChartsAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RefreshChartsAsync()
+    {
+        var activity = await MissingStatsService.GetActivityAsync();
+        _pageData.Activity = activity;
+        MissingStatsService.ComputeTrends(_pageData.Stats, activity);
+        _chartsPending = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task RefreshAsync()
     {
         if (IsRefreshing) return;
-
         IsRefreshing = true;
 
         try
@@ -66,13 +211,19 @@ public partial class Missing : ComponentBase
                 .ToListAsync();
 
             var serverIds = _missingItems.Select(x => x.ServerId).Distinct().ToList();
-
             var remoteIds = _missingItems.Select(x => x.RemoteId).Distinct().ToList();
+
+            var missingEpisodeIds = _missingItems.Where(x => x.EpisodeId != null).Select(x => x.EpisodeId!.Value)
+                .Distinct().ToList();
 
             var missingSeriesRemoteIds = _missingItems.Where(x => x.EpisodeId != null).Select(x => x.RemoteId)
                 .Distinct().ToList();
 
-            var servers = await db.MediaServers.AsNoTracking().Where(x => serverIds.Contains(x.Id)).ToListAsync();
+            var disabledBehavior = Settings.GetString("General", "DisabledServerBehavior", "hidden");
+            var serverQuery = db.MediaServers.AsNoTracking().Where(x => serverIds.Contains(x.Id));
+            if (disabledBehavior == "hidden")
+                serverQuery = serverQuery.Where(x => x.IsEnabled);
+            var servers = await serverQuery.ToListAsync();
 
             var movies = await db.Movies.AsNoTracking()
                 .Where(x => serverIds.Contains(x.ServerId) && remoteIds.Contains(x.RemoteId)).ToListAsync();
@@ -80,10 +231,17 @@ public partial class Missing : ComponentBase
             var series = await db.Series.AsNoTracking()
                 .Where(x => serverIds.Contains(x.ServerId) && remoteIds.Contains(x.RemoteId)).ToListAsync();
 
-            var episodes = missingSeriesRemoteIds.Count == 0
+            var episodes = missingEpisodeIds.Count == 0
                 ? []
                 : await db.Episodes.AsNoTracking().Where(x =>
-                    serverIds.Contains(x.ServerId) && missingSeriesRemoteIds.Contains(x.RemoteSeriesId)).ToListAsync();
+                        serverIds.Contains(x.ServerId) && (missingEpisodeIds.Contains(x.RemoteId) ||
+                                                           missingSeriesRemoteIds.Contains(x.RemoteSeriesId)))
+                    .ToListAsync();
+
+            _servers = servers.ToDictionary(x => x.Id);
+            _movies = BuildLookup(movies, x => MediaKey(x.ServerId, x.RemoteId));
+            _series = BuildLookup(series, x => MediaKey(x.ServerId, x.RemoteId));
+            _episodes = BuildLookup(episodes, x => EpisodeKey(x.ServerId, x.RemoteSeriesId, x.RemoteId));
 
             _missingRows = _missingItems.GroupBy(GetGroupKey).Select(x => new MissingMediaRow
             {
@@ -93,45 +251,93 @@ public partial class Missing : ComponentBase
                 Items = x.OrderBy(y => y.EpisodeId ?? 0).ToList()
             }).OrderByDescending(x => x.FirstSeenMissingAt).ToList();
 
-            _servers = servers.ToDictionary(x => x.Id);
-            _movies = BuildLookup(movies, x => MediaKey(x.ServerId, x.RemoteId));
-            _series = BuildLookup(series, x => MediaKey(x.ServerId, x.RemoteId));
-            _episodes = BuildLookup(episodes, x => EpisodeKey(x.ServerId, x.RemoteSeriesId, x.RemoteId));
+            var pageData = MissingStatsService.BuildStats(_missingItems);
+            pageData.Activity = _pageData.Activity;
+            MissingStatsService.ComputeTrends(pageData.Stats, pageData.Activity);
+            _pageData = pageData;
+
+            if (!_chartsInitialized)
+                _chartsPending = true;
         }
         finally
         {
             IsRefreshing = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
+
+    #endregion
+
+    #region Filters & Sort
+
+    private void OnSearchChanged(ChangeEventArgs args)
+    {
+        _searchTerm = args.Value?.ToString() ?? "";
+    }
+
+    private void OnStateFilterChanged(ChangeEventArgs args)
+    {
+        _stateFilter = string.IsNullOrWhiteSpace(args.Value?.ToString()) ? null : args.Value.ToString();
+    }
+
+    private void OnServerFilterChanged(ChangeEventArgs args)
+    {
+        _serverFilter = string.IsNullOrWhiteSpace(args.Value?.ToString()) ? null : args.Value.ToString();
+    }
+
+    private void OnTypeFilterChanged(ChangeEventArgs args)
+    {
+        _typeFilter = string.IsNullOrWhiteSpace(args.Value?.ToString()) ? null : args.Value.ToString();
+    }
+
+    private void ClearFilters()
+    {
+        _searchTerm = string.Empty;
+        _stateFilter = null;
+        _serverFilter = null;
+        _typeFilter = null;
+    }
+
+    private void SortBy(string column)
+    {
+        if (_sortColumn == column)
+            _sortDescending = !_sortDescending;
+        else
+        {
+            _sortColumn = column;
+            _sortDescending = column is "firstSeen" or "lastSearch" or "count";
+        }
+    }
+
+    private string SortClass(string column)
+    {
+        return _sortColumn != column ? "table-sort" : _sortDescending ? "table-sort desc" : "table-sort asc";
+    }
+
+    private bool MatchesSearch(MissingMediaRow row, string search)
+    {
+        return GetTitle(row).Contains(search, StringComparison.OrdinalIgnoreCase) ||
+               GetMissingType(row).Contains(search, StringComparison.OrdinalIgnoreCase) ||
+               (GetServer(row)?.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+               GetStateDisplay(row).Contains(search, StringComparison.OrdinalIgnoreCase) ||
+               GetEpisodeSummary(row).Contains(search, StringComparison.OrdinalIgnoreCase);
+    }
+
+    #endregion
+
+    #region Data Helpers
 
     private async Task OpenDetailsAsync(MissingMediaRow row)
     {
         var movie = GetMovie(row);
-        var series = GetSeries(row);
-
         if (movie != null)
         {
             await _detailsModal.Open(movie);
             return;
         }
 
+        var series = GetSeries(row);
         if (series != null) await _detailsModal.Open(series);
-    }
-
-    private bool MatchesSearch(MissingMediaRow row, string search)
-    {
-        if (string.IsNullOrWhiteSpace(search)) return true;
-
-        var value = search.Trim();
-
-        return GetTitle(row).Contains(value, StringComparison.OrdinalIgnoreCase) ||
-               GetSubtitle(row).Contains(value, StringComparison.OrdinalIgnoreCase) ||
-               GetMissingType(row).Contains(value, StringComparison.OrdinalIgnoreCase) ||
-               (GetServer(row)?.Name.Contains(value, StringComparison.OrdinalIgnoreCase) ?? false) ||
-               row.RemoteId.ToString().Contains(value, StringComparison.OrdinalIgnoreCase) ||
-               GetTierDisplay(row).Contains(value, StringComparison.OrdinalIgnoreCase) ||
-               GetStateDisplay(row).Contains(value, StringComparison.OrdinalIgnoreCase) || row.Items.Any(x =>
-                   x.EpisodeId?.ToString().Contains(value, StringComparison.OrdinalIgnoreCase) ?? false);
     }
 
     private MediaServer? GetServer(MissingMediaRow row)
@@ -152,33 +358,43 @@ public partial class Missing : ComponentBase
     private string GetTitle(MissingMediaRow row)
     {
         var movie = GetMovie(row);
-
-        if (movie != null) return TextDisplay(movie.Title);
-
+        if (movie != null) return $"{TextDisplay(movie.Title)} ({movie.Year})";
         var series = GetSeries(row);
-
-        if (series != null) return TextDisplay(series.Title);
-
+        if (series != null) return $"{TextDisplay(series.Title)} ({series.Year})";
         return $"Remote {IntDisplay(row.RemoteId)}";
     }
 
-    private string GetSubtitle(MissingMediaRow row)
+    private string GetEpisodeSummary(MissingMediaRow row)
     {
         if (!row.IsEpisodeGroup) return string.Empty;
 
-        var total = GetTotalEpisodeCount(row);
+        var codes = row.Items.Where(i => i.EpisodeId != null).Select(i =>
+        {
+            var ep = _episodes.GetValueOrDefault(EpisodeKey(i.ServerId, i.RemoteId, i.EpisodeId!.Value));
+            return ep != null ? (int?)ep.SeasonNumber : null;
+        }).Where(s => s != null).Select(s => s!.Value).Distinct().OrderBy(s => s).ToList();
 
-        if (total > 0) return $"{row.MissingCount} of {total} episodes missing";
+        if (codes.Count == 0)
+            return $"{row.MissingCount} episodes";
 
-        return row.MissingCount == 1 ? "1 missing episode" : $"{row.MissingCount} missing episodes";
+        var seasonParts = codes.Select(s =>
+        {
+            var count = row.Items.Count(i =>
+            {
+                if (i.EpisodeId == null) return false;
+                var ep = _episodes.GetValueOrDefault(EpisodeKey(i.ServerId, i.RemoteId, i.EpisodeId.Value));
+                return ep?.SeasonNumber == s;
+            });
+            return $"S{s:D2} ({count})";
+        });
+
+        return string.Join(", ", seasonParts);
     }
 
     private string GetMissingType(MissingMediaRow row)
     {
         if (row.IsEpisodeGroup) return "Series";
-
         var server = GetServer(row);
-
         return server?.ServiceType switch
         {
             ServiceType.Radarr => "Movie",
@@ -190,12 +406,9 @@ public partial class Missing : ComponentBase
     private string? GetPosterUrl(MissingMediaRow row)
     {
         var movie = GetMovie(row);
-
-        if (movie != null) return GetPosterUrl(movie.ImagesJson);
-
+        if (movie != null) return GetPosterUrlFromJson(movie.ImagesJson);
         var series = GetSeries(row);
-
-        return series != null ? GetPosterUrl(series.ImagesJson) : null;
+        return series != null ? GetPosterUrlFromJson(series.ImagesJson) : null;
     }
 
     private int GetTotalEpisodeCount(MissingMediaRow row)
@@ -203,75 +416,57 @@ public partial class Missing : ComponentBase
         return _episodes.Values.Count(x => x.ServerId == row.ServerId && x.RemoteSeriesId == row.RemoteId);
     }
 
-    private static string GetTierDisplay(MissingMediaRow row)
-    {
-        var tiers = row.Items.Select(x => x.Tier).Distinct().ToList();
-
-        return tiers.Count == 1 ? EnumDisplay<MissingSearchTier>(tiers[0]) : "Mixed";
-    }
-
     private static string GetStateDisplay(MissingMediaRow row)
     {
         var states = row.Items.Select(x => x.SearchState).Distinct().ToList();
-
-        return states.Count == 1 ? EnumDisplay<MissingSearchState>(states[0]) : "Mixed";
-    }
-
-    private static string GetTierBadgeClass(MissingMediaRow row)
-    {
-        var value = GetTierDisplay(row);
-
-        if (value == "Mixed") return "app-badge app-badge-muted";
-
-        if (IsStatus(value, "fallback", "lower")) return "app-badge app-badge-sonarr";
-
-        if (IsStatus(value, "primary", "normal", "original")) return "app-badge app-badge-radarr";
-
-        return "app-badge app-badge-muted";
+        if (states.Count != 1) return "Mixed";
+        return states[0] switch
+        {
+            MissingSearchState.New => "New",
+            MissingSearchState.InQueue => "In Queue",
+            MissingSearchState.SearchPushed => "Searching",
+            MissingSearchState.SkippedCooldown => "Cooldown",
+            MissingSearchState.SkippedSearching => "Skipped",
+            MissingSearchState.NotAvailable => "Not Available",
+            MissingSearchState.Stuck => "Stuck",
+            MissingSearchState.Abandoned => "Abandoned",
+            _ => states[0].ToString()
+        };
     }
 
     private static string GetStateBadgeClass(MissingMediaRow row)
     {
         var value = GetStateDisplay(row);
-
-        if (value == "Mixed") return StatusBadgeClass("waiting");
-
-        if (IsStatus(value, "failed", "error", "blocked")) return StatusBadgeClass("failed");
-
-        if (IsStatus(value, "search", "pushed", "running")) return StatusBadgeClass("downloading");
-
-        if (IsStatus(value, "ready", "pending", "queued", "waiting", "delay")) return StatusBadgeClass("waiting");
-
-        if (IsStatus(value, "complete", "found")) return StatusBadgeClass("completed");
-
-        return StatusBadgeClass(value);
+        return value switch
+        {
+            "New" => "badge bg-blue-lt text-blue",
+            "In Queue" => "badge bg-purple-lt text-purple",
+            "Searching" => "badge bg-indigo-lt text-indigo",
+            "Cooldown" => "badge bg-warning-lt text-warning",
+            "Skipped" => "badge bg-secondary-lt text-secondary",
+            "Not Available" => "badge bg-orange-lt text-orange",
+            "Stuck" => "badge bg-danger-lt text-danger",
+            "Abandoned" => "badge bg-secondary-lt text-secondary",
+            "Mixed" => "badge bg-secondary-lt text-secondary",
+            _ => "badge bg-secondary-lt text-secondary"
+        };
     }
 
-    private static string? GetPosterUrl(string? imagesJson)
+    private static string? GetPosterUrlFromJson(string? imagesJson)
     {
         if (string.IsNullOrWhiteSpace(imagesJson)) return null;
-
         try
         {
             var images = JsonSerializer.Deserialize<List<MediaImage>>(imagesJson,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
             var poster = images?.FirstOrDefault(x =>
                 string.Equals(x.CoverType, "poster", StringComparison.OrdinalIgnoreCase));
-
             return poster?.RemoteUrl ?? poster?.Url;
         }
         catch
         {
             return null;
         }
-    }
-
-    private static bool IsSearchReady(MissingMediaRecord item)
-    {
-        var state = item.SearchState.ToString();
-
-        return item.LastSearchPushedAt == null || IsStatus(state, "ready", "pending", "queued", "waiting", "missing");
     }
 
     private static string GetGroupKey(MissingMediaRecord item)
@@ -296,6 +491,65 @@ public partial class Missing : ComponentBase
         return items.GroupBy(keySelector).ToDictionary(x => x.Key, x => x.First());
     }
 
+    #endregion
+
+    #region Chart Payloads
+
+    private object ActivityChartPayload()
+    {
+        return new
+        {
+            labels = _pageData.Activity.Select(p => p.Label).ToArray(),
+            pushed = _pageData.Activity.Select(p => p.Pushed).ToArray(),
+            cascaded = _pageData.Activity.Select(p => p.Cascaded).ToArray(),
+            resolved = _pageData.Activity.Select(p => p.Resolved).ToArray(),
+            failed = _pageData.Activity.Select(p => p.Failed).ToArray()
+        };
+    }
+
+    private object StateBreakdownPayload()
+    {
+        return new
+        {
+            labels = _pageData.StateBreakdown.Select(b => b.Label).ToArray(),
+            series = _pageData.StateBreakdown.Select(b => b.Count).ToArray()
+        };
+    }
+
+    #endregion
+
+    #region Formatting
+
+    private static string FormatNumber(int value)
+    {
+        return value.ToString("N0", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatPercent(decimal value)
+    {
+        return value <= 0 ? "0%" : $"{value:0.0}%";
+    }
+
+    private static string StateDotClass(string label)
+    {
+        return label switch
+        {
+            "New" => "bg-blue",
+            "In Queue" => "bg-purple",
+            "Search Pushed" => "bg-indigo",
+            "Cooldown" => "bg-warning",
+            "Skipped" => "bg-secondary",
+            "Not Available" => "bg-orange",
+            "Stuck" => "bg-danger",
+            "Abandoned" => "bg-secondary",
+            _ => "bg-secondary"
+        };
+    }
+
+    #endregion
+
+    #region Inner Types
+
     private sealed class MissingMediaRow
     {
         public string Key { get; set; } = string.Empty;
@@ -303,15 +557,12 @@ public partial class Missing : ComponentBase
         public int RemoteId { get; set; }
         public List<MissingMediaRecord> Items { get; set; } = [];
 
-        public MissingMediaRecord PrimaryRecord => Items.OrderByDescending(x => x.LastEvaluatedAt).First();
-
         public bool IsEpisodeGroup => Items.Any(x => x.EpisodeId != null);
         public int MissingCount => Items.Count;
         public int FailedSearchCount => Items.Sum(x => x.FailedSearchCount);
         public bool LoweredToFallback => Items.Any(x => x.LoweredToFallback);
         public DateTime FirstSeenMissingAt => Items.Min(x => x.FirstSeenMissingAt);
         public DateTime? LastSearchPushedAt => Items.Max(x => x.LastSearchPushedAt);
-        public DateTime LastEvaluatedAt => Items.Max(x => x.LastEvaluatedAt);
     }
 
     private sealed class MediaImage
@@ -320,4 +571,6 @@ public partial class Missing : ComponentBase
         public string? Url { get; set; }
         public string? RemoteUrl { get; set; }
     }
+
+    #endregion
 }

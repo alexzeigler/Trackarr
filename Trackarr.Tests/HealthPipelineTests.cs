@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Trackarr.Core.Health;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
+using Trackarr.Services.Settings;
 
 namespace Trackarr.Tests;
 
@@ -17,27 +19,27 @@ public class HealthPipelineTests
         await using var db = factory.CreateDbContext();
         var server = new MediaServer
         {
-            Name = "Test Radarr",
-            ServiceType = ServiceType.Radarr,
-            Host = "localhost",
-            Port = 7878
+            Name = "Test Radarr", ServiceType = ServiceType.Radarr, Host = "localhost", Port = 7878
         };
         db.MediaServers.Add(server);
         await db.SaveChangesAsync();
         return server.Id;
     }
 
-    private static DownloadItem MovieDownload(int serverId, long sizeLeft = 1000) => new()
+    private static DownloadItem MovieDownload(int serverId, long sizeLeft = 1000)
     {
-        ServerId = serverId,
-        RemoteId = 55,
-        MovieId = 900,
-        DownloadId = "dl-abc",
-        Title = "Some Movie",
-        Size = 2000,
-        SizeLeft = sizeLeft,
-        Protocol = "torrent"
-    };
+        return new DownloadItem
+        {
+            ServerId = serverId,
+            RemoteId = 55,
+            MovieId = 900,
+            DownloadId = "dl-abc",
+            Title = "Some Movie",
+            Size = 2000,
+            SizeLeft = sizeLeft,
+            Protocol = "torrent"
+        };
+    }
 
     [Fact]
     public async Task GetOrCreateAttempt_IsIdempotentForSameDownload()
@@ -76,7 +78,8 @@ public class HealthPipelineTests
         var now = DateTime.UtcNow;
 
         await using var db = factory.CreateDbContext();
-        var attempt = await repo.GetOrCreateAttemptAsync(db, MovieDownload(serverId), null, now, CancellationToken.None);
+        var attempt =
+            await repo.GetOrCreateAttemptAsync(db, MovieDownload(serverId), null, now, CancellationToken.None);
         await db.SaveChangesAsync();
 
         var snapshot = await repo.GetOrCreateSnapshotAsync(db, attempt, now, CancellationToken.None);
@@ -91,7 +94,7 @@ public class HealthPipelineTests
     {
         using var factory = new SqliteInMemoryFactory();
         var serverId = await SeedServerAsync(factory);
-        var service = new HealthService(factory);
+        var service = new HealthService(factory, new SettingsService(factory, NullLogger<SettingsService>.Instance));
 
         var decision = await service.EvaluateAsync(MovieDownload(serverId));
 
@@ -114,7 +117,7 @@ public class HealthPipelineTests
     {
         using var factory = new SqliteInMemoryFactory();
         var serverId = await SeedServerAsync(factory);
-        var service = new HealthService(factory);
+        var service = new HealthService(factory, new SettingsService(factory, NullLogger<SettingsService>.Instance));
 
         await service.EvaluateAsync(MovieDownload(serverId));
         await service.EvaluateAsync(MovieDownload(serverId));
@@ -129,7 +132,7 @@ public class HealthPipelineTests
     {
         using var factory = new SqliteInMemoryFactory();
         var serverId = await SeedServerAsync(factory);
-        var service = new HealthService(factory);
+        var service = new HealthService(factory, new SettingsService(factory, NullLogger<SettingsService>.Instance));
         var policy = new HealthPolicy();
 
         await service.EvaluateAsync(MovieDownload(serverId, sizeLeft: 1000)); // first seen: score stays at start

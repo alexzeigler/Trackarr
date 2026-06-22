@@ -1,0 +1,202 @@
+@page "/settings/blacklist"
+@using Trackarr.Core.Settings
+@using Trackarr.Core.UI
+@using Trackarr.Services.Settings
+@layout SettingsLayout
+@inject BlacklistService BlacklistService
+@inject IJSRuntime Js
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <div class="subheader mb-1">Blacklist</div>
+        <p class="text-muted mb-0">Block specific indexers, release groups, or keywords from being downloaded.</p>
+    </div>
+    <button class="btn btn-sm btn-app-primary" @onclick="OpenAdd">
+        <i class="ti ti-plus me-1"></i>Add Entry
+    </button>
+</div>
+
+@if (_filterType is not null)
+{
+    <div class="mb-3">
+        <span class="text-muted me-2">Filtered by:</span>
+        <span class="badge bg-indigo-lt text-indigo me-1">@_filterType</span>
+        <button class="btn btn-sm btn-app-ghost" @onclick="ClearFilter">Clear</button>
+    </div>
+}
+
+<div class="d-flex gap-2 mb-3">
+    <button class="btn btn-sm @(_filterType is null ? "btn-app-primary" : "btn-app-ghost")" @onclick="ClearFilter">All
+    </button>
+    <button class="btn btn-sm @(_filterType == BlacklistType.Indexer ? "btn-app-primary" : "btn-app-ghost")"
+            @onclick="() => SetFilter(BlacklistType.Indexer)">Indexers
+    </button>
+    <button class="btn btn-sm @(_filterType == BlacklistType.ReleaseGroup ? "btn-app-primary" : "btn-app-ghost")"
+            @onclick="() => SetFilter(BlacklistType.ReleaseGroup)">Release Groups
+    </button>
+    <button class="btn btn-sm @(_filterType == BlacklistType.Keyword ? "btn-app-primary" : "btn-app-ghost")"
+            @onclick="() => SetFilter(BlacklistType.Keyword)">Keywords
+    </button>
+</div>
+
+@if (!FilteredEntries.Any())
+{
+    <div class="card app-card">
+        <div class="card-body text-center py-5 text-muted">
+            <i class="ti ti-shield-off" style="font-size:2rem;"></i>
+            <div class="mt-2">No blacklist entries yet.</div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card app-card">
+        <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+                <thead>
+                <tr>
+                    <th>Pattern</th>
+                    <th>Type</th>
+                    <th>Regex</th>
+                    <th>Note</th>
+                    <th>Added</th>
+                    <th class="w-1"></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var entry in FilteredEntries)
+                {
+                    <tr>
+                        <td class="text-white fw-semibold">@entry.Pattern</td>
+                        <td>
+                            <span class="badge @TypeBadge(entry.Type)">@entry.Type</span>
+                        </td>
+                        <td>@(entry.IsRegex ? "Yes" : "No")</td>
+                        <td class="text-muted">@(entry.Note ?? "—")</td>
+                        <td class="text-muted">@entry.CreatedAt.ToString("MMM d, yyyy")</td>
+                        <td>
+                            <button class="btn btn-sm btn-app-ghost text-danger" @onclick="() => RemoveEntry(entry.Id)">
+                                <i class="ti ti-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+<!-- Add Modal -->
+<div class="modal fade modal-blur" id="addBlacklistModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Blacklist Entry</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Pattern</label> <input class="form-control"
+                                                                     placeholder="e.g. YIFY, rarbg, *.cam.*"
+                                                                     @bind="_newPattern"/>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Type</label> <select class="form-select" @bind="_newType">
+                        <option value="@BlacklistType.Indexer">Indexer</option>
+                        <option value="@BlacklistType.ReleaseGroup">Release Group</option>
+                        <option value="@BlacklistType.Keyword">Keyword</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-check form-switch"> <input class="form-check-input"
+                                                                  type="checkbox"
+                                                                  @bind="_newIsRegex"/>
+                        <span class="form-check-label">Use Regular Expression</span>
+                    </label>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Note
+                        <span class="text-muted">(optional)</span>
+                    </label> <input class="form-control" placeholder="Why is this blocked?" @bind="_newNote"/>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-app-ghost" data-bs-dismiss="modal">Cancel</button>
+                <button type="button"
+                        class="btn btn-app-primary"
+                        disabled="@string.IsNullOrWhiteSpace(_newPattern)"
+                        @onclick="AddEntry">Add
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private SettingsPageContext Context { get; set; } = null!;
+
+    private List<BlacklistEntry> _entries = [];
+    private BlacklistType? _filterType;
+
+    private string _newPattern = "";
+    private BlacklistType _newType = BlacklistType.Keyword;
+    private bool _newIsRegex;
+    private string _newNote = "";
+
+    private IEnumerable<BlacklistEntry> FilteredEntries => _filterType is null ? _entries : _entries.Where(e => e.Type == _filterType);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEntries();
+    }
+
+    private async Task LoadEntries()
+    {
+        _entries = await BlacklistService.GetAllAsync();
+    }
+
+    private void SetFilter(BlacklistType type)
+    {
+        _filterType = type;
+    }
+
+    private void ClearFilter()
+    {
+        _filterType = null;
+    }
+
+    private async Task OpenAdd()
+    {
+        _newPattern = "";
+        _newType = BlacklistType.Keyword;
+        _newIsRegex = false;
+        _newNote = "";
+        await Js.InvokeVoidAsync("eval", "new bootstrap.Modal(document.getElementById('addBlacklistModal')).show()");
+    }
+
+    private async Task AddEntry()
+    {
+        await BlacklistService.AddAsync(new BlacklistEntry { Pattern = _newPattern.Trim(), Type = _newType, IsRegex = _newIsRegex, Note = string.IsNullOrWhiteSpace(_newNote) ? null : _newNote.Trim() });
+        await Js.InvokeVoidAsync("eval", "bootstrap.Modal.getInstance(document.getElementById('addBlacklistModal')).hide()");
+        await LoadEntries();
+    }
+
+    private async Task RemoveEntry(int id)
+    {
+        await BlacklistService.RemoveAsync(id);
+        await LoadEntries();
+    }
+
+    private static string TypeBadge(BlacklistType type)
+    {
+        return type switch
+        {
+            BlacklistType.Indexer => "bg-blue-lt text-blue",
+            BlacklistType.ReleaseGroup => "bg-purple-lt text-purple",
+            BlacklistType.Keyword => "bg-orange-lt text-orange",
+            _ => "bg-secondary-lt text-secondary"
+        };
+    }
+
+}

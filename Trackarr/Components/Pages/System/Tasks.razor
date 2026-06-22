@@ -31,20 +31,20 @@
                 <td>
                     @if (routine.IsRunning)
                     {
-                        <span class="badge bg-primary d-inline-flex align-items-center gap-1">
+                        <span class="badge bg-primary-lt text-primary d-inline-flex align-items-center gap-1">
                             <span class="spinner-border spinner-border-sm"></span>
                             Running
                         </span>
                     }
                     else if (routine.LastRun.HasValue)
                     {
-                        <span class="badge @(routine.LastRunSuccess ? "bg-success" : "bg-danger")">
+                        <span class="badge @(routine.LastRunSuccess ? "bg-success-lt text-success" : "bg-danger-lt text-danger")">
                             @(routine.LastRunSuccess ? "Success" : "Failed")
                         </span>
                     }
                     else
                     {
-                        <span class="badge bg-secondary">Idle</span>
+                        <span class="badge bg-secondary-lt text-secondary">Idle</span>
                     }
                 </td>
                 <td>
@@ -58,10 +58,10 @@
                     }
                 </td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-primary me-2"
+                    <button class="btn btn-sm btn-app-primary me-2"
                             disabled="@routine.IsRunning"
                             @onclick="() => RunRoutine(routine.Key)">
-                        <i class="bi bi-play-fill h6"></i> Run Now
+                        <i class="ti ti-player-play me-1"></i> Run Now
                     </button>
                 </td>
             </tr>

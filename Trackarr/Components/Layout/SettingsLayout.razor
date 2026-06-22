@@ -1,32 +1,100 @@
-﻿@using Trackarr.Components.Layout.Main
 @using Trackarr.Core.UI
 @inherits LayoutComponentBase
 @layout MainLayout
 @rendermode InteractiveServer
 
-<OptionsBanner Options="Options"/>
+<CascadingValue Value="_context">
+    <div class="btn-group">
+        <button type="button"
+                class="btn @(_context.HasChanges ? "btn-app-primary" : "btn-app-ghost") d-flex align-items-center gap-1"
+                disabled="@(!_context.HasChanges)"
+                @onclick="SaveAsync">
+            @if (_saving)
+            {
+                <span class="spinner-border spinner-border-sm"></span>
+            }
+            else
+            {
+                <i class="bi bi-floppy"></i>
+            }
+        </button>
+        @if (_context.HasChanges)
+        {
+            <button type="button"
+                    class="btn btn-sm btn-app-ghost d-flex align-items-center gap-1"
+                    @onclick="DiscardAsync">
+                <i class="bi bi-arrow-counterclockwise"></i>
+                <span>Discard</span>
+            </button>
+        }
+        @if (!string.IsNullOrEmpty(_successMessage))
+        {
+            <span class="text-success small ms-2">
+                <i class="bi bi-check-circle me-1"></i>@_successMessage
+            </span>
+        }
+    </div>
 
-<div class="p-3">
-    @Body
-</div>
+    <div class="p-3">
+        @Body
+    </div>
+</CascadingValue>
 
 @code {
-    [Inject] NavigationManager Nav { get; set; } = null!;
+    private readonly SettingsPageContext _context = new();
+    private bool _saving;
+    private string? _successMessage;
+    private CancellationTokenSource? _messageCts;
 
-    private static IReadOnlyList<Option> Options =>
-    [
-            new() { DisplayName = "Series Advanced", Icon = "bi-gear-fill", Command = ShowAdvancedAsync },
-        new() { DisplayName = "No Changes", Icon = "bi-floppy", Command = SaveAsync }
-    ];
-
-    private static Task ShowAdvancedAsync()
+    protected override void OnInitialized()
     {
-        return Task.CompletedTask;
+        _context.OnStateChanged += () => InvokeAsync(StateHasChanged);
     }
 
-    private static Task SaveAsync()
+    private async Task SaveAsync()
     {
-        return Task.CompletedTask;
+        if (_context.SaveAsync is null) return;
+        _saving = true;
+        StateHasChanged();
+
+        try
+        {
+            await _context.SaveAsync();
+            _successMessage = "Saved";
+            _context.HasChanges = false;
+            _context.NotifyChanged();
+            _ = ClearMessageAfterDelay();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DiscardAsync()
+    {
+        if (_context.DiscardAsync is not null)
+            await _context.DiscardAsync();
+
+        _context.HasChanges = false;
+        _context.NotifyChanged();
+    }
+
+    private async Task ClearMessageAfterDelay()
+    {
+        _messageCts?.Cancel();
+        _messageCts = new CancellationTokenSource();
+        var token = _messageCts.Token;
+
+        try
+        {
+            await Task.Delay(3000, token);
+            _successMessage = null;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException)
+        {
+        }
     }
 
 }

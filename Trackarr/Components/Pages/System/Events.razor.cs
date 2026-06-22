@@ -1,55 +1,33 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using Trackarr.Core.Event;
+using Trackarr.Services.Settings;
 
 namespace Trackarr.Components.Pages.System;
 
 public partial class Events : ComponentBase
 {
     private int _currentPage = 1;
-
     private string _filterText = string.Empty;
     private bool _isRefreshing;
     private List<LogEvent> _logs = [];
-    private int _pageSize = 50;
+    private int _pageSize;
     private string _selectedLevel = string.Empty;
     private LogEvent? _selectedLog;
-
     private string _sortColumn = "time";
     private bool _sortDescending = true;
+    [Inject] private SettingsService Settings { get; set; } = null!;
 
-    private string FilterText
-    {
-        get => _filterText;
-        set
+    private string TableDensityClass =>
+        Settings.GetString("Display", "TableDensity", "normal") switch
         {
-            _filterText = value;
-            _currentPage = 1;
-        }
-    }
+            "compact" => "table-density-compact",
+            "comfortable" => "table-density-comfortable",
+            _ => ""
+        };
 
-    private string SelectedLevel
-    {
-        get => _selectedLevel;
-        set
-        {
-            _selectedLevel = value;
-            _currentPage = 1;
-        }
-    }
-
-    private int PageSize
-    {
-        get => _pageSize;
-        set
-        {
-            _pageSize = Math.Clamp(value, 10, 250);
-            _currentPage = 1;
-        }
-    }
-
-    private int WarningCount => _logs.Count(x => x.LogLevel >= LogLevel.Warning && x.LogLevel != LogLevel.None);
-    private int ErrorCount => _logs.Count(x => x.LogLevel is LogLevel.Error or LogLevel.Critical);
-    private int RecentCount => _logs.Count(x => x.TimeStamp.ToUniversalTime() >= DateTime.UtcNow.AddMinutes(-15));
+    private bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(_filterText) || !string.IsNullOrWhiteSpace(_selectedLevel);
 
     private List<LogEvent> FilteredLogs
     {
@@ -81,21 +59,19 @@ public partial class Events : ComponentBase
     }
 
     private List<LogEvent> PagedLogs => FilteredLogs.Skip((_currentPage - 1) * _pageSize).Take(_pageSize).ToList();
-
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredLogs.Count / (double)_pageSize));
     private int PageStart => FilteredLogs.Count == 0 ? 0 : (_currentPage - 1) * _pageSize + 1;
     private int PageEnd => Math.Min(_currentPage * _pageSize, FilteredLogs.Count);
 
     protected override async Task OnInitializedAsync()
     {
+        _pageSize = Settings.GetInt("Display", "EventsPageSize", 50);
         await LoadLogsAsync();
     }
 
     private async Task LoadLogsAsync()
     {
-        Logger.LogInformation("Refreshing logs...");
         _isRefreshing = true;
-
         try
         {
             _logs = await EventService.GetAllAsync();
@@ -104,7 +80,6 @@ public partial class Events : ComponentBase
         finally
         {
             _isRefreshing = false;
-            Logger.LogInformation("Loaded {LogsCount} logs", _logs.Count);
         }
     }
 
@@ -117,17 +92,42 @@ public partial class Events : ComponentBase
         await LoadLogsAsync();
     }
 
-    private void SelectLog(LogEvent log)
+    private async Task ShowLog(LogEvent log)
     {
         _selectedLog = log;
+        await Js.InvokeVoidAsync("modalHelper.show", "logDetailsModal");
+    }
+
+    private void OnSearchChanged(ChangeEventArgs args)
+    {
+        _filterText = args.Value?.ToString() ?? "";
+        _currentPage = 1;
+    }
+
+    private void OnLevelChanged(ChangeEventArgs args)
+    {
+        _selectedLevel = args.Value?.ToString() ?? "";
+        _currentPage = 1;
+    }
+
+    private void OnPageSizeChanged(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var size))
+            _pageSize = Math.Clamp(size, 10, 250);
+        _currentPage = 1;
+    }
+
+    private void ClearFilters()
+    {
+        _filterText = string.Empty;
+        _selectedLevel = string.Empty;
+        _currentPage = 1;
     }
 
     private void SortBy(string column)
     {
         if (_sortColumn == column)
-        {
             _sortDescending = !_sortDescending;
-        }
         else
         {
             _sortColumn = column;
@@ -137,11 +137,9 @@ public partial class Events : ComponentBase
         _currentPage = 1;
     }
 
-    private string SortIcon(string column)
+    private string SortClass(string column)
     {
-        if (_sortColumn != column) return "ti ti-selector";
-
-        return _sortDescending ? "ti ti-chevron-down" : "ti ti-chevron-up";
+        return _sortColumn != column ? "table-sort" : _sortDescending ? "table-sort desc" : "table-sort asc";
     }
 
     private void PreviousPage()
@@ -187,13 +185,13 @@ public partial class Events : ComponentBase
     {
         return level switch
         {
-            LogLevel.Trace => "bg-secondary-lt",
-            LogLevel.Debug => "bg-info-lt",
-            LogLevel.Information => "bg-blue-lt",
-            LogLevel.Warning => "bg-warning-lt",
-            LogLevel.Error => "bg-danger-lt",
-            LogLevel.Critical => "bg-red-lt",
-            _ => "bg-secondary-lt"
+            LogLevel.Trace => "badge bg-secondary-lt text-secondary",
+            LogLevel.Debug => "badge bg-info-lt text-info",
+            LogLevel.Information => "badge bg-blue-lt text-blue",
+            LogLevel.Warning => "badge bg-warning-lt text-warning",
+            LogLevel.Error => "badge bg-danger-lt text-danger",
+            LogLevel.Critical => "badge bg-red-lt text-red",
+            _ => "badge bg-secondary-lt text-secondary"
         };
     }
 }

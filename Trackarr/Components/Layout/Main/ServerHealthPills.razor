@@ -1,0 +1,73 @@
+@inject MediaServerService MediaServerService
+@using Trackarr.Core.Server
+@using Trackarr.Services.Media
+@implements IAsyncDisposable
+
+<div class="d-none d-md-flex align-items-center gap-2">
+    @foreach (var server in _servers.Where(s => s.IsEnabled))
+    {
+        var (color, tooltip) = GetIndicator(server);
+
+        <span class="badge bg-@(color)-lt topbar-health-pill"
+              data-bs-toggle="tooltip"
+              data-bs-placement="bottom"
+              title="@tooltip">
+            <span class="status-dot status-dot-@color me-1"></span>
+            @server.Name
+        </span>
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource _cts = new();
+    private List<MediaServer> _servers = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadServersAsync();
+        _ = RefreshLoopAsync();
+    }
+
+    private async Task RefreshLoopAsync()
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+            while (await timer.WaitForNextTickAsync(_cts.Token))
+            {
+                await LoadServersAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task LoadServersAsync()
+    {
+        _servers = await MediaServerService.GetAllServersAsync();
+    }
+
+    private static (string Color, string Tooltip) GetIndicator(MediaServer server)
+    {
+        if (!server.IsOnline)
+        {
+            var error = string.IsNullOrWhiteSpace(server.LastError) ? "Offline" : server.LastError;
+            return ("danger", $"{server.Name} — {error}");
+        }
+
+        if (server.LastPingMs is > 500)
+            return ("warning", $"{server.Name} — {server.LastPingMs}ms (slow)");
+
+        var ping = server.LastPingMs.HasValue ? $"{server.LastPingMs}ms" : "Online";
+        return ("success", $"{server.Name} — {ping}");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _cts.CancelAsync();
+        _cts.Dispose();
+    }
+
+}

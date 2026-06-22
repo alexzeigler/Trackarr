@@ -2,12 +2,14 @@
 using Trackarr.Core.Routine;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
+using Trackarr.Services.Settings;
 
 namespace Trackarr.Tasks;
 
 public class MissingMediaFetchRoutine(
     MediaServerService mediaServerService,
     MissingService missingService,
+    SettingsService settings,
     ILogger<MissingMediaFetchRoutine> logger) : Routine
 {
     public override string Key { get; set; } = "missing_search";
@@ -22,7 +24,8 @@ public class MissingMediaFetchRoutine(
 
     public override async Task<string> ExecuteAsync(CancellationToken cancellationToken)
     {
-        var servers = await mediaServerService.GetAllServersAsync();
+        var servers = (await mediaServerService.GetAllServersAsync())
+            .Where(s => s.IsEnabled && settings.ShouldSearchMissing(s)).OrderBy(s => s.Priority).ToList();
 
         var movieCount = 0;
         var episodeCount = 0;

@@ -1,0 +1,29 @@
+@inject NavigationManager Nav
+
+<div class="d-none d-md-flex">
+    <div class="input-icon">
+        <span class="input-icon-addon">
+            <i class="ti ti-search"></i>
+        </span>
+        <input type="text"
+               class="form-control form-control-sm bg-transparent text-white topbar-search-input"
+               autocomplete="off"
+               placeholder="Search queue..."
+               @bind="_searchTerm"
+               @bind:event="oninput"
+               @onkeydown="HandleKeyDown"/>
+    </div>
+</div>
+
+@code {
+    private string _searchTerm = "";
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key != "Enter" || string.IsNullOrWhiteSpace(_searchTerm)) return;
+
+        Nav.NavigateTo($"/?search={Uri.EscapeDataString(_searchTerm.Trim())}");
+        _searchTerm = "";
+    }
+
+}

@@ -68,4 +68,11 @@ public sealed class RoutineService(IDbContextFactory<AppDbContext> dbContextFact
         db.Routines.Update(routine);
         await db.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task ResetAllRunningAsync(CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await db.Routines.Where(r => r.IsRunning)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.IsRunning, false), cancellationToken);
+    }
 }

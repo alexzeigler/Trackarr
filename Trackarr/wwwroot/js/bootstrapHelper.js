@@ -109,5 +109,14 @@ window.disposeTooltip = function (selector) {
     const t = bootstrap.Tooltip.getInstance(el);
     if (t) t.dispose();
 };
+window.sidebarHelper = {
+    toggle() {
+        document.getElementById('app-sidebar')?.classList.toggle('sidebar-open');
+    },
+    close() {
+        document.getElementById('app-sidebar')?.classList.remove('sidebar-open');
+    }
+};
+
 dropdownPortal.init();
 window.initTooltips();

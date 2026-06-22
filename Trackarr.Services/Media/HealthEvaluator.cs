@@ -121,9 +121,8 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
     /// <paramref name="recentGoodInWindow" /> are the bad/good counts of the prior rolling window
     /// (excluding this observation); the caller loads them from history.
     /// </summary>
-    public HealthEvaluation Evaluate(DownloadAttempt attempt, HealthSnapshot snapshot,
-        MediaHealthSummary? mediaSummary, HealthObservation observation, int recentBadInWindow,
-        int recentGoodInWindow)
+    public HealthEvaluation Evaluate(DownloadAttempt attempt, HealthSnapshot snapshot, MediaHealthSummary? mediaSummary,
+        HealthObservation observation, int recentBadInWindow, int recentGoodInWindow)
     {
         if (snapshot.LastObservationAt is null)
             return new HealthEvaluation
@@ -457,6 +456,11 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
         var signal = Math.Max(recentBadRatio, consecutiveRatio);
 
         return Math.Clamp((int)Math.Round(evidence * signal * 100), 0, 100);
+    }
+
+    public HealthState DeriveStateFromScore(decimal rawScore)
+    {
+        return GetState(rawScore);
     }
 
     private HealthState GetState(decimal rawScore)

@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Components;
+using System.Net;
+using System.Text;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Trackarr.Core.Health;
 using Trackarr.Core.Media;
@@ -12,13 +15,27 @@ namespace Trackarr.Components.Modals;
 
 public partial class MediaDetailsModal : ComponentBase
 {
+    private const int EventPageSize = 10;
+
+    private static readonly Regex SeasonOnlyRegex =
+        new(@"\bS(\d{1,2})(?!E\d)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex EpisodeRegex =
+        new(@"\bS(\d{1,2})E(\d{1,3})\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private readonly Dictionary<string, QualityProfile> _profiles = [];
+    private int _activeContextIndex;
+
+    private List<ActiveDownloadContext> _activeContexts = [];
 
     private string _activeTab = "overview";
+    private Dictionary<int, List<DownloadHealthEvent>> _attemptEvents = [];
     private List<DownloadAttempt> _downloadAttempts = [];
     private Episode? _episode;
     private List<Episode> _episodes = new();
+    private Dictionary<int, int> _eventPageIndex = [];
     private List<DownloadHealthEvent> _healthEvents = [];
+    private bool _isRefreshing;
     private MediaItem? _media;
     private MediaHealthSummary? _mediaHealthSummary;
     private HealthSnapshot? _mostRecentSnapshot;
@@ -29,8 +46,11 @@ public partial class MediaDetailsModal : ComponentBase
     private HashSet<int> _queuedMovieIds = new();
     private DownloadItem? _queueItem;
     private List<DownloadItem> _queueItems = [];
+
+    private int? _selectedAttemptId;
     private Series? _series;
     private MediaServer? _server;
+
     private bool IsDownloading => _queueItems.Count > 0 || _queueItem != null;
 
     private string StatusText => IsDownloading ? TextDisplay(_queueItem?.Status) : "Not downloading";
@@ -66,9 +86,11 @@ public partial class MediaDetailsModal : ComponentBase
         _movie != null ? TextDisplay(YesNo(_movie.HasFile)) :
         _episode != null ? TextDisplay(YesNo(_episode.HasFile)) : "—";
 
+    private bool? IsFilePresent => _movie != null ? _movie.HasFile : _episode != null ? _episode.HasFile : null;
+
+    private bool? IsMonitoredValue => _movie?.Monitored ?? _series?.Monitored ?? _episode?.Monitored;
 
     private string LastProgress => TimeAgo(_mostRecentSnapshot?.LastGoodObservationAt);
-
 
     private DownloadHealthEvent? LatestHealthEvent =>
         _healthEvents.OrderByDescending(e => e.OccurredAt).FirstOrDefault();
@@ -78,6 +100,9 @@ public partial class MediaDetailsModal : ComponentBase
 
     private string HealthStateDisplay => TextDisplay(_mostRecentSnapshot?.State.ToString());
 
+    private string OverviewText => _episode?.Overview ?? _movie?.Overview ?? _series?.Overview ?? string.Empty;
+
+    private string? StudioOrNetwork => _movie?.Studio ?? _series?.Network;
 
     private int ConfidencePercent
     {
@@ -88,19 +113,22 @@ public partial class MediaDetailsModal : ComponentBase
         }
     }
 
+    private string HealthStateBadgeClass => HealthBadgeClass(_mostRecentSnapshot?.State);
 
-    private string HealthStateBadgeClass =>
-        _mostRecentSnapshot?.State.ToString().ToLowerInvariant() switch
-        {
-            "healthy" => "app-badge-success",
-            "ok" => "app-badge-success",
-            "watching" => "app-badge-info",
-            "warning" => "app-badge-warning",
-            "severe" => "app-badge-danger",
-            "failed" => "app-badge-danger",
-            "protected" => "app-badge-info",
-            _ => "app-badge-muted"
-        };
+    private ActiveDownloadContext? SelectedContext =>
+        _activeContexts.Count > 0 && _activeContextIndex >= 0 && _activeContextIndex < _activeContexts.Count
+            ? _activeContexts[_activeContextIndex]
+            : null;
+
+    private HealthSnapshot? ActiveSnapshot => SelectedContext?.Snapshot ?? _mostRecentSnapshot;
+    private DownloadHealthEvent? ActiveLatestEvent => SelectedContext?.LatestEvent ?? LatestHealthEvent;
+    private DownloadAttempt? ActiveAttempt => SelectedContext?.Attempt ?? CurrentAttempt;
+    private DownloadItem? ActiveQueueItem => SelectedContext?.QueueItem ?? _queueItem;
+
+    private int ActiveConfidencePercent => ActiveSnapshot?.Confidence is { } c ? Math.Clamp(c, 0, 100) : 0;
+
+    private string ActiveStatusText =>
+        ActiveQueueItem != null ? TextDisplay(ActiveQueueItem.Status) : "Not downloading";
 
     [Parameter] public DownloadItem? Item { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
@@ -111,6 +139,26 @@ public partial class MediaDetailsModal : ComponentBase
     private int? MovieRemoteId => _movie?.RemoteId;
     private int? SeriesRemoteId => _series?.RemoteId ?? _episode?.RemoteSeriesId;
     private int? EpisodeRemoteId => _episode?.RemoteId;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await Js.InvokeVoidAsync("initTooltips");
+    }
+
+    private static string HealthBadgeClass(HealthState? state)
+    {
+        return state?.ToString().ToLowerInvariant() switch
+        {
+            "healthy" => "badge bg-success-lt text-success",
+            "ok" => "badge bg-success-lt text-success",
+            "watching" => "badge bg-blue-lt text-blue",
+            "warning" => "badge bg-warning-lt text-warning",
+            "severe" => "badge bg-danger-lt text-danger",
+            "failed" => "badge bg-danger-lt text-danger",
+            "protected" => "badge bg-blue-lt text-blue",
+            _ => "badge bg-secondary-lt text-secondary"
+        };
+    }
 
     private static string EpisodeTitle(Episode ep)
     {
@@ -132,14 +180,177 @@ public partial class MediaDetailsModal : ComponentBase
     {
         return status.ToString() switch
         {
-            "Active" => "app-badge-primary",
-            "Completed" => "app-badge-success",
-            "Imported" => "app-badge-success",
-            "Failed" => "app-badge-danger",
-            "Removed" => "app-badge-warning",
-            "Replaced" => "app-badge-info",
-            _ => "app-badge-muted"
+            "Active" => "badge bg-primary-lt text-primary",
+            "Completed" => "badge bg-success-lt text-success",
+            "Imported" => "badge bg-success-lt text-success",
+            "Failed" => "badge bg-danger-lt text-danger",
+            "Removed" => "badge bg-orange-lt text-orange",
+            "Replaced" => "badge bg-blue-lt text-blue",
+            _ => "badge bg-secondary-lt text-secondary"
         };
+    }
+
+    private async Task ToggleAttemptExpand(int attemptId)
+    {
+        if (_selectedAttemptId == attemptId)
+        {
+            _selectedAttemptId = null;
+            return;
+        }
+
+        _selectedAttemptId = attemptId;
+
+        if (!_attemptEvents.ContainsKey(attemptId))
+        {
+            var events = await HealthService.GetEventsAsync(attemptId);
+            _attemptEvents[attemptId] = events;
+        }
+    }
+
+    private async Task BuildActiveContextsAsync()
+    {
+        _activeContexts = [];
+        _activeContextIndex = 0;
+
+        var groups = _queueItems.Where(q => !string.IsNullOrEmpty(q.DownloadId)).GroupBy(q => q.DownloadId).ToList();
+
+        foreach (var group in groups)
+        {
+            var primary = group.OrderBy(q => q.EpisodeId).First();
+            var attempt = _downloadAttempts.FirstOrDefault(a =>
+                a.DownloadId == group.Key && a.Status == AttemptStatus.Active);
+
+            HealthSnapshot? snapshot = null;
+            DownloadHealthEvent? latestEvent = null;
+
+            if (attempt != null)
+            {
+                snapshot = await HealthService.GetSnapshotAsync(attempt.Id);
+                var events = await HealthService.GetEventsAsync(attempt.Id, 1);
+                latestEvent = events.FirstOrDefault();
+            }
+
+            var fileNames = group.Select(q => _episodes.FirstOrDefault(e => e.RemoteId == q.EpisodeId))
+                .Where(ep => ep != null).OrderBy(ep => ep!.SeasonNumber).ThenBy(ep => ep!.EpisodeNumber)
+                .Select(ep => EpisodeTitle(ep!)).Distinct().ToList();
+
+            _activeContexts.Add(new ActiveDownloadContext
+            {
+                QueueItem = primary,
+                Attempt = attempt,
+                Snapshot = snapshot,
+                LatestEvent = latestEvent,
+                FileCount = fileNames.Count > 0 ? fileNames.Count : group.Count(),
+                FileNames = fileNames
+            });
+        }
+    }
+
+    private (int Count, List<string> Names) GetAttemptFiles(DownloadAttempt attempt)
+    {
+        var queueForAttempt = _queueItems.Where(q => q.DownloadId == attempt.DownloadId).ToList();
+        if (queueForAttempt.Count > 0)
+        {
+            var names = queueForAttempt.Select(q => _episodes.FirstOrDefault(e => e.RemoteId == q.EpisodeId))
+                .Where(ep => ep != null).OrderBy(ep => ep!.SeasonNumber).ThenBy(ep => ep!.EpisodeNumber)
+                .Select(ep => EpisodeTitle(ep!)).Distinct().ToList();
+            return (names.Count > 0 ? names.Count : queueForAttempt.Count, names);
+        }
+
+        if (attempt.MediaType == TrackedMediaType.Movie)
+            return (1, [attempt.Title ?? "Movie"]);
+
+        var epMatch = EpisodeRegex.Match(attempt.Title ?? "");
+        if (epMatch.Success && int.TryParse(epMatch.Groups[1].Value, out var epSeason) &&
+            int.TryParse(epMatch.Groups[2].Value, out var epNum))
+        {
+            var ep = _episodes.FirstOrDefault(x => x.SeasonNumber == epSeason && x.EpisodeNumber == epNum);
+            if (ep != null)
+                return (1, [EpisodeTitle(ep)]);
+            return (1, [$"S{epSeason:D2}E{epNum:D2}"]);
+        }
+
+        var seasonMatch = SeasonOnlyRegex.Match(attempt.Title ?? "");
+        if (seasonMatch.Success && int.TryParse(seasonMatch.Groups[1].Value, out var season))
+        {
+            var eps = _episodes.Where(e => e.SeasonNumber == season).OrderBy(e => e.EpisodeNumber).ToList();
+            if (eps.Count > 0)
+                return (eps.Count, eps.Select(e => EpisodeTitle(e)).ToList());
+        }
+
+        return (0, []);
+    }
+
+    private string GetFileListTooltip(DownloadAttempt attempt)
+    {
+        var (_, names) = GetAttemptFiles(attempt);
+        if (names.Count == 0) return "No file information available";
+        if (names.Count == 1) return WebUtility.HtmlEncode(names[0]);
+
+        var sb = new StringBuilder("<ol class='mb-0 ps-3' style='text-align:left'>");
+        foreach (var name in names)
+            sb.Append($"<li>{WebUtility.HtmlEncode(name)}</li>");
+        sb.Append("</ol>");
+        return sb.ToString();
+    }
+
+    private static string GetScoreMathTooltip(DownloadHealthEvent ev)
+    {
+        var delta = ev.ScoreDelta;
+        if (delta == 0) return $"No score change. Score held at {ev.ScoreAfter:0.#}";
+
+        var sign = delta > 0 ? "+" : "";
+        var lines = new List<string>
+        {
+            $"Before: {ev.ScoreBefore:0.#}", $"Delta: {sign}{delta:0.#}", $"After: {ev.ScoreAfter:0.#}"
+        };
+
+        var clamped = ev.ScoreBefore + delta;
+        if (Math.Abs(clamped - ev.ScoreAfter) > 0.1m)
+            lines.Add("(clamped to range 0–100)");
+
+        return string.Join("<br/>", lines.Select(WebUtility.HtmlEncode));
+    }
+
+    private static string GetConfidenceMathTooltip(DownloadHealthEvent ev)
+    {
+        var delta = ev.ConfidenceDelta;
+        if (delta == 0) return $"No confidence change. Held at {ev.ConfidenceAfter}";
+
+        var sign = delta > 0 ? "+" : "";
+        return $"Before: {ev.ConfidenceBefore}<br/>Delta: {sign}{delta:0.#}<br/>After: {ev.ConfidenceAfter}";
+    }
+
+    private static string GetReasonTooltip(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message)) return "";
+        var parts = message.Split(". ", StringSplitOptions.RemoveEmptyEntries).Select(s => s.TrimEnd('.') + ".");
+        return string.Join("<br/>", parts.Select(WebUtility.HtmlEncode));
+    }
+
+    private int GetEventPage(int attemptId)
+    {
+        return _eventPageIndex.GetValueOrDefault(attemptId, 0);
+    }
+
+    private int GetEventPageCount(int attemptId)
+    {
+        return _attemptEvents.TryGetValue(attemptId, out var events)
+            ? (int)Math.Ceiling(events.Count / (double)EventPageSize)
+            : 0;
+    }
+
+    private List<DownloadHealthEvent> GetPagedEvents(int attemptId)
+    {
+        if (!_attemptEvents.TryGetValue(attemptId, out var events)) return [];
+        var page = GetEventPage(attemptId);
+        return events.Skip(page * EventPageSize).Take(EventPageSize).ToList();
+    }
+
+    private void SetEventPage(int attemptId, int page)
+    {
+        var max = GetEventPageCount(attemptId) - 1;
+        _eventPageIndex[attemptId] = Math.Clamp(page, 0, Math.Max(0, max));
     }
 
     public async Task Open(Movie movie)
@@ -196,6 +407,7 @@ public partial class MediaDetailsModal : ComponentBase
         await ResolveQueueAsync();
         await LoadHealthDataAsync();
         await LoadFilesAsync();
+        await BuildActiveContextsAsync();
 
         _openSeasons = _episodes.Select(e => e.SeasonNumber).ToHashSet();
 
@@ -231,13 +443,47 @@ public partial class MediaDetailsModal : ComponentBase
         return false;
     }
 
+    private async Task RefreshAsync()
+    {
+        _isRefreshing = true;
+        StateHasChanged();
+        try
+        {
+            var delay = Task.Delay(1000);
+            _attemptEvents.Clear();
+            _eventPageIndex.Clear();
+            _selectedAttemptId = null;
+            await LoadHealthDataAsync();
+            await BuildActiveContextsAsync();
+            await delay;
+        }
+        finally
+        {
+            _isRefreshing = false;
+            StateHasChanged();
+        }
+    }
+
     private async Task EvaluateItem()
     {
         if (_queueItem == null)
             return;
 
-        await HealthService.EvaluateAsync(_queueItem);
-        await LoadHealthDataAsync();
+        _isRefreshing = true;
+        StateHasChanged();
+        try
+        {
+            var delay = Task.Delay(1000);
+            await HealthService.EvaluateAsync(_queueItem);
+            await LoadHealthDataAsync();
+            await BuildActiveContextsAsync();
+            await delay;
+        }
+        finally
+        {
+            _isRefreshing = false;
+            StateHasChanged();
+        }
     }
 
     private async Task LoadHealthDataAsync()
@@ -245,23 +491,23 @@ public partial class MediaDetailsModal : ComponentBase
         if (_queueItem != null)
         {
             _healthEvents = await HealthService.GetEventsForItemAsync(_queueItem);
-            _downloadAttempts = (await HealthService.GetDownloadAttemptsAsync(_queueItem))
-                .OrderByDescending(x => x.FirstSeenAt).ToList();
             _mostRecentSnapshot = await HealthService.GetMostRecentSnapshotAsync(_queueItem);
             _mediaHealthSummary = await HealthService.GetMediaSummary(_queueItem);
-            return;
+        }
+        else
+        {
+            _healthEvents =
+                await HealthService.GetEventsForMediaAsync(ServerId, MovieRemoteId, SeriesRemoteId, EpisodeRemoteId);
+            _mostRecentSnapshot =
+                await HealthService.GetMostRecentSnapshotAsync(ServerId, MovieRemoteId, SeriesRemoteId,
+                    EpisodeRemoteId);
+            _mediaHealthSummary =
+                await HealthService.GetMediaSummary(ServerId, MovieRemoteId, SeriesRemoteId, EpisodeRemoteId);
         }
 
-        _healthEvents =
-            await HealthService.GetEventsForMediaAsync(ServerId, MovieRemoteId, SeriesRemoteId, EpisodeRemoteId);
         _downloadAttempts =
-            (await HealthService.GetDownloadAttemptsAsync(ServerId, MovieRemoteId, SeriesRemoteId, EpisodeRemoteId))
+            (await HealthService.GetDownloadAttemptsAsync(ServerId, MovieRemoteId, SeriesRemoteId, null))
             .OrderByDescending(x => x.FirstSeenAt).ToList();
-
-        _mostRecentSnapshot =
-            await HealthService.GetMostRecentSnapshotAsync(ServerId, MovieRemoteId, SeriesRemoteId, EpisodeRemoteId);
-        _mediaHealthSummary =
-            await HealthService.GetMediaSummary(ServerId, MovieRemoteId, SeriesRemoteId, EpisodeRemoteId);
     }
 
     private async Task LoadProfilesAsync()
@@ -273,14 +519,14 @@ public partial class MediaDetailsModal : ComponentBase
         }
     }
 
-
     private static string SeverityBadgeClass(Severity severity)
     {
         return severity switch
         {
-            Severity.Critical => "status-badge-failed",
-            Severity.Warning => "status-badge-warning",
-            _ => "app-badge-muted"
+            Severity.Critical => "badge bg-danger-lt text-danger",
+            Severity.Warning => "badge bg-warning-lt text-warning",
+            Severity.Negative => "badge bg-warning-lt text-warning",
+            _ => "badge bg-blue-lt text-blue"
         };
     }
 
@@ -364,6 +610,12 @@ public partial class MediaDetailsModal : ComponentBase
         _healthEvents = [];
         _downloadAttempts = [];
         _mediaHealthSummary = null;
+        _selectedAttemptId = null;
+        _attemptEvents = [];
+        _eventPageIndex = [];
+        _activeContexts = [];
+        _activeContextIndex = 0;
+        _isRefreshing = false;
     }
 
     private QualityProfile? GetProfile()
@@ -390,8 +642,18 @@ public partial class MediaDetailsModal : ComponentBase
 
     private (string Label, string Css) FileStatus(bool hasFile, bool queued)
     {
-        if (hasFile) return ("Downloaded", "app-badge-success");
-        if (queued) return ("Downloading", "app-badge-info");
-        return ("Missing", "app-badge-warning");
+        if (hasFile) return ("Downloaded", "badge bg-success-lt text-success");
+        if (queued) return ("Downloading", "badge bg-blue-lt text-blue");
+        return ("Missing", "badge bg-warning-lt text-warning");
+    }
+
+    private sealed class ActiveDownloadContext
+    {
+        public required DownloadItem QueueItem { get; init; }
+        public DownloadAttempt? Attempt { get; init; }
+        public HealthSnapshot? Snapshot { get; init; }
+        public DownloadHealthEvent? LatestEvent { get; init; }
+        public int FileCount { get; init; }
+        public List<string> FileNames { get; init; } = [];
     }
 }

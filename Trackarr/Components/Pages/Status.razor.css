@@ -1,1 +1,3 @@
-﻿
+::deep .detail-row .data-label {
+    flex: 0 0 160px;
+}

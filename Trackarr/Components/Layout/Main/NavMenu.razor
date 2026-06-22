@@ -1,4 +1,7 @@
-﻿@inject NavigationManager Nav
+@inject NavigationManager Nav
+@inject SystemStatusService StatusService
+@using Trackarr.Core.SystemInfo
+@using Trackarr.Services.SystemInfo
 @implements IDisposable
 
 <div class="collapse navbar-collapse">
@@ -9,23 +12,48 @@
 
             @if (item.Children.Any())
             {
-                <li class="nav-item">
-                    <a class="nav-link dropdown-toggle @(active ? "" : "collapsed")"
-                       data-bs-toggle="collapse"
-                       href="#nav-@item.Prefix.Trim('/')"
+                var isOpen = IsOpen(item.Prefix);
+
+                <li class="nav-item @(active ? "active-group" : "inactive-group")">
+                    <a class="nav-link nav-group-toggle"
+                       href=""
                        role="button"
-                       aria-expanded="@active.ToString().ToLower()">
+                       aria-expanded="@isOpen.ToString().ToLower()"
+                       @onclick="() => ToggleGroup(item.Prefix)"
+                       @onclick:preventDefault>
                         <span class="nav-link-icon d-md-none d-lg-inline-block">
                             <i class="@item.Icon"></i>
                         </span>
                         <span class="nav-link-title"> @item.Label</span>
+                        @if (item.Prefix == "/system" && _statusBadge is not null)
+                        {
+                            <span class="badge @_statusBadge.Value.Css ms-auto">@_statusBadge.Value.Count</span>
+                        }
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             width="18"
+                             height="18"
+                             viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="2"
+                             stroke-linecap="round"
+                             stroke-linejoin="round"
+                             class="nav-chevron ms-auto @(isOpen ? "nav-chevron-open" : "")">
+                            <path d="M6 9l6 6l6 -6"></path>
+                        </svg>
                     </a>
-                    <div class="collapse @(active ? "show" : "")" id="nav-@item.Prefix.Trim('/')">
+                    <div class="collapse @(isOpen ? "show" : "")" id="nav-@item.Prefix.Trim('/')">
                         <ul class="nav nav-sm flex-column ms-4">
                             @foreach (var child in item.Children)
                             {
                                 <li class="nav-item">
-                                    <a class="nav-link" href="@child.Href">@child.Label</a>
+                                    <a class="nav-link @(IsChildActive(child.Href) ? "active" : "")" href="@child.Href">
+                                        @child.Label
+                                        @if (child.Href == "/system/status" && _statusBadge is not null)
+                                        {
+                                            <span class="badge @_statusBadge.Value.Css ms-auto">@_statusBadge.Value.Count</span>
+                                        }
+                                    </a>
                                 </li>
                             }
                         </ul>
@@ -34,8 +62,8 @@
             }
             else
             {
-                <li class="nav-item">
-                    <a class="nav-link" href="@item.Href">
+                <li class="nav-item @(active ? "active-group" : "inactive-group")">
+                    <a class="nav-link @(active ? "active" : "")" href="@item.Href">
                         <span class="nav-link-icon d-md-none d-lg-inline-block">
                             <i class="@item.Icon"></i>
                         </span>
@@ -53,6 +81,8 @@
 
     private record NavItem(string Label, string Href, string Prefix, string Icon, List<NavChild> Children);
 
+    private record struct BadgeState(int Count, string Css);
+
     private static readonly List<NavItem> NavItems =
     [
         new("Queue", "", "/", "ti ti-stack-2", []),
@@ -61,10 +91,89 @@
         new("History", "/history", "/history", "ti ti-history", []),
         new("System", "/system/status", "/system", "bi bi-laptop",
         [
+            new NavChild("Status", "/system/status"),
             new NavChild("Routines", "/system/routines"),
             new NavChild("Events", "/system/events")
+        ]),
+        new("Settings", "/settings/general", "/settings", "ti ti-settings", [
+            new NavChild("General", "/settings/general"),
+            new NavChild("Display", "/settings/display"),
+            new NavChild("Health Policy", "/settings/health"),
+            new NavChild("Missing Policy", "/settings/missing"),
+            new NavChild("Blacklist", "/settings/blacklist"),
+            new NavChild("Servers", "/settings/services"),
+            new NavChild("Maintenance", "/settings/maintenance")
         ])
     ];
+
+    private readonly HashSet<string> _expandedGroups = new();
+    private string? _lastActivePrefix;
+    private BadgeState? _statusBadge;
+    private Timer? _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        SyncExpandedToRoute();
+        await RefreshBadgeAsync();
+        _refreshTimer = new Timer(async _ =>
+        {
+            await RefreshBadgeAsync();
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+    }
+
+    private void SyncExpandedToRoute()
+    {
+        var activePrefix = NavItems.Where(i => i.Children.Any() && IsActive(i.Prefix)).Select(i => i.Prefix).FirstOrDefault();
+
+        if (activePrefix is not null && activePrefix != _lastActivePrefix)
+        {
+            _expandedGroups.Add(activePrefix);
+            _lastActivePrefix = activePrefix;
+        }
+    }
+
+    private void ToggleGroup(string prefix)
+    {
+        if (_expandedGroups.Contains(prefix))
+        {
+            _expandedGroups.Remove(prefix);
+        }
+        else
+        {
+            _expandedGroups.Clear();
+            _expandedGroups.Add(prefix);
+        }
+    }
+
+    private bool IsOpen(string prefix)
+    {
+        return _expandedGroups.Contains(prefix);
+    }
+
+    private async Task RefreshBadgeAsync()
+    {
+        try
+        {
+            var messages = await StatusService.GetStatusMessagesAsync();
+            if (messages.Count == 0)
+            {
+                _statusBadge = null;
+                return;
+            }
+
+            var hasError = messages.Any(m => m.Level == StatusLevel.Error);
+            var hasWarning = messages.Any(m => m.Level == StatusLevel.Warning);
+
+            var css = hasError ? "bg-danger" : hasWarning ? "bg-warning text-dark" : "bg-info";
+            _statusBadge = new BadgeState(messages.Count, css);
+        }
+        catch
+        {
+            _statusBadge = null;
+        }
+    }
 
     private bool IsActive(string href)
     {
@@ -75,19 +184,31 @@
             : path.StartsWith(target, StringComparison.OrdinalIgnoreCase);
     }
 
-    protected override void OnInitialized()
+    private bool IsChildActive(string href)
     {
-        Nav.LocationChanged += OnLocationChanged;
+        var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimEnd('/');
+        var target = "/" + href.Trim('/');
+        return path.Equals(target, StringComparison.OrdinalIgnoreCase);
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
+        var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimEnd('/');
+        if (string.IsNullOrEmpty(path)) path = "/";
+
+        var activePrefix = NavItems.Where(i => i.Children.Any()).Select(i => i.Prefix).FirstOrDefault(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+
+        _expandedGroups.Clear();
+        if (activePrefix is not null)
+            _expandedGroups.Add(activePrefix);
+
         StateHasChanged();
     }
 
     public void Dispose()
     {
         Nav.LocationChanged -= OnLocationChanged;
+        _refreshTimer?.Dispose();
     }
 
 }

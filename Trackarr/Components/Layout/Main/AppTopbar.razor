@@ -1,8 +1,116 @@
-﻿<header class="navbar navbar-expand-md d-print-none app-topbar" data-bs-theme="dark">
-    <div class="container-xl">
-        <div class="navbar-nav flex-row order-md-last ms-auto">
-            <ThemeToggle/>
-            <NotificationsMenu/>
+@inject AppStateService AppState
+@inject IJSRuntime Js
+@implements IDisposable
+
+<header class="app-topbar d-print-none">
+    <div class="container-xl d-flex align-items-center w-100 gap-3">
+
+        <button class="btn btn-icon d-lg-none app-menu-button" @onclick="ToggleSidebar">
+            <i class="ti ti-menu-2 fs-2"></i>
+        </button>
+
+        <div class="d-flex flex-column justify-content-center me-auto">
+            @if (AppState.Breadcrumbs.Count > 1)
+            {
+                <nav aria-label="breadcrumb" class="d-none d-md-block">
+                    <ol class="breadcrumb breadcrumb-dots m-0 small">
+                        @foreach (var crumb in AppState.Breadcrumbs)
+                        {
+                            <li class="breadcrumb-item">
+                                @if (crumb.Href is not null)
+                                {
+                                    <a href="@crumb.Href">@crumb.Label</a>
+                                }
+                                else
+                                {
+                                    @crumb.Label
+                                }
+                            </li>
+                        }
+                    </ol>
+                </nav>
+            }
+            <h4 class="m-0 text-white topbar-page-title">@AppState.PageTitle</h4>
         </div>
+
+        <TopbarSearch/>
+
+        <button class="btn btn-icon btn-app-ghost"
+                @onclick="RequestRefreshAsync"
+                disabled="@_isRefreshing"
+                data-bs-toggle="tooltip"
+                data-bs-placement="bottom"
+                title="Refresh">
+            <i class="ti ti-refresh @(_isRefreshing ? "spinner" : "")"></i>
+        </button>
+
+        <a href="https://github.com/alexzeigler/Trackarr"
+           target="_blank"
+           rel="noopener"
+           class="btn btn-icon btn-app-ghost"
+           data-bs-toggle="tooltip"
+           data-bs-placement="bottom"
+           title="GitHub">
+            <i class="ti ti-brand-github"></i>
+        </a>
+
+        <div class="dropdown">
+            <button class="btn btn-icon btn-app-ghost" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="ti ti-settings"></i>
+            </button>
+            <div class="dropdown-menu dropdown-menu-end">
+                <a class="dropdown-item" href="/settings">
+                    <i class="ti ti-adjustments-horizontal me-2"></i> Services
+                </a>
+                <a class="dropdown-item" href="/system/status">
+                    <i class="ti ti-activity me-2"></i> System Status
+                </a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="https://github.com/alexzeigler/Trackarr" target="_blank" rel="noopener">
+                    <i class="ti ti-brand-github me-2"></i> GitHub
+                </a>
+            </div>
+        </div>
+
     </div>
 </header>
+
+@code {
+    private bool _isRefreshing;
+
+    protected override void OnInitialized()
+    {
+        AppState.OnStateChanged += HandleStateChanged;
+    }
+
+    private async Task RequestRefreshAsync()
+    {
+        _isRefreshing = true;
+        StateHasChanged();
+        try
+        {
+            await AppState.RequestRefreshAsync();
+        }
+        finally
+        {
+            _isRefreshing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void HandleStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ToggleSidebar()
+    {
+        await Js.InvokeVoidAsync("sidebarHelper.toggle");
+    }
+
+    public void Dispose()
+    {
+        AppState.OnStateChanged -= HandleStateChanged;
+    }
+
+}

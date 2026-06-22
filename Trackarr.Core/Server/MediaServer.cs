@@ -28,6 +28,12 @@ public class MediaServer
     public bool IsEnabled { get; set; } = true;
     public int DownloadsProcessed { get; set; }
 
+    public bool? MonitorQueue { get; set; }
+    public bool? AutoRemoveDownloads { get; set; }
+    public bool? SearchMissing { get; set; }
+    public int? RequestTimeoutSeconds { get; set; }
+    public int Priority { get; set; }
+
     public bool IsOnline { get; set; }
     public DateTime? LastPingedAt { get; set; }
     public long? LastPingMs { get; set; }
