@@ -6,7 +6,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-      <Version>1.0.0</Version>
+      <Version>2.0.0</Version>
       <SourceRevisionId>$([System.DateTime]::UtcNow.ToString("yyyyMMddHHmmss"))</SourceRevisionId>
     </PropertyGroup>
 
