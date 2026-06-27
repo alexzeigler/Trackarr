@@ -31,3 +31,6 @@ modal.png
 
 .DS_Store
 Thumbs.db
+
+# Vendored coverage reports (triggers Unraid CA scanner false positives)
+**/coverage/clover.xml

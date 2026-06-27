@@ -2,7 +2,7 @@
 <CommunityApplications>
   <Profile>
     <Name>alexzeigler</Name>
-    <Description>Developer of Trackarr — a self-hosted companion app for Radarr and Sonarr.</Description>
+    <Description>Developer of Trackarr, a self-hosted companion app for Radarr and Sonarr.</Description>
     <ProfileURL>https://github.com/alexzeigler</ProfileURL>
     <GithubURL>https://github.com/alexzeigler/Trackarr</GithubURL>
   </Profile>
