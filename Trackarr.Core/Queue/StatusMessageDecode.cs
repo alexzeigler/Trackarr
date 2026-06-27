@@ -7,6 +7,14 @@ namespace Trackarr.Core.Queue;
 
 public class StatusMessageDecode
 {
+    #region Dependencies
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    #endregion
+
+    #region Public API
+
     public static MarkupString FormatStatusMessages(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return new MarkupString("—");
@@ -15,10 +23,7 @@ public class StatusMessageDecode
 
         try
         {
-            groups = JsonSerializer.Deserialize<List<StatusMessageGroup>>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            groups = JsonSerializer.Deserialize<List<StatusMessageGroup>>(json, JsonOptions);
         }
         catch
         {
@@ -55,9 +60,15 @@ public class StatusMessageDecode
         return new MarkupString(html.ToString());
     }
 
+    #endregion
+
+    #region Helpers
+
     private sealed class StatusMessageGroup
     {
         public string Title { get; set; } = string.Empty;
         public List<string> Messages { get; set; } = [];
     }
+
+    #endregion
 }

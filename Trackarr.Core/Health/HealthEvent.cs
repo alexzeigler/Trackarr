@@ -2,10 +2,21 @@
 
 public class DownloadHealthEvent
 {
+    #region Navigation
+
+    public DownloadAttempt? DownloadAttempt { get; set; }
+
+    #endregion
+
+    #region Identity
+
     public int Id { get; set; }
 
     public int DownloadAttemptId { get; set; }
-    public DownloadAttempt? DownloadAttempt { get; set; }
+
+    #endregion
+
+    #region Properties
 
     public DateTime OccurredAt { get; set; }
 
@@ -20,7 +31,7 @@ public class DownloadHealthEvent
     public decimal ScoreAfter { get; set; }
 
     public int ConfidenceBefore { get; set; }
-    public decimal ConfidenceDelta { get; set; }
+    public int ConfidenceDelta { get; set; }
     public int ConfidenceAfter { get; set; }
 
     public int RecoveryCreditBefore { get; set; }
@@ -40,4 +51,6 @@ public class DownloadHealthEvent
     public string? RawErrorMessage { get; set; }
 
     public string? MetadataJson { get; set; }
+
+    #endregion
 }

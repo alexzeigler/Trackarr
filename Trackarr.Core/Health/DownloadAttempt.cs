@@ -4,15 +4,20 @@ namespace Trackarr.Core.Health;
 
 public class DownloadAttempt
 {
+    #region Identity
+
     public int Id { get; set; }
 
     public int ServerId { get; set; }
-    public MediaServer? Server { get; set; }
 
     public ServiceType ServiceType { get; set; }
 
     public string DownloadId { get; set; } = string.Empty;
     public int? RemoteId { get; set; }
+
+    #endregion
+
+    #region Properties
 
     public string Title { get; set; } = string.Empty;
     public string NormalizedTitle { get; set; } = string.Empty;
@@ -48,6 +53,13 @@ public class DownloadAttempt
     public bool WasSuccessful { get; set; }
     public bool IsProtected { get; set; }
 
+    #endregion
+
+    #region Navigation
+
+    public MediaServer? Server { get; set; }
     public HealthSnapshot? HealthSnapshot { get; set; }
     public List<DownloadHealthEvent> HealthEvents { get; set; } = [];
+
+    #endregion
 }

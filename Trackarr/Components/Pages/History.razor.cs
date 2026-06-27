@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Trackarr.Core.Health;
@@ -12,6 +12,48 @@ namespace Trackarr.Components.Pages;
 
 public partial class History : ComponentBase
 {
+    #region Data Loading
+
+    private async Task LoadAsync()
+    {
+        IsLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        var filter = new HistoryFilter
+        {
+            From = _fromDate, To = _toDate, ServerId = _serverFilter, MediaType = _typeFilter
+        };
+
+        _data = await HistoryService.GetHistoryAsync(filter);
+        _servers = _data.Servers;
+        _mediaTypes = _data.Rows.Select(row => row.MediaType.ToString())
+            .Where(value =>
+                !string.Equals(value, TrackedMediaType.Unknown.ToString(), StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value).ToList();
+
+        _statuses = _data.Rows.Select(row => row.Status).Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value).ToList();
+
+        IsLoading = false;
+        _chartsPending = true;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    #endregion
+
+    private record SeriesLegend(string Label, string Color, int Total);
+
+    #region Injected Services
+
+    [Inject] private SettingsService Settings { get; set; } = null!;
+    [Inject] private HistoryService HistoryService { get; set; } = null!;
+    [Inject] private IJSRuntime Js { get; set; } = null!;
+
+    #endregion
+
+    #region State
+
     private HistoryTab _activeTab = HistoryTab.DownloadEvents;
     private bool _chartsPending;
 
@@ -32,7 +74,7 @@ public partial class History : ComponentBase
     private bool _tableInitialized;
     private DateTime _toDate = DateTime.Today;
     private string? _typeFilter;
-    [Inject] private SettingsService Settings { get; set; } = null!;
+
     private int PageSize => Settings.GetInt("Display", "HistoryPageSize", 25);
 
     private string TableDensityClass =>
@@ -89,9 +131,6 @@ public partial class History : ComponentBase
     private IEnumerable<HistoryRow> PagedRows => SortedRows.Skip((_page - 1) * PageSize).Take(PageSize);
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(SortedRows.Count / (double)PageSize));
 
-    [Inject] private HistoryService HistoryService { get; set; } = null!;
-    [Inject] private IJSRuntime Js { get; set; } = null!;
-
     private bool IsLoading { get; set; }
 
     private IEnumerable<HistoryRow> FilteredRows =>
@@ -99,46 +138,9 @@ public partial class History : ComponentBase
             string.IsNullOrWhiteSpace(_statusFilter) ||
             string.Equals(row.Status, _statusFilter, StringComparison.OrdinalIgnoreCase));
 
-    private IEnumerable<HistoryRow> Order<T>(IEnumerable<HistoryRow> rows, Func<HistoryRow, T> key)
-    {
-        return _sortDescending ? rows.OrderByDescending(key) : rows.OrderBy(key);
-    }
+    #endregion
 
-    private void SortBy(string column)
-    {
-        if (_sortColumn == column)
-        {
-            _sortDescending = !_sortDescending;
-        }
-        else
-        {
-            _sortColumn = column;
-            _sortDescending = true;
-        }
-
-        _page = 1;
-    }
-
-    private string SortClass(string column)
-    {
-        return _sortColumn != column ? "table-sort" : _sortDescending ? "table-sort desc" : "table-sort asc";
-    }
-
-    private void OnSearchChanged(ChangeEventArgs args)
-    {
-        _search = args.Value?.ToString() ?? "";
-        _page = 1;
-    }
-
-    private void Prev()
-    {
-        if (_page > 1) _page--;
-    }
-
-    private void Next()
-    {
-        if (_page < TotalPages) _page++;
-    }
+    #region Lifecycle
 
     protected override async Task OnInitializedAsync()
     {
@@ -172,42 +174,39 @@ public partial class History : ComponentBase
         }
     }
 
-    private async Task LoadAsync()
+    #endregion
+
+    #region Event Handlers
+
+    private void SortBy(string column)
     {
-        IsLoading = true;
-        await InvokeAsync(StateHasChanged);
-
-        var filter = new HistoryFilter
+        if (_sortColumn == column)
         {
-            From = _fromDate, To = _toDate, ServerId = _serverFilter, MediaType = _typeFilter
-        };
+            _sortDescending = !_sortDescending;
+        }
+        else
+        {
+            _sortColumn = column;
+            _sortDescending = true;
+        }
 
-        _data = await HistoryService.GetHistoryAsync(filter);
-        _servers = _data.Servers;
-        _mediaTypes = _data.Rows.Select(row => row.MediaType.ToString())
-            .Where(value =>
-                !string.Equals(value, TrackedMediaType.Unknown.ToString(), StringComparison.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value).ToList();
-
-        _statuses = _data.Rows.Select(row => row.Status).Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value).ToList();
-
-        IsLoading = false;
-        _chartsPending = true;
-
-        await InvokeAsync(StateHasChanged);
+        _page = 1;
     }
 
-    private object SearchActivityChartPayload()
+    private void OnSearchChanged(ChangeEventArgs args)
     {
-        return new
-        {
-            labels = _data.Activity.Select(p => p.Date.ToString("MMM d", CultureInfo.InvariantCulture)).ToArray(),
-            searches = _data.Activity.Select(p => p.SearchesPushed).ToArray(),
-            cascaded = _data.Activity.Select(p => p.Cascaded).ToArray(),
-            abandoned = _data.Activity.Select(p => p.Abandoned).ToArray(),
-            resolved = _data.Activity.Select(p => p.Resolved).ToArray()
-        };
+        _search = args.Value?.ToString() ?? "";
+        _page = 1;
+    }
+
+    private void Prev()
+    {
+        if (_page > 1) _page--;
+    }
+
+    private void Next()
+    {
+        if (_page < TotalPages) _page++;
     }
 
     private async Task OnFromDateChanged(ChangeEventArgs args)
@@ -253,17 +252,44 @@ public partial class History : ComponentBase
         return InvokeAsync(StateHasChanged);
     }
 
+    #endregion
+
+    #region Display Helpers
+
+    private IEnumerable<HistoryRow> Order<T>(IEnumerable<HistoryRow> rows, Func<HistoryRow, T> key)
+    {
+        return _sortDescending ? rows.OrderByDescending(key) : rows.OrderBy(key);
+    }
+
+    private string SortClass(string column)
+    {
+        return _sortColumn != column ? "table-sort" : _sortDescending ? "table-sort desc" : "table-sort asc";
+    }
+
     private string TabClass(HistoryTab tab)
     {
         return _activeTab == tab ? "nav-link active" : "nav-link";
+    }
+
+    private object SearchActivityChartPayload()
+    {
+        return new
+        {
+            labels = _data.Activity.Select(p => p.Date.ToString("MMM d", CultureInfo.InvariantCulture)).ToArray(),
+            searches = _data.Activity.Select(p => p.SearchesPushed).ToArray(),
+            cascaded = _data.Activity.Select(p => p.Cascaded).ToArray(),
+            abandoned = _data.Activity.Select(p => p.Abandoned).ToArray(),
+            resolved = _data.Activity.Select(p => p.Resolved).ToArray()
+        };
     }
 
     private object ActivityChartPayload()
     {
         return new
         {
-            labels = _data.Activity.Select(point => point.Date.ToString("MMM d", CultureInfo.InvariantCulture))
-                .ToArray(),
+            labels =
+                _data.Activity.Select(point => point.Date.ToString("MMM d", CultureInfo.InvariantCulture))
+                    .ToArray(),
             completed = _data.Activity.Select(point => point.Completed).ToArray(),
             failed = _data.Activity.Select(point => point.Failed).ToArray(),
             removed = _data.Activity.Select(point => point.Removed).ToArray(),
@@ -386,5 +412,5 @@ public partial class History : ComponentBase
         };
     }
 
-    private record SeriesLegend(string Label, string Color, int Total);
+    #endregion
 }

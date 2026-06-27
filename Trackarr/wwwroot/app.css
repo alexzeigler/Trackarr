@@ -127,7 +127,6 @@
 /* ─── Global Overrides ───────────────────────────────────────────────────────── */
 html, body {
     height: 100%;
-    overflow: hidden;
 }
 
 .navbar-vertical.navbar-expand-lg {
@@ -214,22 +213,12 @@ h1:focus {
 }
 
 /* ─── App Shell ──────────────────────────────────────────────────────────────── */
-.app-shell {
+.page {
     background: #0f1624;
-    color: var(--bs-body-color);
-    display: grid;
-    grid-template-columns: 230px minmax(0, 1fr);
-    height: 100vh;
 }
 
-.app-brand {
-    align-items: center;
-    border-bottom: 1px solid rgba(255, 255, 255, .08);
-    display: flex;
-    flex-shrink: 0;
-    gap: .75rem;
-    height: 70px;
-    padding: 0 1.25rem;
+#app-sidebar {
+    background: #121b2a;
 }
 
 .app-brand-icon {
@@ -244,23 +233,6 @@ h1:focus {
     max-width: 145px;
     object-fit: contain;
     width: auto;
-}
-
-.app-sidebar {
-    background: #121b2a;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    overflow-y: hidden;
-    position: sticky !important;
-    top: 0;
-}
-
-.app-main {
-    display: grid;
-    grid-template-rows: 70px minmax(0, 1fr);
-    min-height: 100vh;
-    min-width: 0;
 }
 
 .app-topbar {
@@ -281,12 +253,6 @@ h1:focus {
 
 .app-menu-button:hover {
     color: var(--bs-body-color);
-}
-
-.app-content {
-    min-width: 0;
-    overflow-y: scroll;
-    padding: 1.5rem;
 }
 
 /* ─── Topbar ─────────────────────────────────────────────────────────────────── */
@@ -319,19 +285,19 @@ h1:focus {
 
 /* ─── Mobile Sidebar ────────────────────────────────────────────────────────── */
 @media (max-width: 991.98px) {
-    .app-sidebar {
-        bottom: 0;
-        left: 0;
-        position: fixed;
-        top: 0;
-        transform: translateX(-100%);
+    #app-sidebar {
+        bottom: 0 !important;
+        left: 0 !important;
+        position: fixed !important;
+        top: 0 !important;
+        transform: translateX(-100%) !important;
         transition: transform .2s ease;
-        width: 230px;
-        z-index: 1050;
+        width: 15rem !important;
+        z-index: 1050 !important;
     }
 
-    .app-sidebar.sidebar-open {
-        transform: translateX(0);
+    #app-sidebar.sidebar-open {
+        transform: translateX(0) !important;
     }
 
     .sidebar-backdrop {
@@ -342,14 +308,8 @@ h1:focus {
         z-index: 1040;
     }
 
-    .app-sidebar.sidebar-open ~ .sidebar-backdrop {
+    #app-sidebar.sidebar-open ~ .sidebar-backdrop {
         display: block;
-    }
-}
-
-@media (min-width: 992px) {
-    .sidebar-backdrop {
-        display: none !important;
     }
 }
 

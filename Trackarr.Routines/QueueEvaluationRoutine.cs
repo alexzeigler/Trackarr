@@ -6,9 +6,9 @@ using Trackarr.Core.Settings;
 using Trackarr.Services.Media;
 using Trackarr.Services.Settings;
 
-namespace Trackarr.Tasks;
+namespace Trackarr.Routines;
 
-public class QueueEvaluationRoutine(
+public sealed class QueueEvaluationRoutine(
     MediaServerService mediaServerService,
     HealthService healthService,
     BlacklistService blacklistService,
@@ -34,23 +34,22 @@ public class QueueEvaluationRoutine(
 
         var blacklist = await blacklistService.GetAllAsync();
 
-        var autoRemoveEnabled = true;
-
         foreach (var server in (await mediaServerService.GetAllServersAsync()).Where(s => s.IsEnabled)
                  .OrderBy(s => s.Priority))
         {
             var queue = await mediaServerService.GetQueueAsync(server);
             var downloads = queue.GroupBy(HealthService.GetDownloadId).Select(e => e.First()).ToList();
 
-            autoRemoveEnabled = settings.ShouldAutoRemove(server);
+            var autoRemoveEnabled = settings.ShouldAutoRemove(server);
 
             foreach (var download in downloads)
             {
                 if (IsBlacklisted(download, blacklist))
                 {
+                    var blDecision = await healthService.EvaluateAsync(download, cancellationToken);
                     await mediaServerService.RemoveFromQueueAsync(server, download.RemoteId);
-                    await healthService.MarkRemovedByTrackarrAsync(0, $"Removed by blacklist match: {download.Title}",
-                        cancellationToken);
+                    await healthService.MarkRemovedByTrackarrAsync(blDecision.DownloadAttemptId,
+                        $"Removed by blacklist match: {download.Title}", cancellationToken);
                     blacklisted++;
                     continue;
                 }

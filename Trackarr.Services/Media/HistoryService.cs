@@ -6,7 +6,7 @@ using Trackarr.Data;
 
 namespace Trackarr.Services.Media;
 
-public class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
+public sealed class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
 {
     public async Task<HistoryPageData> GetHistoryAsync(HistoryFilter filter,
         CancellationToken cancellationToken = default)
@@ -103,7 +103,8 @@ public class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
                 Event = DisplayEventType(healthEvent.EventType),
                 Item = healthEvent.DownloadAttempt.Title,
                 MediaType = healthEvent.DownloadAttempt.MediaType,
-                Server = healthEvent.DownloadAttempt.Server?.Name ?? healthEvent.DownloadAttempt.ServiceType.ToString(),
+                Server =
+                    healthEvent.DownloadAttempt.Server?.Name ?? healthEvent.DownloadAttempt.ServiceType.ToString(),
                 Profile = "—",
                 Status = StatusFromSeverity(healthEvent.Severity),
                 Details = healthEvent.Message,
@@ -248,9 +249,11 @@ public class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
                 Completed =
                     attempts.Count(a =>
                         a.CompletedAt.HasValue && a.CompletedAt.Value >= day && a.CompletedAt.Value < next),
-                Failed = attempts.Count(a => a.FailedAt.HasValue && a.FailedAt.Value >= day && a.FailedAt.Value < next),
+                Failed =
+                    attempts.Count(a => a.FailedAt.HasValue && a.FailedAt.Value >= day && a.FailedAt.Value < next),
                 Removed =
-                    attempts.Count(a => a.RemovedAt.HasValue && a.RemovedAt.Value >= day && a.RemovedAt.Value < next),
+                    attempts.Count(a =>
+                        a.RemovedAt.HasValue && a.RemovedAt.Value >= day && a.RemovedAt.Value < next),
                 Bytes =
                     attempts.Where(a =>
                             a.CompletedAt.HasValue && a.CompletedAt.Value >= day && a.CompletedAt.Value < next)

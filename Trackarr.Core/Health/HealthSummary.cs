@@ -2,6 +2,8 @@
 
 public class MediaHealthSummary
 {
+    #region Identity
+
     public int Id { get; set; }
 
     public TrackedMediaType MediaType { get; set; } = TrackedMediaType.Unknown;
@@ -9,6 +11,10 @@ public class MediaHealthSummary
     public int? MovieId { get; set; }
     public int? SeriesId { get; set; }
     public int? EpisodeId { get; set; }
+
+    #endregion
+
+    #region Properties
 
     public int AttemptCount { get; set; }
     public int ActiveAttemptCount { get; set; }
@@ -41,4 +47,6 @@ public class MediaHealthSummary
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    #endregion
 }

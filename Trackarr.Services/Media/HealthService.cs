@@ -6,88 +6,9 @@ using Trackarr.Services.Settings;
 
 namespace Trackarr.Services.Media;
 
-public class HealthService(IDbContextFactory<AppDbContext> dbFactory, SettingsService settings) : IHealthService
+public sealed class HealthService(IDbContextFactory<AppDbContext> dbFactory, SettingsService settings)
 {
-    #region Policy & Static Data
-
-    private static readonly HealthEventType[] TerminalEventTypes =
-    [
-        HealthEventType.QueueMissing,
-        HealthEventType.RemovedByTrackarr,
-        HealthEventType.ImportedSuccessfully,
-        HealthEventType.FailedExternally
-    ];
-
-    private HealthPolicy Policy => settings.GetHealthPolicy();
-
-    private HealthEvaluator CreateEvaluator()
-    {
-        return new HealthEvaluator(settings.GetHealthPolicy());
-    }
-
-    private readonly HealthRepository _repository = new();
-
-    #endregion
-
     #region Evaluation
-
-    public async Task<List<DownloadAttempt>> ResolveMissingAttemptsAsync(int serverId,
-        IEnumerable<string> activeDownloadIds, CancellationToken cancellationToken = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
-
-        var now = DateTime.UtcNow;
-        var active = activeDownloadIds.Where(e => !string.IsNullOrWhiteSpace(e)).Select(e => e.Trim())
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var missing = await db.DownloadAttempts.Include(e => e.HealthSnapshot).Where(e => e.ServerId == serverId)
-            .Where(e => e.Status == AttemptStatus.Active).Where(e => !active.Contains(e.DownloadId))
-            .ToListAsync(cancellationToken);
-
-        foreach (var attempt in missing)
-        {
-            var snapshot = attempt.HealthSnapshot ??
-                           await _repository.GetOrCreateSnapshotAsync(db, attempt, now, cancellationToken);
-
-            attempt.Status = AttemptStatus.Disappeared;
-            attempt.FailedAt = now;
-            attempt.FinalReasonKey = "queue-missing";
-            attempt.FinalMessage = "Download disappeared from the queue before Trackarr marked it as complete.";
-
-            snapshot.State = HealthState.Unknown;
-            snapshot.LastReasonKey = "queue-missing";
-            snapshot.LastReasonMessage = attempt.FinalMessage;
-            snapshot.UpdatedAt = now;
-
-            db.HealthEvents.Add(new DownloadHealthEvent
-            {
-                DownloadAttempt = attempt,
-                OccurredAt = now,
-                EventType = HealthEventType.QueueMissing,
-                Severity = Severity.Warning,
-                ReasonKey = "queue-missing",
-                Message = attempt.FinalMessage,
-                ScoreBefore = snapshot.RawScore,
-                ScoreDelta = 0,
-                ScoreAfter = snapshot.RawScore,
-                ConfidenceBefore = snapshot.Confidence,
-                ConfidenceDelta = 0,
-                ConfidenceAfter = snapshot.Confidence,
-                RecoveryCreditBefore = snapshot.RecoveryCredit,
-                RecoveryCreditDelta = 0,
-                RecoveryCreditAfter = snapshot.RecoveryCredit,
-                IsBadObservation = true,
-                CountsTowardRemoval = false,
-                Source = nameof(HealthService)
-            });
-
-            await _repository.UpdateMediaSummaryAsync(db, attempt, null, now, cancellationToken);
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
-
-        return missing;
-    }
 
     public async Task<HealthDecision> EvaluateAsync(DownloadItem item, CancellationToken cancellationToken = default)
     {
@@ -163,6 +84,27 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory, SettingsSe
 
         return decision;
     }
+
+    #endregion
+
+    #region Policy & Static Data
+
+    private static readonly HealthEventType[] TerminalEventTypes =
+    [
+        HealthEventType.QueueMissing,
+        HealthEventType.RemovedByTrackarr,
+        HealthEventType.ImportedSuccessfully,
+        HealthEventType.FailedExternally
+    ];
+
+    private HealthPolicy Policy => settings.GetHealthPolicy();
+
+    private HealthEvaluator CreateEvaluator()
+    {
+        return new HealthEvaluator(settings.GetHealthPolicy());
+    }
+
+    private readonly HealthRepository _repository = new();
 
     #endregion
 
@@ -545,7 +487,7 @@ public class HealthService(IDbContextFactory<AppDbContext> dbFactory, SettingsSe
     }
 
     public async Task<List<DownloadHealthEvent>> GetEventsForMediaAsync(int serverId, int? movieRemoteId,
-        int? seriesRemoteId, int? episodeRemoteId, CancellationToken cancellationToken = default)
+        int? seriesRemoteId, int? episodeRemoteId, CancellationToken cancellationToken)
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 

@@ -9,6 +9,74 @@ public sealed class RoutineRunner(
     RoutineService routineService,
     EventService eventService)
 {
+    #region Execution
+
+    private async Task ExecuteRoutineAsync(RoutineDefinition routine, CancellationToken cancellationToken)
+    {
+        var handler = handlers.FirstOrDefault(x => x.Key == routine.Key);
+
+        RoutineRun run = new()
+        {
+            Routine = routine,
+            RoutineDefinitionId = routine.Id,
+            StartTime = DateTime.UtcNow,
+            State = RoutineState.Running
+        };
+
+        _history.Add(run);
+
+        try
+        {
+            routine.IsRunning = true;
+            await routineService.UpdateDefinitionAsync(routine, cancellationToken);
+            await eventService.LogAsync($"Task '{routine.Name}' started.", routine.Key, LogLevel.Information, null,
+                cancellationToken);
+            if (handler != null)
+            {
+                var msg = await handler.ExecuteAsync(cancellationToken);
+
+                var finishedAt = DateTime.UtcNow;
+
+                routine.LastRun = finishedAt;
+                routine.LastRunTime = (int)(finishedAt - run.StartTime).TotalMilliseconds;
+                routine.NextRun = finishedAt.AddSeconds(routine.IntervalSeconds);
+                routine.LastRunSuccess = true;
+
+                run.EndTime = finishedAt;
+                run.State = RoutineState.Success;
+
+                await eventService.LogAsync($"Task '{routine.Name}' completed in {routine.LastRunTime}ms. {msg}",
+                    routine.Key, LogLevel.Information, null, cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            var failedAt = DateTime.UtcNow;
+
+            routine.LastRun = failedAt;
+            routine.LastRunTime = (int)(failedAt - run.StartTime).TotalMilliseconds;
+            routine.NextRun = failedAt.AddSeconds(routine.IntervalSeconds);
+            routine.LastRunSuccess = false;
+
+            run.EndTime = failedAt;
+            run.State = RoutineState.Failed;
+            run.ErrorMessage = ex.Message;
+
+            await eventService.LogAsync($"Routine '{routine.Name}' failed: {ex.Message}", routine.Key, LogLevel.Error,
+                ex.ToString(), cancellationToken);
+        }
+        finally
+        {
+            routine.IsRunning = false;
+            await routineService.SaveRunAsync(run);
+            await routineService.UpdateDefinitionAsync(routine);
+        }
+    }
+
+    #endregion
+
+    #region Dependencies
+
     private readonly List<RoutineRun> _history = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly Queue<string> _manualQueue = new();
@@ -16,6 +84,10 @@ public sealed class RoutineRunner(
 
     public IReadOnlyList<RoutineRun> History => _history.AsReadOnly();
     public bool IsRunning => _lock.CurrentCount == 0;
+
+    #endregion
+
+    #region Public API
 
     private void Enqueue(string key)
     {
@@ -80,65 +152,5 @@ public sealed class RoutineRunner(
         await routineService.UpdateDefinitionAsync(routine);
     }
 
-    private async Task ExecuteRoutineAsync(RoutineDefinition routine, CancellationToken cancellationToken)
-    {
-        var handler = handlers.FirstOrDefault(x => x.Key == routine.Key);
-
-        RoutineRun run = new()
-        {
-            Routine = routine,
-            RoutineDefinitionId = routine.Id,
-            StartTime = DateTime.UtcNow,
-            State = RoutineState.Running
-        };
-
-        _history.Add(run);
-
-        try
-        {
-            routine.IsRunning = true;
-            await routineService.UpdateDefinitionAsync(routine, cancellationToken);
-            await eventService.LogAsync($"Task '{routine.Name}' started.", routine.Key, LogLevel.Information, null,
-                cancellationToken);
-            if (handler != null)
-            {
-                var msg = await handler.ExecuteAsync(cancellationToken);
-
-                var finishedAt = DateTime.UtcNow;
-
-                routine.LastRun = finishedAt;
-                routine.LastRunTime = (int)(finishedAt - run.StartTime).TotalMilliseconds;
-                routine.NextRun = finishedAt.AddSeconds(routine.IntervalSeconds);
-                routine.LastRunSuccess = true;
-
-                run.EndTime = finishedAt;
-                run.State = RoutineState.Success;
-
-                await eventService.LogAsync($"Task '{routine.Name}' completed in {routine.LastRunTime}ms. {msg}",
-                    routine.Key, LogLevel.Information, null, cancellationToken);
-            }
-        }
-        catch (Exception ex)
-        {
-            var failedAt = DateTime.UtcNow;
-
-            routine.LastRun = failedAt;
-            routine.LastRunTime = (int)(failedAt - run.StartTime).TotalMilliseconds;
-            routine.NextRun = failedAt.AddSeconds(routine.IntervalSeconds);
-            routine.LastRunSuccess = false;
-
-            run.EndTime = failedAt;
-            run.State = RoutineState.Failed;
-            run.ErrorMessage = ex.Message;
-
-            await eventService.LogAsync($"Routine '{routine.Name}' failed: {ex.Message}", routine.Key, LogLevel.Error,
-                ex.ToString(), cancellationToken);
-        }
-        finally
-        {
-            routine.IsRunning = false;
-            await routineService.SaveRunAsync(run);
-            await routineService.UpdateDefinitionAsync(routine);
-        }
-    }
+    #endregion
 }

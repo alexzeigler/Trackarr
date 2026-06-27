@@ -2,6 +2,8 @@
 
 public class HealthObservation
 {
+    #region Properties
+
     public int DownloadAttemptId { get; set; }
 
     public DateTime ObservedAt { get; set; }
@@ -40,4 +42,6 @@ public class HealthObservation
     public string? Indexer { get; set; }
     public string? Protocol { get; set; }
     public bool IsFetchingMetadata { get; set; }
+
+    #endregion
 }

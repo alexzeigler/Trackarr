@@ -2,7 +2,7 @@
 
 public class ActiveSearches
 {
-    public HashSet<int> MovieIds { get; } = new();
-    public HashSet<int> SeriesIds { get; } = new();
-    public HashSet<int> EpisodeIds { get; } = new();
+    public HashSet<int> MovieIds { get; } = [];
+    public HashSet<int> SeriesIds { get; } = [];
+    public HashSet<int> EpisodeIds { get; } = [];
 }

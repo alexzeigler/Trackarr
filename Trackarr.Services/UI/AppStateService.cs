@@ -2,7 +2,7 @@ namespace Trackarr.Services.UI;
 
 public record BreadcrumbSegment(string Label, string? Href);
 
-public class AppStateService
+public sealed class AppStateService
 {
     private static readonly List<RouteEntry> Routes =
     [

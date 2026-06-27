@@ -1,7 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using Trackarr.Core.Routine;
-using Trackarr.Data;
 using Trackarr.Services.Settings;
 
 namespace Trackarr.Services.Routines;
@@ -9,7 +7,6 @@ namespace Trackarr.Services.Routines;
 public sealed class RoutineHostedService(
     RoutineRunner runner,
     IEnumerable<IRoutine> routines,
-    IDbContextFactory<AppDbContext> dbContextFactory,
     RoutineService routineService,
     SettingsService settings) : BackgroundService
 {

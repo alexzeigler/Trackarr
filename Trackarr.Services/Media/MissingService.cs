@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Trackarr.Core.Health;
 using Trackarr.Core.Media.Missing;
 using Trackarr.Core.Media.Movies;
@@ -11,11 +10,10 @@ using Trackarr.Services.Settings;
 
 namespace Trackarr.Services.Media;
 
-public class MissingService(
+public sealed class MissingService(
     IDbContextFactory<AppDbContext> contextFactory,
     MediaServerService media,
-    SettingsService settings,
-    ILogger<MissingService> logger)
+    SettingsService settings)
 {
     private MissingPolicy Policy => settings.GetMissingPolicy();
 
@@ -34,7 +32,7 @@ public class MissingService(
 
         if (server.ServiceType == ServiceType.Radarr)
         {
-            var missing = await media.GetMissingMovies(server, true);
+            var missing = await media.GetMissingMoviesAsync(server, true);
             count = missing.Count;
             await ReconcileRadarrAsync(server, db, records, missing, queue);
             await ProcessRadarrAsync(server, db, records, missing, queue, active, now);
@@ -42,7 +40,7 @@ public class MissingService(
         }
         else
         {
-            var missing = await media.GetMissingEpisodes(server, true);
+            var missing = await media.GetMissingEpisodesAsync(server, true);
             count = missing.Count;
             await ReconcileSonarrAsync(server, db, records, missing, queue);
             await ProcessSonarrAsync(server, db, records, missing, queue, active, now);

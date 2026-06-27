@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Trackarr.Core.Server;
 
@@ -6,16 +6,31 @@ namespace Trackarr.Components.Modals;
 
 public partial class AddServerModal : ComponentBase
 {
+    #region Lifecycle
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await Js.InvokeVoidAsync("initTooltips");
+    }
+
+    #endregion
+
+    #region Parameters
+
+    [Parameter] public ServiceType ServiceType { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    #endregion
+
+    #region State
+
     private string _autoRemove = "";
     private string _monitorQueue = "";
     private DotNetObjectReference<AddServerModal>? _ref;
     private string _searchMissing = "";
     private bool _showApiKey;
-    [Parameter] public ServiceType ServiceType { get; set; }
-    [Parameter] public EventCallback OnSaved { get; set; }
 
     private bool HasProfiles { get; set; }
-
 
     private MediaServer Model { get; set; } = new();
     private bool IsEditing => Model.Id != 0;
@@ -32,10 +47,9 @@ public partial class AddServerModal : ComponentBase
 
     private (bool, long ElapsedMilliseconds, string? ReasonPhrase)? TestResult { get; set; }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender) await Js.InvokeVoidAsync("initTooltips");
-    }
+    #endregion
+
+    #region Event Handlers
 
     private void ToggleApiKey()
     {
@@ -143,6 +157,48 @@ public partial class AddServerModal : ComponentBase
         if (Model.FallbackProfile != null) Model.FallBackProfileId = Model.FallbackProfile.Id;
     }
 
+    private void UpdatePort()
+    {
+        Model.Port = (Model.ServiceType, Model.UseHttps) switch
+        {
+            (ServiceType.Radarr, false) => 7878,
+            (ServiceType.Sonarr, false) => 8989,
+            (ServiceType.Radarr, true) => 443,
+            (ServiceType.Sonarr, true) => 443,
+            _ => Model.Port
+        };
+    }
+
+    private async Task Save()
+    {
+        SyncBehaviorToModel();
+        IsSaving = true;
+        if (IsEditing)
+            await ServerService.UpdateServerAsync(Model);
+        else
+            await ServerService.CreateServerAsync(Model);
+
+        await Js.InvokeVoidAsync("tomSelectHelper.destroy", "fallbackProfileSelect");
+        await Js.InvokeVoidAsync("modalHelper.hide", "serverModal");
+
+        IsSaving = false;
+        await OnSaved.InvokeAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Close()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(300);
+        TestResult = null;
+        await InvokeAsync(StateHasChanged);
+        await Js.InvokeVoidAsync("modalHelper.hide", "serverModal");
+    }
+
+    #endregion
+
+    #region Display Helpers
+
     private async Task InitFallbackSelect()
     {
         await InvokeAsync(StateHasChanged);
@@ -176,32 +232,6 @@ public partial class AddServerModal : ComponentBase
         Model.SearchMissing = string.IsNullOrEmpty(_searchMissing) ? null : bool.Parse(_searchMissing);
     }
 
-    private async Task Save()
-    {
-        SyncBehaviorToModel();
-        IsSaving = true;
-        if (IsEditing)
-            await ServerService.UpdateServerAsync(Model);
-        else
-            await ServerService.CreateServerAsync(Model);
-
-        await Js.InvokeVoidAsync("tomSelectHelper.destroy", "fallbackProfileSelect");
-        await Js.InvokeVoidAsync("modalHelper.hide", "serverModal");
-
-        IsSaving = false;
-        await OnSaved.InvokeAsync();
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task Close()
-    {
-        await InvokeAsync(StateHasChanged);
-        await Task.Delay(300);
-        TestResult = null;
-        await InvokeAsync(StateHasChanged);
-        await Js.InvokeVoidAsync("modalHelper.hide", "serverModal");
-    }
-
     private static string GetStatusDescription(string? reasonPhrase)
     {
         return reasonPhrase switch
@@ -218,15 +248,5 @@ public partial class AddServerModal : ComponentBase
         };
     }
 
-    private void UpdatePort()
-    {
-        Model.Port = (Model.ServiceType, Model.UseHttps) switch
-        {
-            (ServiceType.Radarr, false) => 7878,
-            (ServiceType.Sonarr, false) => 8989,
-            (ServiceType.Radarr, true) => 443,
-            (ServiceType.Sonarr, true) => 443,
-            _ => Model.Port
-        };
-    }
+    #endregion
 }

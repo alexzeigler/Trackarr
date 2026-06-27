@@ -5,7 +5,7 @@ using Trackarr.Data;
 
 namespace Trackarr.Services.Diagnostics;
 
-public class EventService(IDbContextFactory<AppDbContext> dbFactory, ILogger<EventService> logger)
+public sealed class EventService(IDbContextFactory<AppDbContext> dbFactory, ILogger<EventService> logger)
 {
     private readonly LogFileWriter _fileWriter = new();
 
@@ -13,9 +13,7 @@ public class EventService(IDbContextFactory<AppDbContext> dbFactory, ILogger<Eve
     {
         foreach (var (path, report) in CrashReporter.ReadAll())
         {
-            await LogAsync(report.Message,
-                report.Source,
-                LogLevel.Critical,
+            await LogAsync(report.Message, report.Source, LogLevel.Critical,
                 report.StackTrace is not null ? $"{report.ExceptionType}: {report.StackTrace}" : report.ExceptionType,
                 cancellationToken);
             CrashReporter.Delete(path);
@@ -35,11 +33,7 @@ public class EventService(IDbContextFactory<AppDbContext> dbFactory, ILogger<Eve
             .ToListAsync(cancellationToken);
     }
 
-    public async Task LogAsync(
-        string message,
-        string source,
-        LogLevel level,
-        string? exception,
+    public async Task LogAsync(string message, string source, LogLevel level, string? exception,
         CancellationToken cancellationToken = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);

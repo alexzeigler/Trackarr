@@ -13,26 +13,7 @@ namespace Trackarr.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public DbSet<MediaServer> MediaServers { get; set; }
-    public DbSet<ServerMetadata> ServerMetadata { get; set; }
-    public DbSet<DownloadItem> DownloadQueue { get; set; }
-    public DbSet<RoutineDefinition> Routines { get; set; }
-    public DbSet<RoutineRun> RoutineRuns { get; set; }
-    public DbSet<LogEvent> LogEvents { get; set; }
-    public DbSet<Movie> Movies { get; set; }
-    public DbSet<Series> Series { get; set; }
-    public DbSet<Episode> Episodes { get; set; }
-
-    public DbSet<DownloadAttempt> DownloadAttempts { get; set; }
-    public DbSet<HealthSnapshot> HealthSnapshots { get; set; }
-    public DbSet<DownloadHealthEvent> HealthEvents { get; set; }
-    public DbSet<MediaHealthSummary> MediaHealthSummaries { get; set; }
-    public DbSet<SourceHealthSummary> SourceHealthSummaries { get; set; }
-    public DbSet<QualityProfile> QualityProfiles { get; set; }
-    public DbSet<MissingMediaRecord> MissingMedia { get; set; }
-    public DbSet<MissingSearchEvent> SearchEvents { get; set; }
-    public DbSet<AppSetting> AppSettings { get; set; }
-    public DbSet<BlacklistEntry> Blacklist { get; set; }
+    #region Entity Configuration
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -432,4 +413,31 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(e => e.Type);
         });
     }
+
+    #endregion
+
+    #region DbSets
+
+    public DbSet<MediaServer> MediaServers { get; set; }
+    public DbSet<ServerMetadata> ServerMetadata { get; set; }
+    public DbSet<DownloadItem> DownloadQueue { get; set; }
+    public DbSet<RoutineDefinition> Routines { get; set; }
+    public DbSet<RoutineRun> RoutineRuns { get; set; }
+    public DbSet<LogEvent> LogEvents { get; set; }
+    public DbSet<Movie> Movies { get; set; }
+    public DbSet<Series> Series { get; set; }
+    public DbSet<Episode> Episodes { get; set; }
+
+    public DbSet<DownloadAttempt> DownloadAttempts { get; set; }
+    public DbSet<HealthSnapshot> HealthSnapshots { get; set; }
+    public DbSet<DownloadHealthEvent> HealthEvents { get; set; }
+    public DbSet<MediaHealthSummary> MediaHealthSummaries { get; set; }
+    public DbSet<SourceHealthSummary> SourceHealthSummaries { get; set; }
+    public DbSet<QualityProfile> QualityProfiles { get; set; }
+    public DbSet<MissingMediaRecord> MissingMedia { get; set; }
+    public DbSet<MissingSearchEvent> SearchEvents { get; set; }
+    public DbSet<AppSetting> AppSettings { get; set; }
+    public DbSet<BlacklistEntry> Blacklist { get; set; }
+
+    #endregion
 }

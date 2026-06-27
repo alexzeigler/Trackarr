@@ -4,7 +4,7 @@ using Trackarr.Data;
 
 namespace Trackarr.Services.Settings;
 
-public class BlacklistService(IDbContextFactory<AppDbContext> dbFactory)
+public sealed class BlacklistService(IDbContextFactory<AppDbContext> dbFactory)
 {
     public async Task<List<BlacklistEntry>> GetAllAsync()
     {

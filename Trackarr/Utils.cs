@@ -196,7 +196,6 @@ public static class Utils
             "episode" => "badge bg-blue-lt text-blue",
             "series" => "badge bg-indigo-lt text-indigo",
             "season" => "badge bg-indigo-lt text-indigo",
-            "system" => "badge bg-secondary-lt text-secondary",
             _ => "badge bg-secondary-lt text-secondary"
         };
     }

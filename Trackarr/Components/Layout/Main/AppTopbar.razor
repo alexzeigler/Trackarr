@@ -81,6 +81,7 @@
     protected override void OnInitialized()
     {
         AppState.OnStateChanged += HandleStateChanged;
+        _isRefreshing = false;
     }
 
     private async Task RequestRefreshAsync()

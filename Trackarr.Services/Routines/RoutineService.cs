@@ -6,6 +6,8 @@ namespace Trackarr.Services.Routines;
 
 public sealed class RoutineService(IDbContextFactory<AppDbContext> dbContextFactory)
 {
+    #region Queries
+
     public async Task<List<RoutineDefinition>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -17,6 +19,10 @@ public sealed class RoutineService(IDbContextFactory<AppDbContext> dbContextFact
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         return await db.Routines.FirstOrDefaultAsync(r => r.Key == key, cancellationToken);
     }
+
+    #endregion
+
+    #region Lifecycle
 
     public async Task RegisterRoutineInDbAsync(IRoutine routine, CancellationToken cancellationToken = default)
     {
@@ -75,4 +81,6 @@ public sealed class RoutineService(IDbContextFactory<AppDbContext> dbContextFact
         await db.Routines.Where(r => r.IsRunning)
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.IsRunning, false), cancellationToken);
     }
+
+    #endregion
 }

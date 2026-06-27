@@ -7,6 +7,42 @@ namespace Trackarr.Components.Pages.System;
 
 public partial class Events : ComponentBase
 {
+    #region Injected Services
+
+    [Inject] private SettingsService Settings { get; set; } = null!;
+
+    #endregion
+
+    #region Lifecycle
+
+    protected override async Task OnInitializedAsync()
+    {
+        _pageSize = Settings.GetInt("Display", "EventsPageSize", 50);
+        await LoadLogsAsync();
+    }
+
+    #endregion
+
+    #region Data Loading
+
+    private async Task LoadLogsAsync()
+    {
+        _isRefreshing = true;
+        try
+        {
+            _logs = await EventService.GetAllAsync();
+            _currentPage = 1;
+        }
+        finally
+        {
+            _isRefreshing = false;
+        }
+    }
+
+    #endregion
+
+    #region State
+
     private int _currentPage = 1;
     private string _filterText = string.Empty;
     private bool _isRefreshing;
@@ -16,7 +52,6 @@ public partial class Events : ComponentBase
     private LogEvent? _selectedLog;
     private string _sortColumn = "time";
     private bool _sortDescending = true;
-    [Inject] private SettingsService Settings { get; set; } = null!;
 
     private string TableDensityClass =>
         Settings.GetString("Display", "TableDensity", "normal") switch
@@ -63,25 +98,9 @@ public partial class Events : ComponentBase
     private int PageStart => FilteredLogs.Count == 0 ? 0 : (_currentPage - 1) * _pageSize + 1;
     private int PageEnd => Math.Min(_currentPage * _pageSize, FilteredLogs.Count);
 
-    protected override async Task OnInitializedAsync()
-    {
-        _pageSize = Settings.GetInt("Display", "EventsPageSize", 50);
-        await LoadLogsAsync();
-    }
+    #endregion
 
-    private async Task LoadLogsAsync()
-    {
-        _isRefreshing = true;
-        try
-        {
-            _logs = await EventService.GetAllAsync();
-            _currentPage = 1;
-        }
-        finally
-        {
-            _isRefreshing = false;
-        }
-    }
+    #region Event Handlers
 
     private async Task DeleteAllLogs()
     {
@@ -137,11 +156,6 @@ public partial class Events : ComponentBase
         _currentPage = 1;
     }
 
-    private string SortClass(string column)
-    {
-        return _sortColumn != column ? "table-sort" : _sortDescending ? "table-sort desc" : "table-sort asc";
-    }
-
     private void PreviousPage()
     {
         if (_currentPage > 1) _currentPage--;
@@ -160,6 +174,15 @@ public partial class Events : ComponentBase
     private void LastPage()
     {
         _currentPage = TotalPages;
+    }
+
+    #endregion
+
+    #region Display Helpers
+
+    private string SortClass(string column)
+    {
+        return _sortColumn != column ? "table-sort" : _sortDescending ? "table-sort desc" : "table-sort asc";
     }
 
     private static bool Contains(string? value, string filter)
@@ -194,4 +217,6 @@ public partial class Events : ComponentBase
             _ => "badge bg-secondary-lt text-secondary"
         };
     }
+
+    #endregion
 }

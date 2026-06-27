@@ -4,17 +4,7 @@ namespace Trackarr.Services.Diagnostics;
 
 public class LogFileWriter
 {
-    private static readonly Lock _lock = new();
-    private static readonly long MaxFileSizeBytes = 10 * 1024 * 1024;
-
-    private static readonly string LogDir =
-        Path.Combine(
-            Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Parent?.Parent?.Parent?.FullName ??
-            AppContext.BaseDirectory, "logs");
-
-    private string CurrentLogPath => Path.Combine(LogDir, $"trackarr_{DateTime.UtcNow:yyyyMMdd}.log");
-
-    public string? LastError { get; private set; }
+    #region Public API
 
     public void Write(LogEvent evt)
     {
@@ -37,6 +27,10 @@ public class LogFileWriter
         }
     }
 
+    #endregion
+
+    #region Helpers
+
     private string ResolveLogPath()
     {
         var path = CurrentLogPath;
@@ -53,4 +47,22 @@ public class LogFileWriter
             i++;
         }
     }
+
+    #endregion
+
+    #region Dependencies
+
+    private static readonly Lock _lock = new();
+    private static readonly long MaxFileSizeBytes = 10 * 1024 * 1024;
+
+    private static readonly string LogDir =
+        Path.Combine(
+            Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Parent?.Parent?.Parent?.FullName ??
+            AppContext.BaseDirectory, "logs");
+
+    private string CurrentLogPath => Path.Combine(LogDir, $"trackarr_{DateTime.UtcNow:yyyyMMdd}.log");
+
+    public string? LastError { get; private set; }
+
+    #endregion
 }

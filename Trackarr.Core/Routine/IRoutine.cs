@@ -2,19 +2,18 @@
 
 public interface IRoutine
 {
-    public int Id { get; set; }
-    public string Key { get; }
-    public string Name { get; set; }
-    public string Description { get; set; }
-    public bool Enabled { get; set; }
-    public int LastRunTime { get; set; }
-    public int IntervalSeconds { get; set; }
-    public DateTime LastRun { get; set; }
-    public DateTimeOffset NextRun { get; set; }
-    public bool IsRunning { get; set; }
-    public bool IsPaused { get; set; }
-    public bool LastRunSuccess { get; set; }
+    int Id { get; set; }
+    string Key { get; }
+    string Name { get; set; }
+    string Description { get; set; }
+    bool Enabled { get; set; }
+    int LastRunTime { get; set; }
+    int IntervalSeconds { get; set; }
+    DateTime LastRun { get; set; }
+    DateTimeOffset NextRun { get; set; }
+    bool IsRunning { get; set; }
+    bool IsPaused { get; set; }
+    bool LastRunSuccess { get; set; }
     IEnumerable<RoutineRun>? Runs { get; set; }
-    public Task<string> ExecuteAsync(CancellationToken cancellationToken);
-    public Task RegisterRoutineInDbAsync(CancellationToken cancellationToken);
+    Task<string> ExecuteAsync(CancellationToken cancellationToken);
 }

@@ -11,7 +11,23 @@ public enum ServiceType
 
 public class MediaServer
 {
+    #region Identity
+
     public int Id { get; set; }
+
+    #endregion
+
+    #region Methods
+
+    public MediaServer Clone()
+    {
+        return (MediaServer)MemberwiseClone();
+    }
+
+    #endregion
+
+    #region Properties
+
     public string Name { get; set; } = string.Empty;
     public ServiceType ServiceType { get; set; }
 
@@ -50,6 +66,10 @@ public class MediaServer
     public DateTime? LastErrorAt { get; set; }
     public string? LastError { get; set; }
 
+    #endregion
+
+    #region Computed
+
     public string BaseUrl => $"{(UseHttps ? "https" : "http")}://{Host}:{Port}";
 
     [NotMapped] public ServerMetadata? Metadata { get; set; }
@@ -57,8 +77,5 @@ public class MediaServer
     [NotMapped] public List<DownloadItem>? Queue { get; set; }
     [NotMapped] public QualityProfile? FallbackProfile { get; set; }
 
-    public MediaServer Clone()
-    {
-        return (MediaServer)MemberwiseClone();
-    }
+    #endregion
 }

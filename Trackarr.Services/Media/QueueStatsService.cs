@@ -5,7 +5,7 @@ using Trackarr.Data;
 
 namespace Trackarr.Services.Media;
 
-public class QueueStatsService(IDbContextFactory<AppDbContext> dbFactory)
+public sealed class QueueStatsService(IDbContextFactory<AppDbContext> dbFactory)
 {
     public QueuePageData BuildStats(List<DownloadItem> downloads, Dictionary<string, HealthSnapshot> snapshots,
         Dictionary<string, MediaHealthSummary> summaries, Func<DownloadItem, string> keyFunc)

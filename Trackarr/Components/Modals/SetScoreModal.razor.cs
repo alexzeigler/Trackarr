@@ -6,12 +6,18 @@ namespace Trackarr.Components.Modals;
 
 public partial class SetScoreModal : ComponentBase
 {
+    #region State
+
     private int _confidence;
     private string? _errorMessage;
     private bool _isSaving;
     private DownloadItem? _item;
     private string _itemTitle = "";
     private int _score = 70;
+
+    #endregion
+
+    #region Event Handlers
 
     public async Task Open(DownloadItem item, string title, int? currentScore = null, int? currentConfidence = null)
     {
@@ -50,4 +56,6 @@ public partial class SetScoreModal : ComponentBase
             StateHasChanged();
         }
     }
+
+    #endregion
 }

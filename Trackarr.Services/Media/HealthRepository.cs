@@ -13,7 +13,13 @@ namespace Trackarr.Services.Media;
 /// </summary>
 public sealed class HealthRepository(HealthPolicy? policy = null)
 {
+    #region Dependencies
+
     private readonly HealthPolicy _policy = policy ?? new HealthPolicy();
+
+    #endregion
+
+    #region Attempt Management
 
     public async Task<DownloadAttempt> GetOrCreateAttemptAsync(AppDbContext db, DownloadItem item, MediaServer? server,
         DateTime now, CancellationToken cancellationToken)
@@ -71,6 +77,10 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
         return attempt;
     }
 
+    #endregion
+
+    #region Snapshot Management
+
     public async Task<HealthSnapshot> GetOrCreateSnapshotAsync(AppDbContext db, DownloadAttempt attempt, DateTime now,
         CancellationToken cancellationToken)
     {
@@ -102,6 +112,10 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
 
         return snapshot;
     }
+
+    #endregion
+
+    #region Summary Updates
 
     public async Task<MediaHealthSummary?> GetMediaSummaryAsync(AppDbContext db, DownloadAttempt attempt,
         CancellationToken cancellationToken)
@@ -280,6 +294,10 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
         summary.UpdatedAt = now;
     }
 
+    #endregion
+
+    #region Helpers
+
     private static async Task<int> GetReplacementAttemptNumberAsync(AppDbContext db, TrackedMediaType mediaType,
         int? movieId, int? seriesId, int? episodeId, CancellationToken cancellationToken)
     {
@@ -320,4 +338,6 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
 
         return string.Join(":", new[] { title, indexer, protocol }.Where(e => !string.IsNullOrWhiteSpace(e)));
     }
+
+    #endregion
 }

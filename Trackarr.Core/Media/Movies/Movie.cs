@@ -2,6 +2,8 @@
 
 public class Movie : MediaItem
 {
+    #region Properties
+
     public string? OriginalTitle { get; set; }
     public string? Website { get; set; }
     public string? YouTubeTrailerId { get; set; }
@@ -22,4 +24,6 @@ public class Movie : MediaItem
     public string? AlternateTitlesJson { get; set; }
     public string? KeywordsJson { get; set; }
     public string? CollectionJson { get; set; }
+
+    #endregion
 }

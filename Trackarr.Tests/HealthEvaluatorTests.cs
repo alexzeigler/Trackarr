@@ -1,7 +1,6 @@
 using Trackarr.Core.Health;
 using Trackarr.Core.Queue;
 using Trackarr.Services.Media;
-using Xunit;
 
 namespace Trackarr.Tests;
 
@@ -14,14 +13,15 @@ public class HealthEvaluatorTests
     private static readonly HealthPolicy Policy = new();
     private readonly HealthEvaluator _evaluator = new(Policy);
 
-    private static DownloadAttempt NewAttempt() => new()
-    {
-        Id = 1,
-        DownloadId = "abc",
-        Title = "Test Download",
-        Status = AttemptStatus.Active,
-        FirstSeenAt = DateTime.UtcNow.AddHours(-1)
-    };
+    private static DownloadAttempt NewAttempt() =>
+        new()
+        {
+            Id = 1,
+            DownloadId = "abc",
+            Title = "Test Download",
+            Status = AttemptStatus.Active,
+            FirstSeenAt = DateTime.UtcNow.AddHours(-1)
+        };
 
     [Fact]
     public void FirstObservation_ReturnsFirstSeenBaseline()
@@ -46,9 +46,7 @@ public class HealthEvaluatorTests
         var now = DateTime.UtcNow;
         var snapshot = new HealthSnapshot
         {
-            LastObservationAt = now.AddMinutes(-1),
-            LastProgress = 10m,
-            LastSizeLeft = 1000
+            LastObservationAt = now.AddMinutes(-1), LastProgress = 10m, LastSizeLeft = 1000
         };
         var item = new DownloadItem { Size = 1000, SizeLeft = 500 }; // now 50%, size left fell
 
@@ -68,14 +66,11 @@ public class HealthEvaluatorTests
         var now = DateTime.UtcNow;
         var snapshot = new HealthSnapshot
         {
-            LastObservationAt = now.AddMinutes(-1),
-            ConsecutiveBadScans = 0 // streak of 1 => penalty multiplier of 1
+            LastObservationAt = now.AddMinutes(-1), ConsecutiveBadScans = 0 // streak of 1 => penalty multiplier of 1
         };
         var item = new DownloadItem
         {
-            Size = 1000,
-            SizeLeft = 1000,
-            ErrorMessage = "The download is stalled with no connections"
+            Size = 1000, SizeLeft = 1000, ErrorMessage = "The download is stalled with no connections"
         };
 
         var observation = HealthEvaluator.BuildObservation(item, attempt, snapshot, now);
@@ -84,7 +79,7 @@ public class HealthEvaluatorTests
         var evaluation = _evaluator.Evaluate(attempt, snapshot, null, observation, 0, 0);
 
         // Exactly one application of the -20 penalty (the bug produced -40).
-        Assert.Equal((decimal)Policy.StalledNoConnectionsPenalty, evaluation.ScoreDelta);
+        Assert.Equal(Policy.StalledNoConnectionsPenalty, evaluation.ScoreDelta);
     }
 
     [Fact]
@@ -93,12 +88,7 @@ public class HealthEvaluatorTests
         // Regression guard: the good-observation decay used to be overwritten and never applied.
         var now = DateTime.UtcNow;
         var snapshot = new HealthSnapshot { BadScansInLastTen = 0 };
-        var evaluation = new HealthEvaluation
-        {
-            IsGoodObservation = true,
-            BadScansInWindow = 5,
-            GoodScansInWindow = 1
-        };
+        var evaluation = new HealthEvaluation { IsGoodObservation = true, BadScansInWindow = 5, GoodScansInWindow = 1 };
 
         _evaluator.ApplyEvaluation(snapshot, evaluation, now);
 

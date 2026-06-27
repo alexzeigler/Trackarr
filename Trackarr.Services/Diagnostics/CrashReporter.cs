@@ -4,12 +4,18 @@ namespace Trackarr.Services.Diagnostics;
 
 public static class CrashReporter
 {
+    #region Properties
+
     private static string CrashDir =>
         Path.Combine(
             Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Parent?.Parent?.Parent?.FullName ??
             AppContext.BaseDirectory, "crashes");
 
     public static string? LastError { get; private set; }
+
+    #endregion
+
+    #region Public API
 
     public static void Write(Exception ex, string source = "Unhandled")
     {
@@ -71,4 +77,6 @@ public static class CrashReporter
             LastError = $"Failed to delete crash file '{path}': {e.GetType().Name}: {e.Message}";
         }
     }
+
+    #endregion
 }

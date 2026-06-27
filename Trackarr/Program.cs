@@ -5,13 +5,13 @@ using Trackarr;
 using Trackarr.Components;
 using Trackarr.Core.Routine;
 using Trackarr.Data;
+using Trackarr.Routines;
 using Trackarr.Services.Diagnostics;
 using Trackarr.Services.Media;
 using Trackarr.Services.Routines;
 using Trackarr.Services.Settings;
 using Trackarr.Services.SystemInfo;
 using Trackarr.Services.UI;
-using Trackarr.Tasks;
 using _Imports = Trackarr.Client._Imports;
 
 var builder = WebApplication.CreateBuilder(args);

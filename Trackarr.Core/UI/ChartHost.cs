@@ -6,8 +6,8 @@ namespace Trackarr.Core.UI;
 public class ChartHost : ComponentBase
 {
     private bool _rendered;
-    [Parameter] public string Id { get; set; } = "";
-    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public string Id { get; set; } = string.Empty;
+    [Parameter] public string Class { get; set; } = string.Empty;
 
     protected override bool ShouldRender()
     {

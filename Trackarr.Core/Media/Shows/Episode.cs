@@ -7,13 +7,17 @@ namespace Trackarr.Core.Media.Shows;
 
 public class Episode
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+    #region Identity
 
     [JsonIgnore] public int Id { get; set; }
 
     [JsonPropertyName("id")] public int RemoteId { get; set; }
 
     [JsonPropertyName("seriesId")] public int RemoteSeriesId { get; set; }
+
+    #endregion
+
+    #region Properties
 
     public int TvdbId { get; set; }
     public int EpisodeFileId { get; set; }
@@ -46,6 +50,10 @@ public class Episode
     [JsonIgnore] public string? EpisodeFileJson { get; set; }
     [JsonIgnore] public string? SeriesJson { get; set; }
 
+    #endregion
+
+    #region Navigation
+
     public int? SeriesDbId { get; set; }
 
     [JsonIgnore]
@@ -58,28 +66,32 @@ public class Episode
     [ForeignKey(nameof(ServerId))]
     public MediaServer? ParentServer { get; set; }
 
+    #endregion
+
+    #region Computed
+
     [NotMapped]
     [JsonPropertyName("images")]
     public List<MediaImage>? ImageResources
     {
-        get => Deserialize<List<MediaImage>>(ImagesJson);
-        set => ImagesJson = Serialize(value);
+        get => JsonHelper.Deserialize<List<MediaImage>>(ImagesJson);
+        set => ImagesJson = JsonHelper.Serialize(value);
     }
 
     [NotMapped]
     [JsonPropertyName("episodeFile")]
     public JsonElement? EpisodeFile
     {
-        get => Deserialize<JsonElement>(EpisodeFileJson);
-        set => EpisodeFileJson = Serialize(value);
+        get => JsonHelper.Deserialize<JsonElement>(EpisodeFileJson);
+        set => EpisodeFileJson = JsonHelper.Serialize(value);
     }
 
     [NotMapped]
     [JsonPropertyName("series")]
     public JsonElement? SeriesResource
     {
-        get => Deserialize<JsonElement>(SeriesJson);
-        set => SeriesJson = Serialize(value);
+        get => JsonHelper.Deserialize<JsonElement>(SeriesJson);
+        set => SeriesJson = JsonHelper.Serialize(value);
     }
 
     [NotMapped] [JsonIgnore] public IReadOnlyList<MediaImage> Images => ImageResources ?? [];
@@ -90,26 +102,5 @@ public class Episode
 
     [NotMapped] [JsonIgnore] public string? BannerUrl => Images.FirstOrDefault(i => i.CoverType == "banner")?.RemoteUrl;
 
-    private static T? Deserialize<T>(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return default;
-
-        try
-        {
-            return JsonSerializer.Deserialize<T>(json, JsonOptions);
-        }
-        catch
-        {
-            return default;
-        }
-    }
-
-    private static string? Serialize<T>(T? value)
-    {
-        if (value == null) return null;
-
-        if (value is JsonElement element) return element.GetRawText();
-
-        return JsonSerializer.Serialize(value, JsonOptions);
-    }
+    #endregion
 }

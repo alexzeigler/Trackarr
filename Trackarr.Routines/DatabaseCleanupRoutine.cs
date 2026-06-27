@@ -4,7 +4,7 @@ using Trackarr.Core.Routine;
 using Trackarr.Data;
 using Trackarr.Services.Settings;
 
-namespace Trackarr.Tasks;
+namespace Trackarr.Routines;
 
 public sealed class DatabaseCleanupRoutine(IDbContextFactory<AppDbContext> dbFactory, SettingsService settings)
     : Routine

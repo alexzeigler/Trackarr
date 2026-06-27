@@ -22,4 +22,5 @@
         <_ContentIncludedByDefault Remove="wwwroot\exampleJsInterop.js"/>
     </ItemGroup>
 
+
 </Project>

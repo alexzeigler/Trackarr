@@ -11,6 +11,37 @@ public sealed class SystemStatusService(IDbContextFactory<AppDbContext> dbFactor
 {
     private AppInfo? _cachedAppInfo;
 
+    #region Helpers
+
+    private async Task<(string Type, string Version, int MigrationCount)> GetDatabaseInfoAsync()
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        var version = "Unknown";
+        try
+        {
+            var conn = db.Database.GetDbConnection();
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT sqlite_version()";
+            var result = await cmd.ExecuteScalarAsync();
+            if (result is string v) version = v;
+            await conn.CloseAsync();
+        }
+        catch
+        {
+            // non-critical
+        }
+
+        var migrationCount = (await db.Database.GetAppliedMigrationsAsync()).Count();
+
+        return ("SQLite", version, migrationCount);
+    }
+
+    #endregion
+
+    #region Public API
+
     public async Task<AppInfo> GetAppInfoAsync()
     {
         if (_cachedAppInfo is not null)
@@ -162,28 +193,5 @@ public sealed class SystemStatusService(IDbContextFactory<AppDbContext> dbFactor
         return result;
     }
 
-    private async Task<(string Type, string Version, int MigrationCount)> GetDatabaseInfoAsync()
-    {
-        await using var db = await dbFactory.CreateDbContextAsync();
-
-        var version = "Unknown";
-        try
-        {
-            var conn = db.Database.GetDbConnection();
-            await conn.OpenAsync();
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT sqlite_version()";
-            var result = await cmd.ExecuteScalarAsync();
-            if (result is string v) version = v;
-            await conn.CloseAsync();
-        }
-        catch
-        {
-            // non-critical
-        }
-
-        var migrationCount = (await db.Database.GetAppliedMigrationsAsync()).Count();
-
-        return ("SQLite", version, migrationCount);
-    }
+    #endregion
 }

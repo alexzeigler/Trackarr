@@ -2,8 +2,15 @@
 
 public sealed class RoutineDefinition
 {
+    #region Identity
+
     public int Id { get; set; }
     public required string Key { get; set; }
+
+    #endregion
+
+    #region Properties
+
     public required string Name { get; set; }
     public required string Description { get; set; }
     public bool Enabled { get; set; }
@@ -16,4 +23,6 @@ public sealed class RoutineDefinition
 
     public List<RoutineRun> Runs { get; set; } = [];
     public int LastRunTime { get; set; }
+
+    #endregion
 }

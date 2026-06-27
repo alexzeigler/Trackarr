@@ -15,6 +15,36 @@ namespace Trackarr.Components.Modals;
 
 public partial class MediaDetailsModal : ComponentBase
 {
+    #region Lifecycle
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await Js.InvokeVoidAsync("initTooltips");
+    }
+
+    #endregion
+
+    private sealed class ActiveDownloadContext
+    {
+        public required DownloadItem QueueItem { get; init; }
+        public DownloadAttempt? Attempt { get; init; }
+        public HealthSnapshot? Snapshot { get; init; }
+        public DownloadHealthEvent? LatestEvent { get; init; }
+        public int FileCount { get; init; }
+        public List<string> FileNames { get; init; } = [];
+    }
+
+    #region Parameters
+
+    [Parameter] public DownloadItem? Item { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<DownloadItem> OnForceRecheck { get; set; }
+    [Parameter] public EventCallback<DownloadItem> OnRemoveFromQueue { get; set; }
+
+    #endregion
+
+    #region State
+
     private const int EventPageSize = 10;
 
     private static readonly Regex SeasonOnlyRegex =
@@ -130,64 +160,19 @@ public partial class MediaDetailsModal : ComponentBase
     private string ActiveStatusText =>
         ActiveQueueItem != null ? TextDisplay(ActiveQueueItem.Status) : "Not downloading";
 
-    [Parameter] public DownloadItem? Item { get; set; }
-    [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback<DownloadItem> OnForceRecheck { get; set; }
-    [Parameter] public EventCallback<DownloadItem> OnRemoveFromQueue { get; set; }
-
     private int ServerId => _server?.Id ?? _movie?.ServerId ?? _series?.ServerId ?? _episode?.ServerId ?? 0;
     private int? MovieRemoteId => _movie?.RemoteId;
     private int? SeriesRemoteId => _series?.RemoteId ?? _episode?.RemoteSeriesId;
     private int? EpisodeRemoteId => _episode?.RemoteId;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        await Js.InvokeVoidAsync("initTooltips");
-    }
+    #endregion
 
-    private static string HealthBadgeClass(HealthState? state)
-    {
-        return state?.ToString().ToLowerInvariant() switch
-        {
-            "healthy" => "badge bg-success-lt text-success",
-            "ok" => "badge bg-success-lt text-success",
-            "watching" => "badge bg-blue-lt text-blue",
-            "warning" => "badge bg-warning-lt text-warning",
-            "severe" => "badge bg-danger-lt text-danger",
-            "failed" => "badge bg-danger-lt text-danger",
-            "protected" => "badge bg-blue-lt text-blue",
-            _ => "badge bg-secondary-lt text-secondary"
-        };
-    }
-
-    private static string EpisodeTitle(Episode ep)
-    {
-        return $"{ep.Title} (S{ep.SeasonNumber:D2}E{ep.EpisodeNumber:D2})";
-    }
+    #region Event Handlers
 
     private void ToggleSeason(int season)
     {
         if (!_openSeasons.Remove(season))
             _openSeasons.Add(season);
-    }
-
-    private static string SeasonLabel(int season)
-    {
-        return season == 0 ? "Specials" : $"Season {season}";
-    }
-
-    private static string AttemptStatusBadgeClass(AttemptStatus status)
-    {
-        return status.ToString() switch
-        {
-            "Active" => "badge bg-primary-lt text-primary",
-            "Completed" => "badge bg-success-lt text-success",
-            "Imported" => "badge bg-success-lt text-success",
-            "Failed" => "badge bg-danger-lt text-danger",
-            "Removed" => "badge bg-orange-lt text-orange",
-            "Replaced" => "badge bg-blue-lt text-blue",
-            _ => "badge bg-secondary-lt text-secondary"
-        };
     }
 
     private async Task ToggleAttemptExpand(int attemptId)
@@ -204,6 +189,231 @@ public partial class MediaDetailsModal : ComponentBase
         {
             var events = await HealthService.GetEventsAsync(attemptId);
             _attemptEvents[attemptId] = events;
+        }
+    }
+
+    private void SetEventPage(int attemptId, int page)
+    {
+        var max = GetEventPageCount(attemptId) - 1;
+        _eventPageIndex[attemptId] = Math.Clamp(page, 0, Math.Max(0, max));
+    }
+
+    public async Task Open(Movie movie)
+    {
+        await OpenMediaAsync(movie.ServerId, movie, null, null);
+    }
+
+    public async Task Open(Series series)
+    {
+        await OpenMediaAsync(series.ServerId, null, series, null);
+    }
+
+    public async Task Open(Episode episode, Series? series = null)
+    {
+        await OpenMediaAsync(episode.ServerId, null, series, episode);
+    }
+
+    public async Task Open(DownloadItem item, int serverId, Movie? movie = null, Series? series = null,
+        Episode? episode = null)
+    {
+        await OpenMediaAsync(serverId, movie, series, episode, item);
+    }
+
+    public async Task Open(Movie movie, DownloadItem? queueItem)
+    {
+        await OpenMediaAsync(movie.ServerId, movie, null, null, queueItem);
+    }
+
+    public async Task Open(Series series, DownloadItem? queueItem)
+    {
+        await OpenMediaAsync(series.ServerId, null, series, null, queueItem);
+    }
+
+    public async Task Open(Episode episode, Series? series, DownloadItem? queueItem)
+    {
+        await OpenMediaAsync(episode.ServerId, null, series, episode, queueItem);
+    }
+
+    private async Task ForceRecheck()
+    {
+        if (Item != null) await OnForceRecheck.InvokeAsync(Item);
+    }
+
+    private async Task RemoveFromQueue()
+    {
+        if (Item != null) await OnRemoveFromQueue.InvokeAsync(Item);
+    }
+
+    private async Task RefreshAsync()
+    {
+        _isRefreshing = true;
+        StateHasChanged();
+        try
+        {
+            var delay = Task.Delay(1000);
+            _attemptEvents.Clear();
+            _eventPageIndex.Clear();
+            _selectedAttemptId = null;
+            await LoadHealthDataAsync();
+            await BuildActiveContextsAsync();
+            await delay;
+        }
+        finally
+        {
+            _isRefreshing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task EvaluateItem()
+    {
+        if (_queueItem == null)
+            return;
+
+        _isRefreshing = true;
+        StateHasChanged();
+        try
+        {
+            var delay = Task.Delay(1000);
+            await HealthService.EvaluateAsync(_queueItem);
+            await LoadHealthDataAsync();
+            await BuildActiveContextsAsync();
+            await delay;
+        }
+        finally
+        {
+            _isRefreshing = false;
+            StateHasChanged();
+        }
+    }
+
+    #endregion
+
+    #region Data Loading
+
+    private async Task OpenMediaAsync(int serverId, Movie? movie, Series? series, Episode? episode,
+        DownloadItem? queueItem = null)
+    {
+        ResetModalState();
+
+        _movie = movie;
+        _series = series;
+        _episode = episode;
+        _media = (MediaItem?)movie ?? series;
+        _queueItem = queueItem;
+
+        _server = await MediaServerService.GetServerByIdAsync(serverId);
+        await LoadProfilesAsync();
+
+        await ResolveMediaAsync(_queueItem);
+        await ResolveQueueAsync();
+        await LoadHealthDataAsync();
+        await LoadFilesAsync();
+        await BuildActiveContextsAsync();
+
+        _openSeasons = _episodes.Select(e => e.SeasonNumber).ToHashSet();
+
+        await InvokeAsync(StateHasChanged);
+        await Js.InvokeVoidAsync("modalHelper.show", "mediaDetailsModal");
+    }
+
+    private async Task ResolveQueueAsync()
+    {
+        _queueItems = [];
+
+        if (_server == null)
+            return;
+
+        var queue = await MediaServerService.GetQueueAsync(_server);
+
+        _queueItems = queue.Where(QueueMatchesMedia).ToList();
+
+        _queueItem ??= _queueItems.OrderByDescending(x => x.Added).FirstOrDefault();
+    }
+
+    private async Task LoadHealthDataAsync()
+    {
+        if (_queueItem != null)
+        {
+            _healthEvents = await HealthService.GetEventsForItemAsync(_queueItem);
+            _mostRecentSnapshot = await HealthService.GetMostRecentSnapshotAsync(_queueItem);
+            _mediaHealthSummary = await HealthService.GetMediaSummary(_queueItem);
+        }
+        else
+        {
+            _healthEvents =
+                await HealthService.GetEventsForMediaAsync(ServerId, MovieRemoteId, SeriesRemoteId, EpisodeRemoteId);
+            _mostRecentSnapshot =
+                await HealthService.GetMostRecentSnapshotAsync(ServerId, MovieRemoteId, SeriesRemoteId,
+                    EpisodeRemoteId);
+            _mediaHealthSummary =
+                await HealthService.GetMediaSummary(ServerId, MovieRemoteId, SeriesRemoteId, EpisodeRemoteId);
+        }
+
+        _downloadAttempts =
+            (await HealthService.GetDownloadAttemptsAsync(ServerId, MovieRemoteId, SeriesRemoteId, null))
+            .OrderByDescending(x => x.FirstSeenAt).ToList();
+    }
+
+    private async Task LoadProfilesAsync()
+    {
+        if (_server != null)
+        {
+            var profiles = await MediaServerService.GetProfilesAsync(_server);
+            foreach (var p in profiles) _profiles[$"{p.ServerId}_{p.RemoteId}"] = p;
+        }
+    }
+
+    private async Task ResolveMediaAsync(DownloadItem? item)
+    {
+        if (_movie != null)
+        {
+            _media = _movie;
+            return;
+        }
+
+        if (_series != null)
+        {
+            _media = _series;
+            return;
+        }
+
+        if (_episode?.Series != null)
+        {
+            _series = _episode.Series;
+            _media = _series;
+            return;
+        }
+
+        if (_server == null) return;
+
+        if (item is { MovieId: > 0 })
+        {
+            _movie = await MediaServerService.GetMovieByIdAsync(_server, item.MovieId);
+            _media = _movie;
+            return;
+        }
+
+        if (item is { SeriesId: > 0 })
+        {
+            _series = await MediaServerService.GetSeriesByIdAsync(_server, item.SeriesId);
+            _media = _series;
+        }
+    }
+
+    private async Task LoadFilesAsync()
+    {
+        _episodes = [];
+        _queuedEpisodeIds = _queueItems.Where(x => x.EpisodeId > 0).Select(x => x.EpisodeId).ToHashSet();
+        _queuedMovieIds = _queueItems.Where(x => x.MovieId > 0).Select(x => x.MovieId).ToHashSet();
+
+        if (_server == null)
+            return;
+
+        if (_series != null)
+        {
+            _episodes = await MediaServerService.GetEpisodesBySeriesIdAsync(_series.ServerId, _series.RemoteId);
+            _episodes = _episodes.OrderBy(x => x.SeasonNumber).ThenBy(x => x.EpisodeNumber).ToList();
         }
     }
 
@@ -244,6 +454,49 @@ public partial class MediaDetailsModal : ComponentBase
                 FileNames = fileNames
             });
         }
+    }
+
+    #endregion
+
+    #region Display Helpers
+
+    private static string HealthBadgeClass(HealthState? state)
+    {
+        return state?.ToString().ToLowerInvariant() switch
+        {
+            "healthy" => "badge bg-success-lt text-success",
+            "ok" => "badge bg-success-lt text-success",
+            "watching" => "badge bg-blue-lt text-blue",
+            "warning" => "badge bg-warning-lt text-warning",
+            "severe" => "badge bg-danger-lt text-danger",
+            "failed" => "badge bg-danger-lt text-danger",
+            "protected" => "badge bg-blue-lt text-blue",
+            _ => "badge bg-secondary-lt text-secondary"
+        };
+    }
+
+    private static string EpisodeTitle(Episode ep)
+    {
+        return $"{ep.Title} (S{ep.SeasonNumber:D2}E{ep.EpisodeNumber:D2})";
+    }
+
+    private static string SeasonLabel(int season)
+    {
+        return season == 0 ? "Specials" : $"Season {season}";
+    }
+
+    private static string AttemptStatusBadgeClass(AttemptStatus status)
+    {
+        return status.ToString() switch
+        {
+            "Active" => "badge bg-primary-lt text-primary",
+            "Completed" => "badge bg-success-lt text-success",
+            "Imported" => "badge bg-success-lt text-success",
+            "Failed" => "badge bg-danger-lt text-danger",
+            "Removed" => "badge bg-orange-lt text-orange",
+            "Replaced" => "badge bg-blue-lt text-blue",
+            _ => "badge bg-secondary-lt text-secondary"
+        };
     }
 
     private (int Count, List<string> Names) GetAttemptFiles(DownloadAttempt attempt)
@@ -347,88 +600,6 @@ public partial class MediaDetailsModal : ComponentBase
         return events.Skip(page * EventPageSize).Take(EventPageSize).ToList();
     }
 
-    private void SetEventPage(int attemptId, int page)
-    {
-        var max = GetEventPageCount(attemptId) - 1;
-        _eventPageIndex[attemptId] = Math.Clamp(page, 0, Math.Max(0, max));
-    }
-
-    public async Task Open(Movie movie)
-    {
-        await OpenMediaAsync(movie.ServerId, movie, null, null);
-    }
-
-    public async Task Open(Series series)
-    {
-        await OpenMediaAsync(series.ServerId, null, series, null);
-    }
-
-    public async Task Open(Episode episode, Series? series = null)
-    {
-        await OpenMediaAsync(episode.ServerId, null, series, episode);
-    }
-
-    public async Task Open(DownloadItem item, int serverId, Movie? movie = null, Series? series = null,
-        Episode? episode = null)
-    {
-        await OpenMediaAsync(serverId, movie, series, episode, item);
-    }
-
-    public async Task Open(Movie movie, DownloadItem? queueItem)
-    {
-        await OpenMediaAsync(movie.ServerId, movie, null, null, queueItem);
-    }
-
-    public async Task Open(Series series, DownloadItem? queueItem)
-    {
-        await OpenMediaAsync(series.ServerId, null, series, null, queueItem);
-    }
-
-    public async Task Open(Episode episode, Series? series, DownloadItem? queueItem)
-    {
-        await OpenMediaAsync(episode.ServerId, null, series, episode, queueItem);
-    }
-
-    private async Task OpenMediaAsync(int serverId, Movie? movie, Series? series, Episode? episode,
-        DownloadItem? queueItem = null)
-    {
-        ResetModalState();
-
-        _movie = movie;
-        _series = series;
-        _episode = episode;
-        _media = (MediaItem?)movie ?? series;
-        _queueItem = queueItem;
-
-        _server = await MediaServerService.GetServerByIdAsync(serverId);
-        await LoadProfilesAsync();
-
-        await ResolveMediaAsync(_queueItem);
-        await ResolveQueueAsync();
-        await LoadHealthDataAsync();
-        await LoadFilesAsync();
-        await BuildActiveContextsAsync();
-
-        _openSeasons = _episodes.Select(e => e.SeasonNumber).ToHashSet();
-
-        await InvokeAsync(StateHasChanged);
-        await Js.InvokeVoidAsync("modalHelper.show", "mediaDetailsModal");
-    }
-
-    private async Task ResolveQueueAsync()
-    {
-        _queueItems = [];
-
-        if (_server == null)
-            return;
-
-        var queue = await MediaServerService.GetQueueAsync(_server);
-
-        _queueItems = queue.Where(QueueMatchesMedia).ToList();
-
-        _queueItem ??= _queueItems.OrderByDescending(x => x.Added).FirstOrDefault();
-    }
-
     private bool QueueMatchesMedia(DownloadItem item)
     {
         if (_episode != null)
@@ -443,80 +614,38 @@ public partial class MediaDetailsModal : ComponentBase
         return false;
     }
 
-    private async Task RefreshAsync()
+    private void ResetModalState()
     {
-        _isRefreshing = true;
-        StateHasChanged();
-        try
-        {
-            var delay = Task.Delay(1000);
-            _attemptEvents.Clear();
-            _eventPageIndex.Clear();
-            _selectedAttemptId = null;
-            await LoadHealthDataAsync();
-            await BuildActiveContextsAsync();
-            await delay;
-        }
-        finally
-        {
-            _isRefreshing = false;
-            StateHasChanged();
-        }
+        _activeTab = "overview";
+        Item = null;
+        _media = null;
+        _server = null;
+        _movie = null;
+        _series = null;
+        _episode = null;
+        _mostRecentSnapshot = null;
+        _healthEvents = [];
+        _downloadAttempts = [];
+        _mediaHealthSummary = null;
+        _selectedAttemptId = null;
+        _attemptEvents = [];
+        _eventPageIndex = [];
+        _activeContexts = [];
+        _activeContextIndex = 0;
+        _isRefreshing = false;
     }
 
-    private async Task EvaluateItem()
+    private QualityProfile? GetProfile()
     {
-        if (_queueItem == null)
-            return;
-
-        _isRefreshing = true;
-        StateHasChanged();
-        try
-        {
-            var delay = Task.Delay(1000);
-            await HealthService.EvaluateAsync(_queueItem);
-            await LoadHealthDataAsync();
-            await BuildActiveContextsAsync();
-            await delay;
-        }
-        finally
-        {
-            _isRefreshing = false;
-            StateHasChanged();
-        }
+        return _movie != null ? _profiles.GetValueOrDefault($"{_movie.ServerId}_{_movie.QualityProfileId}") :
+            _series != null ? _profiles.GetValueOrDefault($"{_series.ServerId}_{_series.QualityProfileId}") : null;
     }
 
-    private async Task LoadHealthDataAsync()
+    private (string Label, string Css) FileStatus(bool hasFile, bool queued)
     {
-        if (_queueItem != null)
-        {
-            _healthEvents = await HealthService.GetEventsForItemAsync(_queueItem);
-            _mostRecentSnapshot = await HealthService.GetMostRecentSnapshotAsync(_queueItem);
-            _mediaHealthSummary = await HealthService.GetMediaSummary(_queueItem);
-        }
-        else
-        {
-            _healthEvents =
-                await HealthService.GetEventsForMediaAsync(ServerId, MovieRemoteId, SeriesRemoteId, EpisodeRemoteId);
-            _mostRecentSnapshot =
-                await HealthService.GetMostRecentSnapshotAsync(ServerId, MovieRemoteId, SeriesRemoteId,
-                    EpisodeRemoteId);
-            _mediaHealthSummary =
-                await HealthService.GetMediaSummary(ServerId, MovieRemoteId, SeriesRemoteId, EpisodeRemoteId);
-        }
-
-        _downloadAttempts =
-            (await HealthService.GetDownloadAttemptsAsync(ServerId, MovieRemoteId, SeriesRemoteId, null))
-            .OrderByDescending(x => x.FirstSeenAt).ToList();
-    }
-
-    private async Task LoadProfilesAsync()
-    {
-        if (_server != null)
-        {
-            var profiles = await MediaServerService.GetProfilesAsync(_server);
-            foreach (var p in profiles) _profiles[$"{p.ServerId}_{p.RemoteId}"] = p;
-        }
+        if (hasFile) return ("Downloaded", "badge bg-success-lt text-success");
+        if (queued) return ("Downloading", "badge bg-blue-lt text-blue");
+        return ("Missing", "badge bg-warning-lt text-warning");
     }
 
     private static string SeverityBadgeClass(Severity severity)
@@ -550,110 +679,5 @@ public partial class MediaDetailsModal : ComponentBase
         };
     }
 
-    private async Task ResolveMediaAsync(DownloadItem? item)
-    {
-        if (_movie != null)
-        {
-            _media = _movie;
-            return;
-        }
-
-        if (_series != null)
-        {
-            _media = _series;
-            return;
-        }
-
-        if (_episode?.Series != null)
-        {
-            _series = _episode.Series;
-            _media = _series;
-            return;
-        }
-
-        if (_server == null) return;
-
-        if (item is { MovieId: > 0 })
-        {
-            _movie = await MediaServerService.GetMovieByIdAsync(_server, item.MovieId);
-            _media = _movie;
-            return;
-        }
-
-        if (item is { SeriesId: > 0 })
-        {
-            _series = await MediaServerService.GetSeriesByIdAsync(_server, item.SeriesId);
-            _media = _series;
-        }
-    }
-
-    private async Task ForceRecheck()
-    {
-        if (Item != null) await OnForceRecheck.InvokeAsync(Item);
-    }
-
-    private async Task RemoveFromQueue()
-    {
-        if (Item != null) await OnRemoveFromQueue.InvokeAsync(Item);
-    }
-
-    private void ResetModalState()
-    {
-        _activeTab = "overview";
-        Item = null;
-        _media = null;
-        _server = null;
-        _movie = null;
-        _series = null;
-        _episode = null;
-        _mostRecentSnapshot = null;
-        _healthEvents = [];
-        _downloadAttempts = [];
-        _mediaHealthSummary = null;
-        _selectedAttemptId = null;
-        _attemptEvents = [];
-        _eventPageIndex = [];
-        _activeContexts = [];
-        _activeContextIndex = 0;
-        _isRefreshing = false;
-    }
-
-    private QualityProfile? GetProfile()
-    {
-        return _movie != null ? _profiles.GetValueOrDefault($"{_movie.ServerId}_{_movie.QualityProfileId}") :
-            _series != null ? _profiles.GetValueOrDefault($"{_series.ServerId}_{_series.QualityProfileId}") : null;
-    }
-
-    private async Task LoadFilesAsync()
-    {
-        _episodes = [];
-        _queuedEpisodeIds = _queueItems.Where(x => x.EpisodeId > 0).Select(x => x.EpisodeId).ToHashSet();
-        _queuedMovieIds = _queueItems.Where(x => x.MovieId > 0).Select(x => x.MovieId).ToHashSet();
-
-        if (_server == null)
-            return;
-
-        if (_series != null)
-        {
-            _episodes = await MediaServerService.GetEpisodesBySeriesIdAsync(_series.ServerId, _series.RemoteId);
-            _episodes = _episodes.OrderBy(x => x.SeasonNumber).ThenBy(x => x.EpisodeNumber).ToList();
-        }
-    }
-
-    private (string Label, string Css) FileStatus(bool hasFile, bool queued)
-    {
-        if (hasFile) return ("Downloaded", "badge bg-success-lt text-success");
-        if (queued) return ("Downloading", "badge bg-blue-lt text-blue");
-        return ("Missing", "badge bg-warning-lt text-warning");
-    }
-
-    private sealed class ActiveDownloadContext
-    {
-        public required DownloadItem QueueItem { get; init; }
-        public DownloadAttempt? Attempt { get; init; }
-        public HealthSnapshot? Snapshot { get; init; }
-        public DownloadHealthEvent? LatestEvent { get; init; }
-        public int FileCount { get; init; }
-        public List<string> FileNames { get; init; } = [];
-    }
+    #endregion
 }

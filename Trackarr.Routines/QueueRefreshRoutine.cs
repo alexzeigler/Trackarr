@@ -3,7 +3,7 @@ using Trackarr.Core.Server;
 using Trackarr.Services.Media;
 using Trackarr.Services.Settings;
 
-namespace Trackarr.Tasks;
+namespace Trackarr.Routines;
 
 public sealed class QueueRefreshRoutine(MediaServerService mediaServerService, SettingsService settings) : Routine
 {
@@ -29,12 +29,6 @@ public sealed class QueueRefreshRoutine(MediaServerService mediaServerService, S
             };
 
             count += items.Count;
-
-            await mediaServerService.UpdateServerStatsAsync(server.Id, s =>
-            {
-                s.LastQueueFetchAt = DateTime.UtcNow;
-                s.LastQueueCount = items.Count;
-            });
         }
 
         LastRunSuccess = true;

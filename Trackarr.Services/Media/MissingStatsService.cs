@@ -5,7 +5,7 @@ using Trackarr.Data;
 
 namespace Trackarr.Services.Media;
 
-public class MissingStatsService(IDbContextFactory<AppDbContext> dbFactory)
+public sealed class MissingStatsService(IDbContextFactory<AppDbContext> dbFactory)
 {
     public MissingPageData BuildStats(List<MissingMediaRecord> items)
     {

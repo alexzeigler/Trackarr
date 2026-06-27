@@ -24,10 +24,10 @@ public class SeriesAvailabilityTests
     }
 
     [Fact]
-    public void IsAvailable_NextAiringInPast_ReturnsTrue()
+    public void IsAvailable_OnlyNextAiringInPast_ReturnsFalse()
     {
         var series = new Series { NextAiring = Now.AddDays(-1) };
-        Assert.True(series.IsAvailable(Now));
+        Assert.False(series.IsAvailable(Now));
     }
 
     [Fact]
@@ -35,9 +35,7 @@ public class SeriesAvailabilityTests
     {
         var series = new Series
         {
-            FirstAired = Now.AddDays(1),
-            NextAiring = Now.AddDays(2),
-            PreviousAiring = Now.AddDays(3)
+            FirstAired = Now.AddDays(1), NextAiring = Now.AddDays(2), PreviousAiring = Now.AddDays(3)
         };
         Assert.False(series.IsAvailable(Now));
     }
@@ -62,7 +60,7 @@ public class MediaItemJsonTests
     {
         var movie = new Movie { GenresJson = """["Action","Drama"]""" };
 
-        Assert.Equal(new[] { "Action", "Drama" }, movie.Genres);
+        Assert.Equal(["Action", "Drama"], movie.Genres);
     }
 
     [Fact]
@@ -89,10 +87,7 @@ public class EpisodeJsonTests
     [Fact]
     public void ImageResources_RoundTripsThroughJson()
     {
-        var episode = new Episode
-        {
-            ImageResources = [new MediaImage("poster", "u", "http://img/ep.jpg")]
-        };
+        var episode = new Episode { ImageResources = [new MediaImage("poster", "u", "http://img/ep.jpg")] };
 
         Assert.NotNull(episode.ImagesJson);
         Assert.Equal("http://img/ep.jpg", episode.PosterUrl);
@@ -126,10 +121,7 @@ public class DownloadItemTests
     [Fact]
     public void StatusMessages_DeserializeList()
     {
-        var item = new DownloadItem
-        {
-            StatusMessagesJson = """[{"title":"Import","messages":["m1","m2"]}]"""
-        };
+        var item = new DownloadItem { StatusMessagesJson = """[{"title":"Import","messages":["m1","m2"]}]""" };
 
         Assert.Single(item.StatusMessages);
         Assert.Equal("Import", item.StatusMessages[0].Title);

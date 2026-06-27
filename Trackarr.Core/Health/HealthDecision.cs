@@ -2,6 +2,8 @@
 
 public class HealthDecision
 {
+    #region Properties
+
     public int DownloadAttemptId { get; set; }
 
     public bool ShouldRemove { get; set; }
@@ -19,4 +21,6 @@ public class HealthDecision
     public string Message { get; set; } = string.Empty;
 
     public List<string> Restrictions { get; set; } = [];
+
+    #endregion
 }

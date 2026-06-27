@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Trackarr.Core.Queue;
@@ -12,9 +11,15 @@ public record StatusMessage(string Title, List<string> Messages);
 
 public class DownloadItem
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+    #region Identity
+
     [JsonIgnore] public int Id { get; set; }
     [JsonPropertyName("id")] public int RemoteId { get; set; }
+
+    #endregion
+
+    #region Properties
+
     public string? Title { get; set; }
     public long Size { get; set; }
     public long SizeLeft { get; set; }
@@ -39,27 +44,22 @@ public class DownloadItem
     public string? QualityJson { get; set; }
     public string? CustomFormatsJson { get; set; }
     public string? StatusMessagesJson { get; set; }
-    public int DownloadPercent => Size > 0 ? (int)((double)(Size - SizeLeft) / Size * 100) : 0;
     public QueueState State { get; set; }
 
-    [NotMapped] public QualityModel? Quality => Deserialize<QualityModel>(QualityJson);
+    #endregion
+
+    #region Computed
+
+    public int DownloadPercent => Size > 0 ? (int)((double)(Size - SizeLeft) / Size * 100) : 0;
+
+    [NotMapped] public QualityModel? Quality => JsonHelper.Deserialize<QualityModel>(QualityJson);
 
     [NotMapped]
-    public IReadOnlyList<StatusMessage> StatusMessages => Deserialize<List<StatusMessage>>(StatusMessagesJson) ?? [];
+    public IReadOnlyList<StatusMessage> StatusMessages =>
+        JsonHelper.Deserialize<List<StatusMessage>>(StatusMessagesJson) ?? [];
 
     [NotMapped] public int SeasonNumber { get; set; }
     [NotMapped] public int EpisodeNumber { get; set; }
 
-    private static T? Deserialize<T>(string? json)
-    {
-        if (string.IsNullOrEmpty(json)) return default;
-        try
-        {
-            return JsonSerializer.Deserialize<T>(json, JsonOptions);
-        }
-        catch
-        {
-            return default;
-        }
-    }
+    #endregion
 }

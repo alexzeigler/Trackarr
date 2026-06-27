@@ -2,7 +2,7 @@
 using Trackarr.Core.Routine;
 using Trackarr.Services.Media;
 
-namespace Trackarr.Tasks;
+namespace Trackarr.Routines;
 
 public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILogger<HeartbeatRoutine> logger) : Routine
 {

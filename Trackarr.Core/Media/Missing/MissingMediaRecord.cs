@@ -2,11 +2,23 @@
 
 public class MissingMediaRecord
 {
+    #region Computed
+
+    public string Key => EpisodeId is null ? $"{ServerId}_{RemoteId}" : $"{ServerId}_{RemoteId}_{EpisodeId}";
+
+    #endregion
+
+    #region Identity
+
     public int Id { get; set; }
 
     public int ServerId { get; set; }
     public int RemoteId { get; set; }
     public int? EpisodeId { get; set; }
+
+    #endregion
+
+    #region Properties
 
     public MissingSearchTier Tier { get; set; }
     public MissingSearchState SearchState { get; set; }
@@ -18,7 +30,5 @@ public class MissingMediaRecord
 
     public bool LoweredToFallback { get; set; }
 
-    public string Key => EpisodeId is null
-        ? $"{ServerId}_{RemoteId}"
-        : $"{ServerId}_{RemoteId}_{EpisodeId}";
+    #endregion
 }

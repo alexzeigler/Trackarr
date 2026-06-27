@@ -3,15 +3,15 @@
 @inject AppStateService AppState
 @implements IDisposable
 
-<div class="app-shell">
+<div class="page">
     <AppSidebar/>
-    <div class="app-main">
+    <div class="page-wrapper">
         <AppTopbar/>
-        <section class="app-content">
+        <div class="page-body">
             <div class="container-xl">
                 @Body
             </div>
-        </section>
+        </div>
     </div>
 </div>
 

@@ -11,26 +11,7 @@ namespace Trackarr.Services.Media;
 /// </summary>
 public sealed class HealthEvaluator(HealthPolicy? policy = null)
 {
-    private static readonly HealthEventType[] EventTypePriority =
-    [
-        HealthEventType.StalledNoConnections,
-        HealthEventType.Stalled,
-        HealthEventType.ErrorRepeated,
-        HealthEventType.ErrorReported,
-        HealthEventType.StatusWorsened,
-        HealthEventType.WarningReported,
-        HealthEventType.NoProgress,
-        HealthEventType.RecoveryStarted,
-        HealthEventType.SustainedProgress,
-        HealthEventType.ProgressIncreased,
-        HealthEventType.SizeLeftDecreased,
-        HealthEventType.ErrorCleared,
-        HealthEventType.RecoveryCreditApplied,
-        HealthEventType.FirstSeen,
-        HealthEventType.FetchingMetadata
-    ];
-
-    private readonly HealthPolicy _policy = policy ?? new HealthPolicy();
+    #region Observation
 
     public static HealthObservation BuildObservation(DownloadItem item, DownloadAttempt attempt,
         HealthSnapshot snapshot, DateTime now)
@@ -115,6 +96,10 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
             HasSustainedProgress = sustainedProgress
         };
     }
+
+    #endregion
+
+    #region Evaluation
 
     /// <summary>
     /// Scores a single observation. <paramref name="recentBadInWindow" /> and
@@ -300,6 +285,10 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
         };
     }
 
+    #endregion
+
+    #region Application
+
     public void ApplyEvaluation(HealthSnapshot snapshot, HealthEvaluation evaluation, DateTime now)
     {
         var previousScore = snapshot.RawScore;
@@ -352,6 +341,10 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
         snapshot.LastObservationAt = now;
         snapshot.UpdatedAt = now;
     }
+
+    #endregion
+
+    #region Decision
 
     public HealthDecision BuildDecision(DownloadAttempt attempt, HealthSnapshot snapshot, HealthEvaluation evaluation,
         DateTime now)
@@ -411,6 +404,10 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
         };
     }
 
+    #endregion
+
+    #region Event Creation
+
     public static DownloadHealthEvent CreateHealthEvent(DownloadAttempt attempt, HealthSnapshot snapshot,
         HealthStateBefore before, HealthEvaluation evaluation, HealthObservation observation, DateTime now)
     {
@@ -442,6 +439,35 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
             RawErrorMessage = observation.ErrorMessage
         };
     }
+
+    #endregion
+
+    #region Dependencies
+
+    private static readonly HealthEventType[] EventTypePriority =
+    [
+        HealthEventType.StalledNoConnections,
+        HealthEventType.Stalled,
+        HealthEventType.ErrorRepeated,
+        HealthEventType.ErrorReported,
+        HealthEventType.StatusWorsened,
+        HealthEventType.WarningReported,
+        HealthEventType.NoProgress,
+        HealthEventType.RecoveryStarted,
+        HealthEventType.SustainedProgress,
+        HealthEventType.ProgressIncreased,
+        HealthEventType.SizeLeftDecreased,
+        HealthEventType.ErrorCleared,
+        HealthEventType.RecoveryCreditApplied,
+        HealthEventType.FirstSeen,
+        HealthEventType.FetchingMetadata
+    ];
+
+    private readonly HealthPolicy _policy = policy ?? new HealthPolicy();
+
+    #endregion
+
+    #region Helpers
 
     private int ComputeConfidence(HealthSnapshot snapshot)
     {
@@ -514,8 +540,6 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
 
         if (observation.HasNoProgress) return "no-progress";
 
-        if (observation.IsFetchingMetadata) return "fetching-metadata";
-
         return eventTypes.Count == 0 ? "health-observed" : NormalizeTitle(eventTypes.Last().ToString());
     }
 
@@ -571,7 +595,11 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
 
         return terms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase));
     }
+
+    #endregion
 }
+
+#region Supporting Types
 
 public readonly record struct HealthStateBefore(decimal Score, int Confidence, int RecoveryCredit);
 
@@ -590,3 +618,5 @@ public sealed class HealthEvaluation
     public int BadScansInWindow { get; set; }
     public int GoodScansInWindow { get; set; }
 }
+
+#endregion

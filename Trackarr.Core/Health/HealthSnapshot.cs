@@ -2,10 +2,22 @@
 
 public class HealthSnapshot
 {
+    #region Navigation
+
+    public DownloadAttempt? DownloadAttempt { get; set; }
+
+    #endregion
+
+    #region Identity
+
     public int Id { get; set; }
 
     public int DownloadAttemptId { get; set; }
-    public DownloadAttempt? DownloadAttempt { get; set; }
+
+    #endregion
+
+    #region Properties
+
     public DateTime? LastByteProgressAt { get; set; }
 
     public decimal RawScore { get; set; } = 70;
@@ -53,4 +65,6 @@ public class HealthSnapshot
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    #endregion
 }

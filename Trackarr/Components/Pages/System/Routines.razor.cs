@@ -9,6 +9,26 @@ namespace Trackarr.Components.Pages.System;
 
 public partial class Routines : ComponentBase
 {
+    #region Lifecycle
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cts = new CancellationTokenSource();
+        await Refresh();
+        _ = RunRefreshLoopAsync(_cts.Token);
+    }
+
+    #endregion
+
+    #region Injected Services
+
+    [Inject] private IDbContextFactory<AppDbContext> DbFactory { get; set; } = null!;
+    [Inject] private RoutineService RoutineService { get; set; } = null!;
+
+    #endregion
+
+    #region State
+
     private CancellationTokenSource? _cts;
     private List<RoutineDefinition> _routines = [];
     private List<RoutineRun> _runs = [];
@@ -17,8 +37,6 @@ public partial class Routines : ComponentBase
     private bool _sortDescending;
     private string _statusFilter = string.Empty;
 
-    [Inject] private IDbContextFactory<AppDbContext> DbFactory { get; set; } = null!;
-    [Inject] private RoutineService RoutineService { get; set; } = null!;
     private bool IsLoading { get; set; }
 
     private bool HasActiveFilters => !string.IsNullOrWhiteSpace(_search) || !string.IsNullOrWhiteSpace(_statusFilter);
@@ -55,33 +73,9 @@ public partial class Routines : ComponentBase
 
     private IEnumerable<RoutineRun> RecentRuns => _runs.OrderByDescending(x => x.StartTime).Take(10);
 
-    protected override async Task OnInitializedAsync()
-    {
-        _cts = new CancellationTokenSource();
-        await Refresh();
-        _ = RunRefreshLoopAsync(_cts.Token);
-    }
+    #endregion
 
-    private async Task RunRefreshLoopAsync(CancellationToken token)
-    {
-        PeriodicTimer timer = new(TimeSpan.FromSeconds(2));
-        while (await timer.WaitForNextTickAsync(token))
-        {
-            await Refresh();
-            await InvokeAsync(StateHasChanged);
-        }
-    }
-
-    private async Task Refresh()
-    {
-        IsLoading = true;
-
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _routines = await db.Routines.AsNoTracking().OrderBy(x => x.Name).ToListAsync();
-        _runs = await db.RoutineRuns.AsNoTracking().OrderByDescending(x => x.StartTime).Take(25).ToListAsync();
-
-        IsLoading = false;
-    }
+    #region Event Handlers
 
     private void OnSearchChanged(ChangeEventArgs args)
     {
@@ -108,29 +102,6 @@ public partial class Routines : ComponentBase
             _sortColumn = column;
             _sortDescending = column is "lastRun" or "nextRun";
         }
-    }
-
-    private string SortClass(string column)
-    {
-        return _sortColumn != column ? "table-sort" : _sortDescending ? "table-sort desc" : "table-sort asc";
-    }
-
-    private bool MatchesSearch(RoutineDefinition routine)
-    {
-        if (string.IsNullOrWhiteSpace(_search)) return true;
-        return Contains(routine.Name, _search) || Contains(routine.Key, _search) ||
-               Contains(routine.Description, _search);
-    }
-
-    private bool MatchesStatus(RoutineDefinition routine)
-    {
-        if (string.IsNullOrWhiteSpace(_statusFilter)) return true;
-        return RoutineStatusText(routine, RoutineRunner.IsQueued(routine.Key)) == _statusFilter;
-    }
-
-    private static bool Contains(string? value, string search)
-    {
-        return value?.Contains(search, StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private async Task TogglePaused(RoutineDefinition routine)
@@ -179,4 +150,58 @@ public partial class Routines : ComponentBase
         routine.IsRunning = true;
         RoutineRunner.RunAsync(key);
     }
+
+    #endregion
+
+    #region Data Loading
+
+    private async Task RunRefreshLoopAsync(CancellationToken token)
+    {
+        PeriodicTimer timer = new(TimeSpan.FromSeconds(2));
+        while (await timer.WaitForNextTickAsync(token))
+        {
+            await Refresh();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task Refresh()
+    {
+        IsLoading = true;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _routines = await db.Routines.AsNoTracking().OrderBy(x => x.Name).ToListAsync();
+        _runs = await db.RoutineRuns.AsNoTracking().OrderByDescending(x => x.StartTime).Take(25).ToListAsync();
+
+        IsLoading = false;
+    }
+
+    #endregion
+
+    #region Display Helpers
+
+    private string SortClass(string column)
+    {
+        return _sortColumn != column ? "table-sort" : _sortDescending ? "table-sort desc" : "table-sort asc";
+    }
+
+    private bool MatchesSearch(RoutineDefinition routine)
+    {
+        if (string.IsNullOrWhiteSpace(_search)) return true;
+        return Contains(routine.Name, _search) || Contains(routine.Key, _search) ||
+               Contains(routine.Description, _search);
+    }
+
+    private bool MatchesStatus(RoutineDefinition routine)
+    {
+        if (string.IsNullOrWhiteSpace(_statusFilter)) return true;
+        return RoutineStatusText(routine, RoutineRunner.IsQueued(routine.Key)) == _statusFilter;
+    }
+
+    private static bool Contains(string? value, string search)
+    {
+        return value?.Contains(search, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    #endregion
 }

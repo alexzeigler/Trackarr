@@ -4,9 +4,9 @@ using Trackarr.Core.Server;
 using Trackarr.Services.Media;
 using Trackarr.Services.Settings;
 
-namespace Trackarr.Tasks;
+namespace Trackarr.Routines;
 
-public class MissingMediaFetchRoutine(
+public sealed class MissingMediaFetchRoutine(
     MediaServerService mediaServerService,
     MissingService missingService,
     SettingsService settings,

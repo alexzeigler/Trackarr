@@ -2,6 +2,17 @@
 
 public class Series : MediaItem
 {
+    #region Methods
+
+    public bool IsAvailable(DateTime now)
+    {
+        return PreviousAiring < now || FirstAired < now;
+    }
+
+    #endregion
+
+    #region Properties
+
     public bool Ended { get; set; }
     public string? Network { get; set; }
     public string? AirTime { get; set; }
@@ -22,8 +33,5 @@ public class Series : MediaItem
     public string? AlternateTitlesJson { get; set; }
     public string? SeasonsJson { get; set; }
 
-    public bool IsAvailable(DateTime now)
-    {
-        return PreviousAiring < now || NextAiring < now || FirstAired < now;
-    }
+    #endregion
 }

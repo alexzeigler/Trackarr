@@ -4,12 +4,23 @@ namespace Trackarr.Core.Health;
 
 public class SourceHealthSummary
 {
+    #region Navigation
+
+    public MediaServer? Server { get; set; }
+
+    #endregion
+
+    #region Identity
+
     public int Id { get; set; }
 
     public int? ServerId { get; set; }
-    public MediaServer? Server { get; set; }
 
     public ServiceType? ServiceType { get; set; }
+
+    #endregion
+
+    #region Properties
 
     public string? Indexer { get; set; }
     public string? DownloadClient { get; set; }
@@ -36,4 +47,6 @@ public class SourceHealthSummary
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    #endregion
 }

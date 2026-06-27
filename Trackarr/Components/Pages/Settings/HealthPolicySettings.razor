@@ -1,4 +1,5 @@
 @page "/settings/health"
+@using global::System.Globalization
 @using Trackarr.Core.Health
 @using Trackarr.Core.UI
 @using Trackarr.Services.Settings
@@ -348,10 +349,10 @@
             ["RequiredBadScansInWindow"] = _policy.RequiredBadScansInWindow.ToString(),
             ["RecentRecoveryProtectionScans"] = _policy.RecentRecoveryProtectionScans.ToString(),
             ["RecoveryCreditMax"] = _policy.RecoveryCreditMax.ToString(),
-            ["PenaltyStreakEscalation"] = _policy.PenaltyStreakEscalation.ToString(),
-            ["PenaltyStreakCap"] = _policy.PenaltyStreakCap.ToString(),
-            ["RewardStreakEscalation"] = _policy.RewardStreakEscalation.ToString(),
-            ["RewardStreakCap"] = _policy.RewardStreakCap.ToString(),
+            ["PenaltyStreakEscalation"] = _policy.PenaltyStreakEscalation.ToString(CultureInfo.CurrentCulture),
+            ["PenaltyStreakCap"] = _policy.PenaltyStreakCap.ToString(CultureInfo.CurrentCulture),
+            ["RewardStreakEscalation"] = _policy.RewardStreakEscalation.ToString(CultureInfo.CurrentCulture),
+            ["RewardStreakCap"] = _policy.RewardStreakCap.ToString(CultureInfo.CurrentCulture),
             ["HealthyThreshold"] = _policy.HealthyThreshold.ToString(),
             ["StableThreshold"] = _policy.StableThreshold.ToString(),
             ["WatchingThreshold"] = _policy.WatchingThreshold.ToString(),
@@ -372,7 +373,7 @@
             ["PreviousMediaFailurePenalty"] = _policy.PreviousMediaFailurePenalty.ToString(),
             ["QualityDowngradedStillFailingPenalty"] = _policy.QualityDowngradedStillFailingPenalty.ToString(),
             ["ByteProgressProtectionMinutes"] = _policy.ByteProgressProtectionMinutes.ToString(),
-            ["FetchingMetadataPenalty"] = _policy.FetchingMetadataPenalty.ToString(),
+            ["FetchingMetadataPenalty"] = _policy.FetchingMetadataPenalty.ToString(CultureInfo.CurrentCulture),
             ["GoodObservationBadScanDecay"] = _policy.GoodObservationBadScanDecay.ToString()
         });
         LoadValues();
