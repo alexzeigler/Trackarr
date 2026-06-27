@@ -119,9 +119,9 @@ public partial class Servers : ComponentBase
         await MediaServerService.UpdateServerAsync(row);
         await MediaServerService.GetQueueAsync(row, true);
         if (row.ServiceType == ServiceType.Sonarr)
-            await MediaServerService.GetMissingEpisodes(row, true);
+            await MediaServerService.GetMissingEpisodesAsync(row, true);
         else
-            await MediaServerService.GetMissingMovies(row, true);
+            await MediaServerService.GetMissingMoviesAsync(row, true);
     }
 
     private async Task EditServer(MediaServer row)
