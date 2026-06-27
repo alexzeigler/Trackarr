@@ -1,10 +1,7 @@
-﻿services:
+services:
   trackarr:
     container_name: trackarr
-    image: trackarr:local
-    build:
-      context: .
-      dockerfile: Trackarr/Dockerfile
+    image: alexzeigler/trackarr:latest
     restart: unless-stopped
     ports:
       - "5264:8080"

@@ -1,0 +1,108 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Trackarr</Name>
+  <Repository>alexzeigler/trackarr:latest</Repository>
+  <Registry>https://hub.docker.com/r/alexzeigler/trackarr/</Registry>
+  <Branch>
+    <Tag>latest</Tag>
+    <TagDescription>Latest stable release</TagDescription>
+  </Branch>
+  <Network>bridge</Network>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/alexzeigler/Trackarr/issues</Support>
+  <Project>https://github.com/alexzeigler/Trackarr</Project>
+  <Overview>
+    Trackarr is a self-hosted companion app for Radarr and Sonarr that gives you a unified view of your media automation.
+    Monitor downloads, queue health, missing media, and what needs your attention — all in one place.
+    [br][br]
+    Features include queue monitoring with health scoring, missing media tracking, multi-server support, background routines, and download history.
+    [br][br]
+    [b]Setup:[/b] After starting the container, open the WebUI and add your Radarr/Sonarr servers under the Servers page.
+    You will need the host, port, and API key for each instance.
+  </Overview>
+  <Category>MediaApp:Other</Category>
+  <WebUI>http://[IP]:[PORT:5264]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/alexzeigler/Trackarr/master/deploy/unraid/trackarr.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/alexzeigler/Trackarr/master/Trackarr/wwwroot/android-chrome-512x512.png</Icon>
+  <Description>
+    Trackarr is a self-hosted companion app for Radarr and Sonarr that gives you a unified view of your media automation.
+    Monitor downloads, queue health, missing media, and what needs your attention — all in one place.
+  </Description>
+  <Changes>
+    [center][b]Trackarr Change Log[/b][/center]
+    [b]v5.0.2-alpha[/b] - Initial alpha release
+  </Changes>
+
+  <Config
+    Name="WebUI Port"
+    Target="8080"
+    Default="5264"
+    Mode="tcp"
+    Description="Port for the Trackarr web interface."
+    Type="Port"
+    Display="always"
+    Required="true"
+    Mask="false">5264</Config>
+
+  <Config
+    Name="Config Path"
+    Target="/config"
+    Default="/mnt/user/appdata/trackarr"
+    Mode="rw"
+    Description="Path to store Trackarr configuration and database."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/mnt/user/appdata/trackarr</Config>
+
+  <Config
+    Name="ASPNETCORE_ENVIRONMENT"
+    Target="ASPNETCORE_ENVIRONMENT"
+    Default="Production"
+    Description="Application environment. Leave as Production."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">Production</Config>
+
+  <Config
+    Name="DOTNET_ENVIRONMENT"
+    Target="DOTNET_ENVIRONMENT"
+    Default="Production"
+    Description="Runtime environment. Leave as Production."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">Production</Config>
+
+  <Config
+    Name="ASPNETCORE_URLS"
+    Target="ASPNETCORE_URLS"
+    Default="http://+:8080"
+    Description="Internal listen URL. Do not change."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">http://+:8080</Config>
+
+  <Config
+    Name="Database Connection"
+    Target="ConnectionStrings__DefaultConnection"
+    Default="Data Source=/config/trackarr.db"
+    Description="SQLite database path. Only change if you know what you are doing."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">Data Source=/config/trackarr.db</Config>
+
+  <Config
+    Name="Data Protection Keys Path"
+    Target="DataProtection__KeysPath"
+    Default="/config/keys"
+    Description="Path for encryption key storage."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">/config/keys</Config>
+</Container>

@@ -18,20 +18,15 @@ A self-hosted companion app for [Radarr](https://radarr.video/) and [Sonarr](htt
 
 **Download history** — Browse past download attempts with event-level detail to understand what happened and why.
 
-## Quick start
+## Installation
 
 ### Docker Compose (recommended)
-
-Create a `compose.yaml`:
 
 ```yaml
 services:
   trackarr:
     container_name: trackarr
-    image: trackarr:local
-    build:
-      context: .
-      dockerfile: Trackarr/Dockerfile
+    image: alexzeigler/trackarr:latest
     restart: unless-stopped
     ports:
       - "5264:8080"
@@ -50,6 +45,40 @@ docker compose up -d
 ```
 
 Trackarr will be available at `http://localhost:5264`. The database and configuration are persisted to `./docker-data/trackarr/`.
+
+### Docker CLI
+
+```bash
+docker run -d \
+  --name trackarr \
+  --restart unless-stopped \
+  -p 5264:8080 \
+  -v /path/to/config:/config \
+  -e ASPNETCORE_ENVIRONMENT=Production \
+  -e DOTNET_ENVIRONMENT=Production \
+  -e ASPNETCORE_URLS=http://+:8080 \
+  -e "ConnectionStrings__DefaultConnection=Data Source=/config/trackarr.db" \
+  -e DataProtection__KeysPath=/config/keys \
+  alexzeigler/trackarr:latest
+```
+
+### Unraid
+
+1. In the Unraid Docker tab, click **Add Container**
+2. Set **Repository** to `alexzeigler/trackarr:latest`
+3. Under **Template**, you can use the [Unraid template XML](deploy/unraid/trackarr.xml) from this repo
+4. Configure the port (default `5264`) and appdata path (default `/mnt/user/appdata/trackarr`)
+5. Click **Apply**
+
+Unraid will automatically detect when a new image is available on Docker Hub and offer to update the container.
+
+### Updating
+
+Images are automatically built and pushed to Docker Hub on every release. To update:
+
+- **Docker Compose:** `docker compose pull && docker compose up -d`
+- **Docker CLI:** `docker pull alexzeigler/trackarr:latest` and recreate the container
+- **Unraid:** Click the update notification in the Docker tab
 
 ### First-time setup
 
@@ -74,7 +103,7 @@ Trackarr stores its settings in the database and exposes them through the UI. Ke
 **Requirements:** [.NET 10.0 SDK](https://dotnet.microsoft.com/download)
 
 ```bash
-git clone https://github.com/your-username/Trackarr.git
+git clone https://github.com/alexzeigler/Trackarr.git
 cd Trackarr
 dotnet run --project Trackarr/Trackarr.csproj
 ```
