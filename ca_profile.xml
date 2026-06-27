@@ -1,9 +1,8 @@
-<?xml version="1.0"?>
-<CommunityApplications>
+<?xml version="1.0" encoding="utf-8"?>
+<Maintainer>
+  <Icon>https://raw.githubusercontent.com/alexzeigler/Trackarr/master/Trackarr/wwwroot/android-chrome-512x512.png</Icon>
   <Profile>
-    <Name>alexzeigler</Name>
-    <Description>Developer of Trackarr, a self-hosted companion app for Radarr and Sonarr.</Description>
-    <ProfileURL>https://github.com/alexzeigler</ProfileURL>
-    <GithubURL>https://github.com/alexzeigler/Trackarr</GithubURL>
+    Developer of Trackarr, a self-hosted companion app for Radarr and Sonarr.
   </Profile>
-</CommunityApplications>
+  <WebPage>https://github.com/alexzeigler/Trackarr</WebPage>
+</Maintainer>
