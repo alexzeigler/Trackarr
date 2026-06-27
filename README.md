@@ -26,7 +26,7 @@ A self-hosted companion app for [Radarr](https://radarr.video/) and [Sonarr](htt
 services:
   trackarr:
     container_name: trackarr
-    image: alexzeigler/trackarr:latest
+    image: confinedfish/trackarr:latest
     restart: unless-stopped
     ports:
       - "5264:8080"
@@ -59,13 +59,13 @@ docker run -d \
   -e ASPNETCORE_URLS=http://+:8080 \
   -e "ConnectionStrings__DefaultConnection=Data Source=/config/trackarr.db" \
   -e DataProtection__KeysPath=/config/keys \
-  alexzeigler/trackarr:latest
+  confinedfish/trackarr:latest
 ```
 
 ### Unraid
 
 1. In the Unraid Docker tab, click **Add Container**
-2. Set **Repository** to `alexzeigler/trackarr:latest`
+2. Set **Repository** to `confinedfish/trackarr:latest`
 3. Under **Template**, you can use the [Unraid template XML](deploy/unraid/trackarr.xml) from this repo
 4. Configure the port (default `5264`) and appdata path (default `/mnt/user/appdata/trackarr`)
 5. Click **Apply**
@@ -77,7 +77,7 @@ Unraid will automatically detect when a new image is available on Docker Hub and
 Images are automatically built and pushed to Docker Hub on every release. To update:
 
 - **Docker Compose:** `docker compose pull && docker compose up -d`
-- **Docker CLI:** `docker pull alexzeigler/trackarr:latest` and recreate the container
+- **Docker CLI:** `docker pull confinedfish/trackarr:latest` and recreate the container
 - **Unraid:** Click the update notification in the Docker tab
 
 ### First-time setup

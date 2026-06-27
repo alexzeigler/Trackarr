@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>Trackarr</Name>
-  <Repository>alexzeigler/trackarr:latest</Repository>
-  <Registry>https://hub.docker.com/r/alexzeigler/trackarr/</Registry>
+  <Repository>confinedfish/trackarr:latest</Repository>
+  <Registry>https://hub.docker.com/r/confinedfish/trackarr/</Registry>
   <Branch>
     <Tag>latest</Tag>
     <TagDescription>Latest stable release</TagDescription>

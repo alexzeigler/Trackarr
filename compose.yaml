@@ -1,7 +1,7 @@
 services:
   trackarr:
     container_name: trackarr
-    image: alexzeigler/trackarr:latest
+    image: confinedfish/trackarr:latest
     restart: unless-stopped
     ports:
       - "5264:8080"
