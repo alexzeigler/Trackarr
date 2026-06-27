@@ -202,8 +202,8 @@ namespace Trackarr.Data.Migrations
                     b.Property<int>("ConfidenceBefore")
                         .HasColumnType("INTEGER");
 
-                    b.Property<decimal>("ConfidenceDelta")
-                        .HasColumnType("TEXT");
+                    b.Property<int>("ConfidenceDelta")
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("CountsTowardRemoval")
                         .HasColumnType("INTEGER");
