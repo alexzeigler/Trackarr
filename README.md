@@ -1,106 +1,115 @@
 # Trackarr
 
-Trackarr is a very early self-hosted companion app for Radarr and Sonarr.
+A self-hosted companion app for [Radarr](https://radarr.video/) and [Sonarr](https://sonarr.tv/) that gives you a unified view of your media automation — downloads, queue health, missing media, and what needs your attention.
 
-The goal is to make it easier to see what is happening with your media setup, especially around downloads, queue activity, missing media, failed items, and things that need attention.
+> **Alpha software** — Trackarr is in early development (v5.x-alpha). Expect breaking changes, incomplete features, and rough edges. It connects to live Radarr/Sonarr instances and there is no read-only mode yet. Use at your own risk.
 
-This project is still in a rough testing stage. It is not ready for normal use yet.
+## Features
 
-## Current status
+**Queue monitoring** — See active downloads across all your Radarr and Sonarr instances in one place. Track download progress, status changes, and stalled or failing items.
 
-Trackarr is currently in early alpha development.
+**Health scoring** — Every download gets a health score (0–100) based on its lifecycle. Stalls, errors, and lack of progress reduce the score; recoveries and steady progress improve it. Configurable thresholds can automatically flag or remove unhealthy downloads.
 
-A lot of the core pieces are working, but the app is still being tested, cleaned up, and prepared for a real release.
+**Missing media tracking** — Automatically detects movies and episodes that are missing from your library. Tracks search state, manages cooldowns between searches, and abandons items that repeatedly fail to find results.
 
-Right now, the focus is not adding more features. The focus is making the current app more stable.
+**Multi-server support** — Connect multiple Radarr and Sonarr instances. Each server gets independent health checks, queue monitoring, and configuration.
 
-## What Trackarr is trying to do
+**Background routines** — Scheduled jobs handle heartbeat checks, queue refreshes, health evaluations, missing media detection, and database cleanup. Each routine tracks its own run history and can be individually configured.
 
-Trackarr is being built to help answer questions like:
+**Download history** — Browse past download attempts with event-level detail to understand what happened and why.
 
-* What is currently downloading?
-* What items are stuck?
-* What items keep failing?
-* What media is missing?
-* What has been searched already?
-* What needs attention?
-* Are Radarr and Sonarr doing what I expect them to do?
+## Quick start
 
-The long-term goal is to give a clearer overview of media automation health without needing to jump between multiple apps.
+### Docker Compose (recommended)
 
-## What works right now
+Create a `compose.yaml`:
 
-Some of the current work includes:
+```yaml
+services:
+  trackarr:
+    container_name: trackarr
+    image: trackarr:local
+    build:
+      context: .
+      dockerfile: Trackarr/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5264:8080"
+    volumes:
+      - ./docker-data/trackarr:/config
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DOTNET_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Data Source=/config/trackarr.db"
+      DataProtection__KeysPath: "/config/keys"
+```
 
-* Radarr and Sonarr connection support
-* Queue tracking
-* Missing media tracking
-* Download health scoring
-* Download attempt history
-* Background routines
-* Routine run history
-* Media detail views
-* Basic dashboard pages
-* Table-based UI using Bootstrap and Tabler
+```bash
+docker compose up -d
+```
 
-These areas are still being tested and may change.
+Trackarr will be available at `http://localhost:5264`. The database and configuration are persisted to `./docker-data/trackarr/`.
 
-## What is not done yet
+### First-time setup
 
-This is still an early build, so expect unfinished parts.
+1. Open Trackarr in your browser
+2. Go to **Servers** and add your Radarr/Sonarr instances (you'll need the host, port, and API key for each)
+3. Background routines will start syncing queue and missing media data automatically
 
-Known rough areas include:
+## Configuration
 
-* Some settings are not editable yet
-* Some UI pages still need cleanup
-* Some backend paths still need hardening
-* Docker deployment is still being tested
-* Tests are limited right now
-* Documentation is incomplete
-* Breaking changes may happen
-* Database changes may happen
+Trackarr stores its settings in the database and exposes them through the UI. Key configuration areas:
 
+| Category | Examples |
+|---|---|
+| **General** | App name, auto-start routines, default server type |
+| **Server defaults** | Queue monitoring, auto-remove failed downloads, missing media search, request timeout |
+| **Health policy** | Starting score, penalty/reward weights, removal thresholds, grace periods |
+| **Missing policy** | Search cooldown, max failed searches, cascade limit, abandonment threshold |
+| **Display** | Date/time format, table page sizes, chart visibility, table density |
 
-## Testing focus
+## Development
 
-Current testing is focused on:
+**Requirements:** [.NET 10.0 SDK](https://dotnet.microsoft.com/download)
 
-* App startup
-* Queue refresh behavior
-* Missing media refresh behavior
-* Radarr/Sonarr connection handling
-* Offline server handling
-* Background routine execution
-* Database stability
-* Docker testing
-* Basic UI stability
+```bash
+git clone https://github.com/your-username/Trackarr.git
+cd Trackarr
+dotnet run --project Trackarr/Trackarr.csproj
+```
 
-## Project direction
+The app starts at `http://localhost:5264`. The database is created automatically on first run.
 
-For now, Trackarr is being treated as an early test build.
+**Running tests:**
 
-The next steps are mostly:
+```bash
+dotnet test
+```
 
-* Fix broken backend behavior
-* Clean up rough UI issues
-* Improve stability
-* Add tests around fragile logic
-* Improve error handling
-* Make deployment more reliable
-* Prepare the project for public feedback
+### Project structure
+
+```
+Trackarr/              Web app — Blazor Server UI, startup, middleware
+Trackarr.Core/         Domain models — media, health, queue, settings
+Trackarr.Data/         EF Core DbContext and migrations (SQLite)
+Trackarr.Services/     Business logic — API clients, health scoring, search
+Trackarr.Routines/     Background job implementations
+Trackarr.Client/       Blazor WebAssembly client components
+Trackarr.Tests/        Unit and integration tests (xUnit)
+```
+
+### Tech stack
+
+- .NET 10 / ASP.NET Core / Blazor Server
+- SQLite via Entity Framework Core
+- Blazor Bootstrap / Bootstrap
+- xUnit for testing
 
 ## Contributing
 
-Trackarr is not fully organized for outside contributions yet.
-
-Bug reports, testing feedback, and setup feedback will be the most useful once the first alpha build is available.
-
-Major feature work should wait until the base app is more stable.
+Trackarr is not yet set up for outside contributions. Once the first alpha builds are more stable, bug reports, testing feedback, and setup experience reports will be the most useful.
 
 ## Disclaimer
 
-Trackarr is an independent project.
-
-It is not affiliated with Radarr, Sonarr, or any download client.
-
-This is early alpha software. Use it for testing only. Use at your own risk. The software does interact with live versons of Sonarr and Radarr with no ability to disable that functionality yet. 
+Trackarr is an independent project, not affiliated with Radarr, Sonarr, or any download client.
