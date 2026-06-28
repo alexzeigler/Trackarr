@@ -1,0 +1,124 @@
+@page "/system/releases"
+
+<PageTitle>Release Notes</PageTitle>
+
+<div class="d-flex flex-column gap-3">
+    <div class="card app-card">
+        <div class="card-header">
+            <h3 class="card-title">Release Notes</h3>
+            <div class="card-actions">
+                <button type="button" class="btn btn-app-ghost btn-sm" disabled="@_loading" @onclick="LoadAsync">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         width="16"
+                         height="16"
+                         viewBox="0 0 24 24"
+                         fill="none"
+                         stroke="currentColor"
+                         stroke-width="2"
+                         stroke-linecap="round"
+                         stroke-linejoin="round"
+                         class="icon m-0 @(_loading ? "spinner" : "")">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+                        <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+                    </svg>
+                </button>
+                <a href="https://github.com/alexzeigler/Trackarr/releases"
+                   target="_blank"
+                   rel="noopener"
+                   class="btn btn-app-ghost btn-sm ms-1">
+                    <i class="ti ti-brand-github me-1"></i>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="card app-card">
+            <div class="card-body text-center py-4">
+                <div class="spinner-border spinner-border-sm me-2"></div>
+                Loading releases...
+            </div>
+        </div>
+    }
+    else if (_error)
+    {
+        <div class="card app-card">
+            <div class="card-body">
+                <div class="empty py-4">
+                    <div class="empty-icon">
+                        <i class="ti ti-cloud-off fs-1 text-muted"></i>
+                    </div>
+                    <p class="empty-title">Unable to load releases</p>
+                    <p class="empty-subtitle text-secondary">
+                        Could not reach GitHub. Check your connection and try again. </p>
+                    <div class="empty-action">
+                        <button class="btn btn-app-ghost btn-sm" @onclick="LoadAsync">
+                            <i class="ti ti-refresh me-1"></i>
+                            Retry
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else if (_releases.Count == 0)
+    {
+        <div class="card app-card">
+            <div class="card-body">
+                <div class="empty py-4">
+                    <div class="empty-icon">
+                        <i class="ti ti-package fs-1 text-muted"></i>
+                    </div>
+                    <p class="empty-title">No releases found</p>
+                    <p class="empty-subtitle text-secondary">
+                        Releases will appear here once published on GitHub. </p>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        @foreach (var release in _releases)
+        {
+            var isExpanded = _expanded.Contains(release.TagName);
+
+            <div class="card app-card">
+                <div class="card-header cursor-pointer" @onclick="() => Toggle(release.TagName)">
+                    <div class="d-flex align-items-center w-100">
+                        <span class="badge @(release.IsPrerelease ? "bg-warning-lt text-warning" : "bg-primary-lt text-primary") me-2">
+                            @release.TagName
+                        </span>
+                        <h3 class="card-title mb-0">@release.Name</h3>
+                        @if (release.IsPrerelease)
+                        {
+                            <span class="badge bg-warning-lt text-warning ms-2">Pre-release</span>
+                        }
+                        <span class="text-muted ms-auto small me-2">@release.PublishedAt.ToLocalTime().ToString("MMM d, yyyy")</span>
+                        <i class="ti @(isExpanded ? "ti-chevron-up" : "ti-chevron-down") text-muted"></i>
+                    </div>
+                </div>
+
+                @if (isExpanded)
+                {
+                    <div class="card-body pt-0">
+                        <div class="release-body mt-2">
+                            @RenderMarkdown(release.Body)
+                        </div>
+                        @if (!string.IsNullOrEmpty(release.HtmlUrl))
+                        {
+                            <div class="mt-3 pt-3" style="border-top: 1px solid rgba(255,255,255,.08);">
+                                <a href="@release.HtmlUrl" target="_blank" rel="noopener" class="text-muted small">
+                                    <i class="ti ti-external-link me-1"></i>
+                                    View on GitHub
+                                </a>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
