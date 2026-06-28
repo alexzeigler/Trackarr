@@ -24,7 +24,7 @@
     [b]v5.0.2-alpha[/b] - Initial alpha release
   </Changes>
   <Requires/>
-  <Beta>True</Beta>
+  <Beta>False</Beta>
   <ExtraSearchTerms>radarr sonarr media download queue monitor health</ExtraSearchTerms>
   <DonateText/>
   <DonateLink/>
