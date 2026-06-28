@@ -70,6 +70,15 @@ namespace Trackarr.Data.Migrations
                 oldClrType: typeof(int),
                 oldType: "INTEGER");
 
+            migrationBuilder.Sql(
+                "DELETE FROM \"DownloadQueue\" WHERE \"ServerId\" NOT IN (SELECT \"Id\" FROM \"MediaServers\");");
+            migrationBuilder.Sql(
+                "DELETE FROM \"MissingMedia\" WHERE \"ServerId\" NOT IN (SELECT \"Id\" FROM \"MediaServers\");");
+            migrationBuilder.Sql(
+                "DELETE FROM \"SearchEvents\" WHERE \"ServerId\" NOT IN (SELECT \"Id\" FROM \"MediaServers\");");
+            migrationBuilder.Sql(
+                "DELETE FROM \"DownloadAttempts\" WHERE \"ServerId\" IS NOT NULL AND \"ServerId\" NOT IN (SELECT \"Id\" FROM \"MediaServers\");");
+
             migrationBuilder.AddForeignKey(
                 name: "FK_DownloadAttempts_MediaServers_ServerId",
                 table: "DownloadAttempts",
