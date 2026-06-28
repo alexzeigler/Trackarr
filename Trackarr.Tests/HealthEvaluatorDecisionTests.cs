@@ -8,17 +8,20 @@ public class BuildDecisionTests
     private static readonly HealthPolicy Policy = new();
     private readonly HealthEvaluator _evaluator = new(Policy);
 
-    private static DownloadAttempt EligibleAttempt(DateTime? firstSeenAt = null) =>
-        new()
+    private static DownloadAttempt EligibleAttempt(DateTime? firstSeenAt = null)
+    {
+        return new DownloadAttempt
         {
             Id = 1,
             Status = AttemptStatus.Active,
             IsProtected = false,
             FirstSeenAt = firstSeenAt ?? DateTime.UtcNow.AddHours(-2)
         };
+    }
 
-    private static HealthSnapshot EligibleSnapshot() =>
-        new()
+    private static HealthSnapshot EligibleSnapshot()
+    {
+        return new HealthSnapshot
         {
             RawScore = -10,
             Confidence = 80,
@@ -28,8 +31,12 @@ public class BuildDecisionTests
             LastByteProgressAt = null,
             LastMeaningfulRecoveryAt = null
         };
+    }
 
-    private static HealthEvaluation DefaultEvaluation() => new() { ReasonKey = "test", Message = "test evaluation" };
+    private static HealthEvaluation DefaultEvaluation()
+    {
+        return new HealthEvaluation { ReasonKey = "test", Message = "test evaluation" };
+    }
 
     [Fact]
     public void AllConditionsMet_ShouldRemoveIsTrue()
@@ -71,7 +78,7 @@ public class BuildDecisionTests
     [Fact]
     public void InsideGracePeriod_Restricted()
     {
-        var attempt = EligibleAttempt(firstSeenAt: DateTime.UtcNow.AddMinutes(-1));
+        var attempt = EligibleAttempt(DateTime.UtcNow.AddMinutes(-1));
 
         var decision = _evaluator.BuildDecision(attempt, EligibleSnapshot(), DefaultEvaluation(), DateTime.UtcNow);
 
@@ -83,7 +90,7 @@ public class BuildDecisionTests
     public void ExactlyAtGracePeriodBoundary_NotRestricted()
     {
         var now = DateTime.UtcNow;
-        var attempt = EligibleAttempt(firstSeenAt: now.AddMinutes(-Policy.StartupGracePeriodMinutes));
+        var attempt = EligibleAttempt(now.AddMinutes(-Policy.StartupGracePeriodMinutes));
 
         var decision = _evaluator.BuildDecision(attempt, EligibleSnapshot(), DefaultEvaluation(), now);
 
@@ -248,7 +255,7 @@ public class BuildDecisionTests
     public void MultipleRestrictions_AllPresent()
     {
         var now = DateTime.UtcNow;
-        var attempt = EligibleAttempt(firstSeenAt: now.AddMinutes(-1));
+        var attempt = EligibleAttempt(now.AddMinutes(-1));
         attempt.IsProtected = true;
 
         var snapshot = EligibleSnapshot();

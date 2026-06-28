@@ -7,7 +7,8 @@
                 style="width:56px; height:50px;"
                 @onclick="() => ExecuteAsync(option)">
             <i class="bi @option.Icon lh-1 @(IsRefreshing && option.IsRefreshable ? "spin" : "")"
-               style="font-size:21px;"></i> <small class="lh-1 mt-1">@option.DisplayName</small>
+               style="font-size:21px;"></i>
+            <small class="lh-1 mt-1">@option.DisplayName</small>
         </button>
     }
 </div>

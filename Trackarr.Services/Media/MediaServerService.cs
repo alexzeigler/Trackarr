@@ -739,6 +739,7 @@ public class MediaServerService(
             server.LastAuthenticatedAt = DateTime.UtcNow;
 
             if (server.Id != 0)
+            {
                 await UpdateServerStatsAsync(server.Id, s =>
                 {
                     s.IsOnline = server.IsOnline;
@@ -747,6 +748,7 @@ public class MediaServerService(
                     s.IsAuthenticated = server.IsAuthenticated;
                     s.LastAuthenticatedAt = server.LastAuthenticatedAt;
                 });
+            }
 
             return (true, sw.ElapsedMilliseconds, response.ReasonPhrase);
         }
@@ -758,6 +760,7 @@ public class MediaServerService(
             server.LastError = ex.Message;
 
             if (server.Id != 0)
+            {
                 await UpdateServerStatsAsync(server.Id, s =>
                 {
                     s.IsOnline = server.IsOnline;
@@ -765,6 +768,7 @@ public class MediaServerService(
                     s.LastErrorAt = server.LastErrorAt;
                     s.LastError = server.LastError;
                 });
+            }
 
             throw;
         }
@@ -1157,10 +1161,10 @@ public class MediaServerService(
     }
 
     /// <summary>
-    /// Runs an Arr API call and translates low-level failures into the domain exception taxonomy:
-    /// our own <see cref="MediaServerException" /> (incl. <see cref="ApiException" />) pass through,
-    /// timeouts/socket errors become <see cref="ConnectionException" />, and anything else is wrapped
-    /// with <paramref name="unexpectedError" />. Centralizes what was a 4-arm try/catch repeated per call.
+    ///     Runs an Arr API call and translates low-level failures into the domain exception taxonomy:
+    ///     our own <see cref="MediaServerException" /> (incl. <see cref="ApiException" />) pass through,
+    ///     timeouts/socket errors become <see cref="ConnectionException" />, and anything else is wrapped
+    ///     with <paramref name="unexpectedError" />. Centralizes what was a 4-arm try/catch repeated per call.
     /// </summary>
     private static async Task<T> ExecuteApiAsync<T>(MediaServer server, string unexpectedError, Func<Task<T>> operation)
     {

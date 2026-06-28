@@ -4,59 +4,64 @@
 @layout SettingsLayout
 @inject SettingsService SettingsService
 
-<div class="subheader mb-2">Missing Media Search Policy</div>
+<h2 class="mb-1">Missing Media</h2>
 <p class="text-muted mb-4">Configure how Trackarr searches for missing media on your servers.</p>
 
-<div class="card app-card mb-4">
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-12 col-md-6">
-                <label class="form-label">Search Cooldown</label>
-                <div class="input-group">
-                    <input type="number"
-                           class="form-control"
-                           min="1"
-                           max="1440"
-                           @bind="_cooldownMinutes"
-                           @bind:after="MarkDirty"/>
-                    <span class="input-group-text">minutes</span>
-                </div>
-                <div class="form-text">Minimum time between search attempts for the same item. Prevents hammering your
-                    indexers.
-                </div>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-label">Max Failed Searches</label> <input type="number"
-                                                                             class="form-control"
-                                                                             min="1"
-                                                                             max="50"
-                                                                             @bind="_maxFailed"
-                                                                             @bind:after="MarkDirty"/>
-                <div class="form-text">Number of failed searches before falling back to a lower quality profile.</div>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-label">Max Episode Cascade</label> <input type="number"
-                                                                             class="form-control"
-                                                                             min="1"
-                                                                             max="50"
-                                                                             @bind="_maxCascade"
-                                                                             @bind:after="MarkDirty"/>
-                <div class="form-text">Maximum number of episodes to cascade search within a single series evaluation.
-                </div>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-label">Abandon After</label>
-                <div class="input-group">
-                    <input type="number"
-                           class="form-control"
-                           min="1"
-                           max="100"
-                           @bind="_abandonAfter"
-                           @bind:after="MarkDirty"/>
-                    <span class="input-group-text">failures</span>
-                </div>
-                <div class="form-text">Total failures before Trackarr stops searching for an item entirely.</div>
-            </div>
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Minimum time between search attempts for the same item — prevents hammering your indexers">Search
+            Cooldown
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <div class="input-group input-group-flat">
+            <input type="number"
+                   class="form-control"
+                   min="1"
+                   max="1440"
+                   @bind="_cooldownMinutes"
+                   @bind:after="MarkDirty"/>
+            <span class="input-group-text">min</span>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Number of failed searches before falling back to a lower quality profile">Max Failed Searches
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <input type="number"
+               class="form-control"
+               style="max-width: 5rem;"
+               min="1"
+               max="50"
+               @bind="_maxFailed"
+               @bind:after="MarkDirty"/>
+    </div>
+    <div class="col-6 col-lg-3">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Maximum number of episodes to cascade search within a single series evaluation">Episode Cascade
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <input type="number"
+               class="form-control"
+               style="max-width: 5rem;"
+               min="1"
+               max="50"
+               @bind="_maxCascade"
+               @bind:after="MarkDirty"/>
+    </div>
+    <div class="col-6 col-lg-3">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Total failures before Trackarr stops searching for an item entirely">Abandon After
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <div class="input-group input-group-flat">
+            <input type="number" class="form-control" min="1" max="100" @bind="_abandonAfter" @bind:after="MarkDirty"/>
+            <span class="input-group-text">fails</span>
         </div>
     </div>
 </div>

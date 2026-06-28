@@ -46,7 +46,7 @@ public abstract class MediaItem
 
     #region Navigation
 
-    public int ServerId { get; set; }
+    public int? ServerId { get; set; }
     [ForeignKey(nameof(ServerId))] public MediaServer? ParentServer { get; set; }
 
     #endregion

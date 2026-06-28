@@ -8,8 +8,9 @@ public class EvaluateScoringTests
     private static readonly HealthPolicy Policy = new();
     private readonly HealthEvaluator _evaluator = new(Policy);
 
-    private static DownloadAttempt ActiveAttempt() =>
-        new()
+    private static DownloadAttempt ActiveAttempt()
+    {
+        return new DownloadAttempt
         {
             Id = 1,
             DownloadId = "abc",
@@ -17,14 +18,17 @@ public class EvaluateScoringTests
             Status = AttemptStatus.Active,
             FirstSeenAt = DateTime.UtcNow.AddHours(-1)
         };
+    }
 
-    private static HealthSnapshot WithPriorObservation(int consecutiveBad = 0, int consecutiveGood = 0) =>
-        new()
+    private static HealthSnapshot WithPriorObservation(int consecutiveBad = 0, int consecutiveGood = 0)
+    {
+        return new HealthSnapshot
         {
             LastObservationAt = DateTime.UtcNow.AddMinutes(-5),
             ConsecutiveBadScans = consecutiveBad,
             ConsecutiveGoodScans = consecutiveGood
         };
+    }
 
     #region No Meaningful Change
 
@@ -255,7 +259,7 @@ public class EvaluateScoringTests
     [Fact]
     public void PenaltyStreak_Escalates()
     {
-        var snapshot = WithPriorObservation(consecutiveBad: 3);
+        var snapshot = WithPriorObservation(3);
         var obs = new HealthObservation { HasError = true, IsBadObservation = true, ErrorKey = "err" };
 
         var eval = _evaluator.Evaluate(ActiveAttempt(), snapshot, null, obs, 0, 0);
@@ -277,7 +281,7 @@ public class EvaluateScoringTests
     [Fact]
     public void PenaltyStreak_CappedAtMax()
     {
-        var snapshot = WithPriorObservation(consecutiveBad: 100);
+        var snapshot = WithPriorObservation(100);
         var obs = new HealthObservation { HasError = true, IsBadObservation = true, ErrorKey = "err" };
 
         var eval = _evaluator.Evaluate(ActiveAttempt(), snapshot, null, obs, 0, 0);
@@ -301,7 +305,7 @@ public class EvaluateScoringTests
     [Fact]
     public void SingleStreak_NoMultiplier()
     {
-        var snapshot = WithPriorObservation(consecutiveBad: 0);
+        var snapshot = WithPriorObservation(0);
         var obs = new HealthObservation { HasError = true, IsBadObservation = true, ErrorKey = "err" };
 
         var eval = _evaluator.Evaluate(ActiveAttempt(), snapshot, null, obs, 0, 0);
@@ -513,7 +517,7 @@ public class EvaluateScoringTests
     [Fact]
     public void NoProgress_ShortStreak_BasicMessage()
     {
-        var snapshot = WithPriorObservation(consecutiveBad: 1);
+        var snapshot = WithPriorObservation(1);
         var obs = new HealthObservation { HasNoProgress = true, IsBadObservation = true, Protocol = "torrent" };
 
         var eval = _evaluator.Evaluate(ActiveAttempt(), snapshot, null, obs, 0, 0);
@@ -524,7 +528,7 @@ public class EvaluateScoringTests
     [Fact]
     public void NoProgress_MediumStreak_RepeatedMessage()
     {
-        var snapshot = WithPriorObservation(consecutiveBad: 3);
+        var snapshot = WithPriorObservation(3);
         var obs = new HealthObservation { HasNoProgress = true, IsBadObservation = true, Protocol = "torrent" };
 
         var eval = _evaluator.Evaluate(ActiveAttempt(), snapshot, null, obs, 0, 0);
@@ -535,7 +539,7 @@ public class EvaluateScoringTests
     [Fact]
     public void NoProgress_LongStreak_ExtendedMessage()
     {
-        var snapshot = WithPriorObservation(consecutiveBad: 6);
+        var snapshot = WithPriorObservation(6);
         var obs = new HealthObservation { HasNoProgress = true, IsBadObservation = true, Protocol = "torrent" };
 
         var eval = _evaluator.Evaluate(ActiveAttempt(), snapshot, null, obs, 0, 0);

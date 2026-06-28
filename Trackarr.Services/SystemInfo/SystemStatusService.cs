@@ -156,6 +156,21 @@ public sealed class SystemStatusService(IDbContextFactory<AppDbContext> dbFactor
         return messages;
     }
 
+    public async Task<SystemStats> GetSystemStatsAsync()
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        return new SystemStats
+        {
+            Servers = await db.MediaServers.CountAsync(),
+            Movies = await db.Movies.CountAsync(),
+            Series = await db.Series.CountAsync(),
+            Episodes = await db.Episodes.CountAsync(),
+            Downloads = await db.DownloadAttempts.CountAsync(),
+            HealthEvents = await db.HealthEvents.CountAsync()
+        };
+    }
+
     public async Task<List<DiskSpaceInfo>> GetDiskSpaceAsync()
     {
         var paths = new List<string>();

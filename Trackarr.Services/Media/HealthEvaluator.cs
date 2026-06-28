@@ -4,10 +4,10 @@ using Trackarr.Core.Queue;
 namespace Trackarr.Services.Media;
 
 /// <summary>
-/// The pure scoring engine for download health. Holds no database or I/O dependencies, so it can be
-/// unit-tested in isolation: given an item and the current snapshot/attempt state, it produces an
-/// observation, an evaluation (score deltas + reasons), a mutated snapshot and a removal decision.
-/// <see cref="HealthService" /> owns the persistence and feeds this class the rolling-window counts.
+///     The pure scoring engine for download health. Holds no database or I/O dependencies, so it can be
+///     unit-tested in isolation: given an item and the current snapshot/attempt state, it produces an
+///     observation, an evaluation (score deltas + reasons), a mutated snapshot and a removal decision.
+///     <see cref="HealthService" /> owns the persistence and feeds this class the rolling-window counts.
 /// </summary>
 public sealed class HealthEvaluator(HealthPolicy? policy = null)
 {
@@ -102,14 +102,15 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
     #region Evaluation
 
     /// <summary>
-    /// Scores a single observation. <paramref name="recentBadInWindow" /> and
-    /// <paramref name="recentGoodInWindow" /> are the bad/good counts of the prior rolling window
-    /// (excluding this observation); the caller loads them from history.
+    ///     Scores a single observation. <paramref name="recentBadInWindow" /> and
+    ///     <paramref name="recentGoodInWindow" /> are the bad/good counts of the prior rolling window
+    ///     (excluding this observation); the caller loads them from history.
     /// </summary>
     public HealthEvaluation Evaluate(DownloadAttempt attempt, HealthSnapshot snapshot, MediaHealthSummary? mediaSummary,
         HealthObservation observation, int recentBadInWindow, int recentGoodInWindow)
     {
         if (snapshot.LastObservationAt is null)
+        {
             return new HealthEvaluation
             {
                 EventType = HealthEventType.FirstSeen,
@@ -119,6 +120,7 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
                 BadScansInWindow = 0,
                 GoodScansInWindow = 0
             };
+        }
 
         var badStreak = snapshot.ConsecutiveBadScans + (observation.IsBadObservation ? 1 : 0);
         var goodStreak = snapshot.ConsecutiveGoodScans + (observation.IsGoodObservation ? 1 : 0);
@@ -358,8 +360,10 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
         if (attempt.Status != AttemptStatus.Active) restrictions.Add("Download attempt is no longer active.");
 
         if (age < TimeSpan.FromMinutes(_policy.StartupGracePeriodMinutes))
+        {
             restrictions.Add(
                 $"Download is inside the {_policy.StartupGracePeriodMinutes} minute startup grace period.");
+        }
 
         if (snapshot.RawScore >= 0) restrictions.Add("Raw score has not dropped below zero.");
 
@@ -370,8 +374,10 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
             restrictions.Add($"Bad scan count is below {_policy.MinimumBadScansBeforeRemoval}.");
 
         if (snapshot.BadScansInLastTen < _policy.RequiredBadScansInWindow)
+        {
             restrictions.Add(
                 $"Bad scans in the last {_policy.RollingWindowSize} checks are below {_policy.RequiredBadScansInWindow}.");
+        }
 
         if (snapshot.LastByteProgressAt.HasValue && now - snapshot.LastByteProgressAt.Value <
             TimeSpan.FromMinutes(_policy.ByteProgressProtectionMinutes))
@@ -514,8 +520,10 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
     private static HealthEventType SelectEventType(List<HealthEventType> eventTypes)
     {
         foreach (var type in EventTypePriority)
+        {
             if (eventTypes.Contains(type))
                 return type;
+        }
 
         return HealthEventType.QueueSeen;
     }
@@ -586,8 +594,10 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
         return normalized.Length > 255 ? normalized[..255] : normalized;
     }
 
-    private static bool IsUsenet(HealthObservation observation) =>
-        string.Equals(observation.Protocol, "usenet", StringComparison.OrdinalIgnoreCase);
+    private static bool IsUsenet(HealthObservation observation)
+    {
+        return string.Equals(observation.Protocol, "usenet", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static bool ContainsAny(string? value, params string[] terms)
     {

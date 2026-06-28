@@ -9,8 +9,8 @@ using Trackarr.Services.Settings;
 namespace Trackarr.Tests;
 
 /// <summary>
-/// End-to-end tests of the refactored health pipeline (HealthService -> HealthRepository + HealthEvaluator)
-/// against a real in-memory SQLite database.
+///     End-to-end tests of the refactored health pipeline (HealthService -> HealthRepository + HealthEvaluator)
+///     against a real in-memory SQLite database.
 /// </summary>
 public class HealthPipelineTests
 {
@@ -135,8 +135,8 @@ public class HealthPipelineTests
         var service = new HealthService(factory, new SettingsService(factory, NullLogger<SettingsService>.Instance));
         var policy = new HealthPolicy();
 
-        await service.EvaluateAsync(MovieDownload(serverId, sizeLeft: 1000)); // first seen: score stays at start
-        await service.EvaluateAsync(MovieDownload(serverId, sizeLeft: 500)); // progress: reward
+        await service.EvaluateAsync(MovieDownload(serverId, 1000)); // first seen: score stays at start
+        await service.EvaluateAsync(MovieDownload(serverId, 500)); // progress: reward
 
         await using var db = factory.CreateDbContext();
         var snapshot = await db.HealthSnapshots.SingleAsync();

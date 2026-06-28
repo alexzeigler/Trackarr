@@ -5,8 +5,7 @@ namespace Trackarr.Core.Exception;
 public class Exceptions(string message, IRoutine routine)
     : System.Exception($"{message}: {routine.Name} (Id: {routine.Id})");
 
-public class MediaServerException(string message, System.Exception? inner = null)
-    : System.Exception(message, inner);
+public class MediaServerException(string message, System.Exception? inner = null) : System.Exception(message, inner);
 
 public class ConnectionException(string serverName, System.Exception? inner = null)
     : MediaServerException($"Could not reach {serverName}", inner);

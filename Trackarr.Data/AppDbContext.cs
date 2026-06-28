@@ -72,6 +72,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(e => e.DownloadClient).HasMaxLength(255);
             entity.Property(e => e.Indexer).HasMaxLength(255);
             entity.HasIndex(e => new { e.ServerId, e.DownloadId });
+
+            entity.HasOne<MediaServer>().WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<RoutineDefinition>(entity =>
@@ -144,7 +146,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(e => e.CleanTitle);
 
             entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Series>(entity =>
@@ -181,7 +183,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(e => e.CleanTitle);
 
             entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Episode>(entity =>
@@ -205,7 +207,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(e => e.Series).WithMany().HasForeignKey(e => e.SeriesDbId).OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<DownloadAttempt>(entity =>
@@ -235,7 +237,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(e => e.FirstSeenAt);
             entity.HasIndex(e => e.LastSeenAt);
 
-            entity.HasOne(e => e.Server).WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Server).WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne<Movie>().WithMany().HasForeignKey(e => e.MovieId).OnDelete(DeleteBehavior.SetNull);
 
@@ -368,7 +370,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             entity.HasKey(e => e.Id);
             entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<MissingMediaRecord>(entity =>
@@ -380,6 +382,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             entity.HasIndex(e => new { e.ServerId, e.RemoteId, e.EpisodeId }).IsUnique();
             entity.HasIndex(e => e.ServerId);
+
+            entity.HasOne<MediaServer>().WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<MissingSearchEvent>(entity =>
@@ -392,6 +396,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             entity.HasIndex(e => new { e.ServerId, e.RemoteId, e.EpisodeId });
             entity.HasIndex(e => e.OccurredAt);
+
+            entity.HasOne<MediaServer>().WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<AppSetting>(entity =>

@@ -9,6 +9,86 @@
 
 <div class="d-flex flex-column gap-3">
 
+    @* ── Application Info ───────────────────────────────────────────────── *@
+    @if (_appInfo is not null)
+    {
+        <div class="subheader">Application</div>
+        <div class="row row-cards">
+            <div class="col-sm-6 col-xl-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader mb-2">Uptime</div>
+                        <div class="h1 mb-0">@FormatUptime(_appInfo.Uptime)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader mb-2">Started</div>
+                        <div class="h1 mb-0">@FormatStartTime(_appInfo.StartTime)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader mb-2">Version</div>
+                        <div class="h1 mb-0">@_appInfo.Version</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader mb-2">Migrations</div>
+                        <div class="h1 mb-0">@FormatNumber(_appInfo.MigrationCount)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ── Data Stats ─────────────────────────────────────────────────────── *@
+    @if (_stats is not null)
+    {
+        <div class="subheader">Data</div>
+        <div class="row row-cards">
+            <div class="col-sm-6 col-xl-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader mb-2">Servers</div>
+                        <div class="h1 mb-0">@FormatNumber(_stats.Servers)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader mb-2">Movies</div>
+                        <div class="h1 mb-0">@FormatNumber(_stats.Movies)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader mb-2">Series</div>
+                        <div class="h1 mb-0">@FormatNumber(_stats.Series)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader mb-2">Downloads</div>
+                        <div class="h1 mb-0">@FormatNumber(_stats.Downloads)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
     @* ── Health Messages ─────────────────────────────────────────────────── *@
     @if (_messages.Count > 0)
     {
@@ -47,54 +127,12 @@
         </div>
     }
 
-    @* ── Disk Space ──────────────────────────────────────────────────────── *@
-    @if (_disks.Count > 0)
-    {
-        <div class="card app-card">
-            <div class="card-header">
-                <h3 class="card-title">Disk Space</h3>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-vcenter table-nowrap mb-0">
-                    <thead>
-                    <tr>
-                        <th>Location</th>
-                        <th class="text-end" style="width:120px">Free Space</th>
-                        <th class="text-end" style="width:120px">Total Space</th>
-                        <th style="width:200px"></th>
-                    </tr>
-                    </thead>
-                    <tbody class="table-tbody">
-                    @foreach (var disk in _disks)
-                    {
-                        <tr>
-                            <td>@disk.Location</td>
-                            <td class="text-end">@FormatBytes(disk.FreeBytes)</td>
-                            <td class="text-end">@FormatBytes(disk.TotalBytes)</td>
-                            <td>
-                                <div class="progress app-progress" style="height: 6px">
-                                    <div class="progress-bar @DiskBarClass(disk.UsedPercent)"
-                                         style="width: @disk.UsedPercent.ToString("0.0")%"
-                                         role="progressbar"
-                                         aria-valuenow="@disk.UsedPercent"
-                                         aria-valuemin="0"
-                                         aria-valuemax="100"></div>
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    }
-
     @* ── About ───────────────────────────────────────────────────────────── *@
     @if (_appInfo is not null)
     {
         <div class="card app-card">
             <div class="card-header">
-                <h3 class="card-title">About</h3>
+                <h3 class="card-title">System</h3>
                 <div class="card-actions">
                     <button type="button"
                             class="btn btn-app-ghost btn-sm"
@@ -121,24 +159,16 @@
                 <div class="row">
                     <div class="col-lg-6">
                         <div class="detail-row">
-                            <span class="data-label">Version</span>
-                            <span class="data-value">@_appInfo.Version</span>
-                        </div>
-                        <div class="detail-row">
                             <span class="data-label">.NET</span>
                             <span class="data-value">@_appInfo.RuntimeName</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="data-label">Docker</span>
-                            <span class="data-value">@YesNo(_appInfo.IsDocker)</span>
                         </div>
                         <div class="detail-row">
                             <span class="data-label">Database</span>
                             <span class="data-value">@_appInfo.DatabaseType @_appInfo.DatabaseVersion</span>
                         </div>
                         <div class="detail-row">
-                            <span class="data-label">Migrations</span>
-                            <span class="data-value">@_appInfo.MigrationCount</span>
+                            <span class="data-label">Docker</span>
+                            <span class="data-value">@YesNo(_appInfo.IsDocker)</span>
                         </div>
                     </div>
                     <div class="col-lg-6">
@@ -154,14 +184,6 @@
                             <span class="data-label">Data Directory</span>
                             <span class="data-value text-break">@_appInfo.DataDirectory</span>
                         </div>
-                        <div class="detail-row">
-                            <span class="data-label">Startup Directory</span>
-                            <span class="data-value text-break">@_appInfo.StartupDirectory</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="data-label">Uptime</span>
-                            <span class="data-value">@FormatUptime(_appInfo.Uptime)</span>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -172,15 +194,15 @@
 
 @code {
     private AppInfo? _appInfo;
+    private SystemStats? _stats;
     private List<SystemStatusMessage> _messages = [];
-    private List<DiskSpaceInfo> _disks = [];
     private bool _isRefreshing;
     private Timer? _uptimeTimer;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
-        _uptimeTimer = new Timer(_ => InvokeAsync(StateHasChanged), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        _uptimeTimer = new Timer(_ => InvokeAsync(StateHasChanged), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
     }
 
     private async Task LoadAsync()
@@ -190,7 +212,7 @@
         {
             _appInfo = await StatusService.GetAppInfoAsync();
             _messages = await StatusService.GetStatusMessagesAsync();
-            _disks = await StatusService.GetDiskSpaceAsync();
+            _stats = await StatusService.GetSystemStatsAsync();
         }
         finally
         {
@@ -219,31 +241,20 @@
         };
     }
 
-    private static string DiskBarClass(double usedPercent)
-    {
-        return usedPercent switch
-        {
-            >= 90 => "bg-danger",
-            >= 75 => "bg-warning",
-            _ => ""
-        };
-    }
-
-    private static string FormatBytes(long bytes)
-    {
-        return bytes switch
-        {
-            >= 1L << 40 => $"{bytes / (double)(1L << 40):0.0} TiB",
-            >= 1L << 30 => $"{bytes / (double)(1L << 30):0.0} GiB",
-            >= 1L << 20 => $"{bytes / (double)(1L << 20):0.0} MiB",
-            _ => $"{bytes / (double)(1L << 10):0.0} KiB"
-        };
-    }
-
     private static string FormatUptime(TimeSpan ts)
     {
         if (ts.TotalDays >= 1) return $"{(int)ts.TotalDays}d {ts.Hours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}";
         return $"{ts.Hours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}";
+    }
+
+    private static string FormatStartTime(DateTime utc)
+    {
+        return utc.ToLocalTime().ToString("MMM d, yyyy h:mm tt");
+    }
+
+    private static string FormatNumber(int value)
+    {
+        return value.ToString("N0");
     }
 
     public void Dispose()

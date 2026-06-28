@@ -4,52 +4,52 @@
 @layout SettingsLayout
 @inject SettingsService SettingsService
 
-<div class="subheader mb-2">Global Server Defaults</div>
-<p class="text-muted mb-4">These defaults apply to all servers unless overridden on the individual server.</p>
+<h2 class="mb-1">Servers</h2>
+<p class="text-muted mb-4">Global defaults that apply to all servers unless overridden individually.</p>
 
-<div class="card app-card mb-4">
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-12 col-md-6">
-                <label class="form-check form-switch"> <input class="form-check-input"
-                                                              type="checkbox"
-                                                              @bind="_monitorQueue"
-                                                              @bind:after="MarkDirty"/>
-                    <span class="form-check-label">Monitor Queue</span>
-                </label>
-                <div class="form-text">Fetch and display queue items from servers.</div>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-check form-switch"> <input class="form-check-input"
-                                                              type="checkbox"
-                                                              @bind="_autoRemove"
-                                                              @bind:after="MarkDirty"/>
-                    <span class="form-check-label">Auto-Remove Downloads</span>
-                </label>
-                <div class="form-text">Automatically remove downloads that meet the removal threshold.</div>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-check form-switch"> <input class="form-check-input"
-                                                              type="checkbox"
-                                                              @bind="_searchMissing"
-                                                              @bind:after="MarkDirty"/>
-                    <span class="form-check-label">Search Missing Media</span>
-                </label>
-                <div class="form-text">Trigger searches for missing movies and episodes.</div>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-label">Request Timeout</label>
-                <div class="input-group">
-                    <input type="number"
-                           class="form-control"
-                           min="5"
-                           max="300"
-                           @bind="_timeout"
-                           @bind:after="MarkDirty"/>
-                    <span class="input-group-text">seconds</span>
-                </div>
-                <div class="form-text">How long to wait for a response from a server before timing out.</div>
-            </div>
+<h3 class="card-title">Features</h3>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-4">
+        <label class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" @bind="_monitorQueue" @bind:after="MarkDirty"/>
+            <span class="form-check-label"
+                  data-bs-toggle="tooltip"
+                  title="Fetch and display active download queue items from your servers">Monitor Queue
+                <i class="ti ti-info-circle ms-1 opacity-50"></i>
+            </span>
+        </label>
+    </div>
+    <div class="col-12 col-lg-4">
+        <label class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" @bind="_autoRemove" @bind:after="MarkDirty"/>
+            <span class="form-check-label"
+                  data-bs-toggle="tooltip"
+                  title="Automatically remove downloads when their health score drops below the removal threshold">
+                Auto-Remove Downloads
+                <i class="ti ti-info-circle ms-1 opacity-50"></i>
+            </span>
+        </label>
+    </div>
+    <div class="col-12 col-lg-4">
+        <label class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" @bind="_searchMissing" @bind:after="MarkDirty"/>
+            <span class="form-check-label"
+                  data-bs-toggle="tooltip"
+                  title="Periodically trigger searches on your servers for movies and episodes that are missing">Search
+                Missing Media
+                <i class="ti ti-info-circle ms-1 opacity-50"></i>
+            </span>
+        </label>
+    </div>
+</div>
+
+<h3 class="card-title">Connection</h3>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-4">
+        <label class="form-label">Request Timeout</label>
+        <div class="input-group" style="max-width: 10rem;">
+            <input type="number" class="form-control" min="5" max="300" @bind="_timeout" @bind:after="MarkDirty"/>
+            <span class="input-group-text">sec</span>
         </div>
     </div>
 </div>

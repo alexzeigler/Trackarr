@@ -5,16 +5,17 @@ using Trackarr.Services.Media;
 namespace Trackarr.Tests;
 
 /// <summary>
-/// Characterization tests pinning the pure scoring behavior of <see cref="HealthEvaluator" />.
-/// Two of these are explicit regression guards for bugs fixed during the refactor.
+///     Characterization tests pinning the pure scoring behavior of <see cref="HealthEvaluator" />.
+///     Two of these are explicit regression guards for bugs fixed during the refactor.
 /// </summary>
 public class HealthEvaluatorTests
 {
     private static readonly HealthPolicy Policy = new();
     private readonly HealthEvaluator _evaluator = new(Policy);
 
-    private static DownloadAttempt NewAttempt() =>
-        new()
+    private static DownloadAttempt NewAttempt()
+    {
+        return new DownloadAttempt
         {
             Id = 1,
             DownloadId = "abc",
@@ -22,6 +23,7 @@ public class HealthEvaluatorTests
             Status = AttemptStatus.Active,
             FirstSeenAt = DateTime.UtcNow.AddHours(-1)
         };
+    }
 
     [Fact]
     public void FirstObservation_ReturnsFirstSeenBaseline()

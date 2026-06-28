@@ -6,8 +6,9 @@ namespace Trackarr.Tests;
 
 public class BuildObservationTests
 {
-    private static DownloadAttempt NewAttempt() =>
-        new()
+    private static DownloadAttempt NewAttempt()
+    {
+        return new DownloadAttempt
         {
             Id = 1,
             DownloadId = "abc",
@@ -15,16 +16,22 @@ public class BuildObservationTests
             Status = AttemptStatus.Active,
             FirstSeenAt = DateTime.UtcNow.AddHours(-1)
         };
+    }
 
-    private static HealthSnapshot FreshSnapshot() => new();
+    private static HealthSnapshot FreshSnapshot()
+    {
+        return new HealthSnapshot();
+    }
 
-    private static HealthSnapshot ObservedSnapshot(decimal? lastProgress = 50m, long? lastSizeLeft = 500) =>
-        new()
+    private static HealthSnapshot ObservedSnapshot(decimal? lastProgress = 50m, long? lastSizeLeft = 500)
+    {
+        return new HealthSnapshot
         {
             LastObservationAt = DateTime.UtcNow.AddMinutes(-5),
             LastProgress = lastProgress,
             LastSizeLeft = lastSizeLeft
         };
+    }
 
     #region First Observation
 
@@ -46,7 +53,7 @@ public class BuildObservationTests
     [Fact]
     public void ProgressIncreased_WhenPercentRises()
     {
-        var snapshot = ObservedSnapshot(lastProgress: 30m, lastSizeLeft: 700);
+        var snapshot = ObservedSnapshot(30m, 700);
         var item = new DownloadItem { Size = 1000, SizeLeft = 400 };
 
         var obs = HealthEvaluator.BuildObservation(item, NewAttempt(), snapshot, DateTime.UtcNow);
@@ -60,7 +67,7 @@ public class BuildObservationTests
     [Fact]
     public void SizeLeftDecreased_ButProgressSame_StillActivelyProgressing()
     {
-        var snapshot = ObservedSnapshot(lastProgress: 50m, lastSizeLeft: 600);
+        var snapshot = ObservedSnapshot(50m, 600);
         var item = new DownloadItem { Size = 1000, SizeLeft = 500 };
 
         var obs = HealthEvaluator.BuildObservation(item, NewAttempt(), snapshot, DateTime.UtcNow);
@@ -72,7 +79,7 @@ public class BuildObservationTests
     [Fact]
     public void NoProgressChange_WhenSameSizeLeft()
     {
-        var snapshot = ObservedSnapshot(lastProgress: 50m, lastSizeLeft: 500);
+        var snapshot = ObservedSnapshot(50m, 500);
         var item = new DownloadItem { Size = 1000, SizeLeft = 500 };
 
         var obs = HealthEvaluator.BuildObservation(item, NewAttempt(), snapshot, DateTime.UtcNow);
@@ -85,7 +92,7 @@ public class BuildObservationTests
     [Fact]
     public void SizeLeftIncreased_NotProgress()
     {
-        var snapshot = ObservedSnapshot(lastProgress: 50m, lastSizeLeft: 400);
+        var snapshot = ObservedSnapshot(50m, 400);
         var item = new DownloadItem { Size = 1000, SizeLeft = 500 };
 
         var obs = HealthEvaluator.BuildObservation(item, NewAttempt(), snapshot, DateTime.UtcNow);
@@ -213,7 +220,7 @@ public class BuildObservationTests
     [Fact]
     public void ActivelyProgressing_SuppressesStallDetection()
     {
-        var snapshot = ObservedSnapshot(lastProgress: 30m, lastSizeLeft: 700);
+        var snapshot = ObservedSnapshot(30m, 700);
         var item = new DownloadItem
         {
             Size = 1000, SizeLeft = 400, Status = "stalled", ErrorMessage = "stalled with no connections"
@@ -337,7 +344,7 @@ public class BuildObservationTests
     [Fact]
     public void FetchingMetadata_SuppressedByProgress()
     {
-        var snapshot = ObservedSnapshot(lastProgress: 30m, lastSizeLeft: 700);
+        var snapshot = ObservedSnapshot(30m, 700);
         var item = new DownloadItem { Size = 1000, SizeLeft = 400, ErrorMessage = "downloading metadata" };
 
         var obs = HealthEvaluator.BuildObservation(item, NewAttempt(), snapshot, DateTime.UtcNow);
@@ -352,7 +359,7 @@ public class BuildObservationTests
     [Fact]
     public void MeaningfulRecovery_WhenProgressAfterBadStreaks()
     {
-        var snapshot = ObservedSnapshot(lastProgress: 30m, lastSizeLeft: 700);
+        var snapshot = ObservedSnapshot(30m, 700);
         snapshot.ConsecutiveBadScans = 3;
         var item = new DownloadItem { Size = 1000, SizeLeft = 400 };
 
@@ -364,7 +371,7 @@ public class BuildObservationTests
     [Fact]
     public void MeaningfulRecovery_WhenProgressAfterDegradingState()
     {
-        var snapshot = ObservedSnapshot(lastProgress: 30m, lastSizeLeft: 700);
+        var snapshot = ObservedSnapshot(30m, 700);
         snapshot.State = HealthState.Degrading;
         var item = new DownloadItem { Size = 1000, SizeLeft = 400 };
 
@@ -376,7 +383,7 @@ public class BuildObservationTests
     [Fact]
     public void MeaningfulRecovery_WhenProgressAfterWatchingState()
     {
-        var snapshot = ObservedSnapshot(lastProgress: 30m, lastSizeLeft: 700);
+        var snapshot = ObservedSnapshot(30m, 700);
         snapshot.State = HealthState.Watching;
         var item = new DownloadItem { Size = 1000, SizeLeft = 400 };
 
@@ -388,7 +395,7 @@ public class BuildObservationTests
     [Fact]
     public void MeaningfulRecovery_WhenProgressAfterCriticalState()
     {
-        var snapshot = ObservedSnapshot(lastProgress: 30m, lastSizeLeft: 700);
+        var snapshot = ObservedSnapshot(30m, 700);
         snapshot.State = HealthState.Critical;
         var item = new DownloadItem { Size = 1000, SizeLeft = 400 };
 
@@ -400,7 +407,7 @@ public class BuildObservationTests
     [Fact]
     public void NotMeaningfulRecovery_WhenHealthy()
     {
-        var snapshot = ObservedSnapshot(lastProgress: 30m, lastSizeLeft: 700);
+        var snapshot = ObservedSnapshot(30m, 700);
         snapshot.State = HealthState.Healthy;
         snapshot.ConsecutiveBadScans = 0;
         var item = new DownloadItem { Size = 1000, SizeLeft = 400 };
@@ -413,7 +420,7 @@ public class BuildObservationTests
     [Fact]
     public void SustainedProgress_WhenThreeConsecutiveGoodScans()
     {
-        var snapshot = ObservedSnapshot(lastProgress: 30m, lastSizeLeft: 700);
+        var snapshot = ObservedSnapshot(30m, 700);
         snapshot.ConsecutiveGoodScans = 3;
         var item = new DownloadItem { Size = 1000, SizeLeft = 400 };
 
@@ -425,7 +432,7 @@ public class BuildObservationTests
     [Fact]
     public void NotSustainedProgress_WhenBelowThreshold()
     {
-        var snapshot = ObservedSnapshot(lastProgress: 30m, lastSizeLeft: 700);
+        var snapshot = ObservedSnapshot(30m, 700);
         snapshot.ConsecutiveGoodScans = 2;
         var item = new DownloadItem { Size = 1000, SizeLeft = 400 };
 

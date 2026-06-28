@@ -5,8 +5,8 @@ using Trackarr.Data;
 namespace Trackarr.Tests;
 
 /// <summary>
-/// An <see cref="IDbContextFactory{TContext}" /> backed by a single open in-memory SQLite connection,
-/// so every context the services create shares the same throwaway database for the test's lifetime.
+///     An <see cref="IDbContextFactory{TContext}" /> backed by a single open in-memory SQLite connection,
+///     so every context the services create shares the same throwaway database for the test's lifetime.
 /// </summary>
 internal sealed class SqliteInMemoryFactory : IDbContextFactory<AppDbContext>, IDisposable
 {
@@ -23,10 +23,18 @@ internal sealed class SqliteInMemoryFactory : IDbContextFactory<AppDbContext>, I
         db.Database.EnsureCreated();
     }
 
-    public AppDbContext CreateDbContext() => new(_options);
+    public AppDbContext CreateDbContext()
+    {
+        return new AppDbContext(_options);
+    }
 
-    public Task<AppDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(CreateDbContext());
+    public Task<AppDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(CreateDbContext());
+    }
 
-    public void Dispose() => _connection.Dispose();
+    public void Dispose()
+    {
+        _connection.Dispose();
+    }
 }

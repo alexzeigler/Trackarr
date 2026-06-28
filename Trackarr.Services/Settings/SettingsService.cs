@@ -29,7 +29,6 @@ public class SettingsService(IDbContextFactory<AppDbContext> dbFactory, ILogger<
 
         // Display
         [("Display", "DateFormat")] = ("MMM d, yyyy h:mm tt", "string"),
-        [("Display", "TimeFormat")] = ("12h", "string"),
         [("Display", "UseTimeAgo")] = ("true", "bool"),
         [("Display", "TimeAgoThresholdHours")] = ("24", "int"),
         [("Display", "QueuePageSize")] = ("10", "int"),

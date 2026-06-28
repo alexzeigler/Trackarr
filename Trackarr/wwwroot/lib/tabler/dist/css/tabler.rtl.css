@@ -18490,11 +18490,11 @@ Navbar narrow tooltips
     --tblr-body-bg: var(--tblr-gray-900);
     --tblr-body-color: var(--tblr-gray-200);
     --tblr-border-active-color: var(
-            --tblr-dark-mode-border-active-color
+        --tblr-dark-mode-border-active-color
     );
     --tblr-border-color: var(--tblr-gray-700);
     --tblr-border-color-translucent: var(
-            --tblr-dark-mode-border-color-translucent
+        --tblr-dark-mode-border-color-translucent
     );
     --tblr-border-dark-color: var(--tblr-dark-mode-border-dark-color);
     --tblr-btn-color: rgb(27.323255814, 36.1372093023, 48.476744186);
@@ -23469,7 +23469,7 @@ label[for=floating-input] {
 }
 
 /**
-Forms on mobile devices 
+Forms on mobile devices
   */
 @media (max-width: 575.98px) {
     .form-control,

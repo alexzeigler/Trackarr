@@ -1,1 +1,31 @@
-﻿
+::deep .list-group-transparent .list-group-item {
+    background: transparent;
+    border: 0;
+    border-radius: .35rem;
+    color: rgba(255, 255, 255, .6);
+    font-size: .875rem;
+    padding: .5rem .75rem;
+}
+
+::deep .list-group-transparent .list-group-item:hover {
+    background: rgba(255, 255, 255, .05);
+    color: rgba(255, 255, 255, .85);
+}
+
+::deep .list-group-transparent .list-group-item.active {
+    background: rgba(var(--tblr-primary-rgb), .12);
+    color: var(--tblr-primary);
+    font-weight: 600;
+}
+
+::deep .subheader {
+    color: rgba(255, 255, 255, .45);
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+
+::deep .card-footer {
+    padding: .75rem 1.25rem;
+}

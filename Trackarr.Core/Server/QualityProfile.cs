@@ -8,6 +8,6 @@ public class QualityProfile
     [JsonIgnore] public int Id { get; set; }
     [JsonPropertyName("id")] public int RemoteId { get; set; }
     public string? Name { get; set; }
-    public int ServerId { get; set; }
+    public int? ServerId { get; set; }
     [ForeignKey(nameof(ServerId))] public MediaServer? ParentServer { get; set; }
 }

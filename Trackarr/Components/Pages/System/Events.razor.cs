@@ -74,9 +74,11 @@ public partial class Events : ComponentBase
                 query = query.Where(x => x.LogLevel == level);
 
             if (!string.IsNullOrWhiteSpace(_filterText))
+            {
                 query = query.Where(x =>
                     Contains(x.Source, _filterText) || Contains(x.Message, _filterText) ||
                     Contains(x.Exception, _filterText) || Contains(x.LogLevel.ToString(), _filterText));
+            }
 
             query = (_sortColumn, _sortDescending) switch
             {

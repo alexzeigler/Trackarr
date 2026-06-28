@@ -18,6 +18,7 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
         var servers = (await mediaServerService.GetAllServersAsync()).Where(s => s.IsEnabled).ToList();
 
         foreach (var server in servers)
+        {
             try
             {
                 var result = await mediaServerService.TestConnectionAsync(server);
@@ -28,6 +29,7 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
             {
                 logger.LogWarning("Heartbeat [{name}]: failed — {message}", server.Name, ex.Message);
             }
+        }
 
         return $"{servers.Count} servers checked";
     }

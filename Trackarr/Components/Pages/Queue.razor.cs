@@ -33,6 +33,8 @@ public partial class Queue : ComponentBase
         public string? PosterUrl { get; init; }
         public string MediaType { get; init; } = "";
         public string? Quality { get; init; }
+        public string? ServerName { get; init; }
+        public ServiceType? ServerType { get; init; }
         public List<DownloadItem> Items { get; init; } = [];
         public int AverageProgress { get; init; }
     }
@@ -52,6 +54,8 @@ public partial class Queue : ComponentBase
     #region State
 
     private readonly HashSet<string> _expandedGroups = [];
+    private readonly HashSet<string> _collapsedGroups = [];
+    private bool _expandGroupsByDefault;
 
     private readonly CancellationTokenSource _refreshCancellation = new();
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
@@ -81,7 +85,11 @@ public partial class Queue : ComponentBase
     private Dictionary<string, MediaHealthSummary> _summaries = [];
     private string? _typeFilter;
 
+    private int _page = 1;
+
     private int PageSize => Settings.GetInt("Display", "QueuePageSize", 10);
+    private List<QueueGroup> PagedGroups => Groups.Skip((_page - 1) * PageSize).Take(PageSize).ToList();
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(Groups.Count / (double)PageSize));
 
     private string TableDensityClass =>
         Settings.GetString("Display", "TableDensity", "normal") switch
@@ -166,6 +174,8 @@ public partial class Queue : ComponentBase
         if (!string.IsNullOrWhiteSpace(InitialSearch))
             _searchTerm = InitialSearch;
 
+        _expandGroupsByDefault = Settings.GetBool("Display", "ExpandQueueGroupsByDefault", true);
+
         AppState.OnRefreshRequested += RefreshAsync;
         await RefreshAsync();
         await RefreshChartsAsync();
@@ -248,6 +258,17 @@ public partial class Queue : ComponentBase
         _statusFilter = null;
         _serverFilter = null;
         _typeFilter = null;
+        _page = 1;
+    }
+
+    private void PrevPage()
+    {
+        if (_page > 1) _page--;
+    }
+
+    private void NextPage()
+    {
+        if (_page < TotalPages) _page++;
     }
 
     private void SortBy(string column)
@@ -265,8 +286,16 @@ public partial class Queue : ComponentBase
 
     private void ToggleGroup(string groupKey)
     {
-        if (!_expandedGroups.Add(groupKey))
-            _expandedGroups.Remove(groupKey);
+        if (_expandGroupsByDefault)
+        {
+            if (!_collapsedGroups.Add(groupKey))
+                _collapsedGroups.Remove(groupKey);
+        }
+        else
+        {
+            if (!_expandedGroups.Add(groupKey))
+                _expandedGroups.Remove(groupKey);
+        }
     }
 
     private async Task OpenGroupDetails(QueueGroup group, DownloadItem firstItem, Movie? movie, Series? series)
@@ -521,17 +550,28 @@ public partial class Queue : ComponentBase
                 string.Equals(GetMediaType(item), _typeFilter, StringComparison.OrdinalIgnoreCase));
         }
 
+        var grouping = Settings.GetString("Display", "DefaultQueueGrouping", "none");
         var groups = filtered.GroupBy(GetGroupKey).Select(group =>
         {
             var items = group.ToList();
             var first = items[0];
+            var server = _serverMap?.GetValueOrDefault(first.ServerId);
+            var title = grouping switch
+            {
+                "server" => server?.Name ?? $"Server {first.ServerId}",
+                "status" => GetStatusBucket(GetStatusText(first)),
+                "mediaType" => GetMediaType(first),
+                _ => GetDisplayTitle(first)
+            };
             return new QueueGroup
             {
                 Key = group.Key,
-                Title = GetDisplayTitle(first),
-                PosterUrl = GetGroupPosterUrl(first),
+                Title = title,
+                PosterUrl = grouping is "none" or "" or null ? GetGroupPosterUrl(first) : null,
                 MediaType = GetMediaType(first),
-                Quality = GetQualityName(first),
+                Quality = grouping is "none" or "" or null ? GetQualityName(first) : null,
+                ServerName = server?.Name,
+                ServerType = server?.ServiceType,
                 Items = items,
                 AverageProgress = items.Count > 0 ? (int)items.Average(i => i.DownloadPercent) : 0
             };
@@ -559,9 +599,21 @@ public partial class Queue : ComponentBase
 
     private string GetGroupKey(DownloadItem item)
     {
+        var grouping = Settings.GetString("Display", "DefaultQueueGrouping", "none");
+        return grouping switch
+        {
+            "server" => $"server_{item.ServerId}",
+            "status" => $"status_{GetStatusBucket(GetStatusText(item))}",
+            "mediaType" => $"type_{GetMediaType(item)}",
+            _ => GetMediaGroupKey(item)
+        };
+    }
+
+    private static string GetMediaGroupKey(DownloadItem item)
+    {
         if (item.SeriesId > 0) return $"series_{item.ServerId}_{item.SeriesId}";
         if (item.MovieId > 0) return $"movie_{item.ServerId}_{item.MovieId}";
-        return GetItemKey(item);
+        return $"{item.ServerId}_{item.RemoteId}";
     }
 
     private string? GetGroupPosterUrl(DownloadItem item)
@@ -573,6 +625,8 @@ public partial class Queue : ComponentBase
 
     private bool IsExpanded(string groupKey)
     {
+        if (_expandGroupsByDefault)
+            return !_collapsedGroups.Contains(groupKey);
         return _expandedGroups.Contains(groupKey);
     }
 

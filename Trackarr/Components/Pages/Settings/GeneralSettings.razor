@@ -4,54 +4,108 @@
 @layout SettingsLayout
 @inject SettingsService SettingsService
 
-<div class="subheader mb-2">Application</div>
-<div class="card app-card mb-4">
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-12 col-md-6">
-                <label class="form-label">Application Name</label> <input class="form-control"
-                                                                          @bind="_appName"
-                                                                          @bind:event="oninput"
-                                                                          @bind:after="MarkDirty"/>
-                <div class="form-text">Display name shown in the sidebar and browser tab.</div>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-label">Default Server Type</label> <select class="form-select"
-                                                                              @bind="_defaultServerType"
-                                                                              @bind:after="MarkDirty">
-                    <option value="Radarr">Radarr</option>
-                    <option value="Sonarr">Sonarr</option>
-                </select>
-                <div class="form-text">Default type when adding a new server.</div>
+<h2 class="mb-1">General</h2>
+<p class="text-muted mb-4">Core application settings and behavior.</p>
+
+<h3 class="card-title">Application</h3>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="form-floating">
+            <input type="text"
+                   class="form-control"
+                   id="appName"
+                   placeholder="Trackarr"
+                   @bind="_appName"
+                   @bind:event="oninput"
+                   @bind:after="MarkDirty"/>
+            <label for="appName">Application Name</label>
+        </div>
+        <div class="form-text">Shown in the sidebar and browser tab.</div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <label class="form-label d-block mb-3">Startup</label>
+        <label class="form-check">
+            <input class="form-check-input" type="checkbox" @bind="_autoStartRoutines" @bind:after="MarkDirty"/>
+            <span class="form-check-label"
+                  data-bs-toggle="tooltip"
+                  title="Automatically start all background routines (queue monitoring, missing media search, etc.) when the application starts">
+                Auto-start routines on launch
+                <i class="ti ti-info-circle ms-1 opacity-50"></i>
+            </span>
+        </label>
+    </div>
+    <div class="col-12">
+        <label class="form-label">Default Server Type</label>
+        <div class="row g-2">
+            <div class="col-6">
+                <label class="form-imagecheck mb-0">
+                    <input name="serverType"
+                           type="radio"
+                           value="Radarr"
+                           class="form-imagecheck-input"
+                           checked="@(_defaultServerType == "Radarr")"
+                           @onchange="@(() => SetServerType("Radarr"))"/>
+                    <span class="form-imagecheck-figure">
+                        <img src="img/Radarr.svg"
+                             alt="Radarr"
+                             class="form-imagecheck-image"
+                             style="padding: 1rem; object-fit: contain; max-width: 100px">
+                        <span class="form-imagecheck-label px-1">Radarr</span>
+                    </span>
+                </label>
+                <label class="form-imagecheck mb-0">
+                    <input name="serverType"
+                           type="radio"
+                           value="Sonarr"
+                           class="form-imagecheck-input"
+                           checked="@(_defaultServerType == "Sonarr")"
+                           @onchange="@(() => SetServerType("Sonarr"))"/>
+                    <span class="form-imagecheck-figure">
+                        <img src="img/Sonarr.svg"
+                             alt="Sonarr"
+                             class="form-imagecheck-image"
+                             style="padding: 1rem; object-fit: contain; max-width: 100px">
+                        <span class="form-imagecheck-label px-1">Sonarr</span>
+                    </span>
+                </label>
             </div>
         </div>
     </div>
 </div>
 
-<div class="subheader mb-2">Behavior</div>
-<div class="card app-card mb-4">
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-12 col-md-6">
-                <label class="form-label">Disabled Server Behavior</label> <select class="form-select"
-                                                                                   @bind="_disabledBehavior"
-                                                                                   @bind:after="MarkDirty">
-                    <option value="hidden">Hidden — exclude from all views</option>
-                    <option value="grayed">Grayed Out — visible but inactive</option>
-                </select>
-                <div class="form-text">How disabled servers and their items appear throughout the app.</div>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-check form-switch mt-4"> <input class="form-check-input"
-                                                                   type="checkbox"
-                                                                   @bind="_autoStartRoutines"
-                                                                   @bind:after="MarkDirty"/>
-                    <span class="form-check-label">Auto-Start Routines</span>
-                </label>
-                <div class="form-text">Automatically start all routines when the application starts.</div>
-            </div>
+<h3 class="card-title mt-4">Behavior</h3>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Controls how disabled servers and their items appear across the queue, missing, and history views">
+            Disabled Server Behavior
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <div class="btn-group w-100" role="group">
+            <input type="radio"
+                   class="btn-check"
+                   name="disabledBehavior"
+                   id="bhHidden"
+                   checked="@(_disabledBehavior == "hidden")"
+                   @onchange="@(() => SetDisabledBehavior("hidden"))"/>
+            <label class="btn btn-app-ghost" for="bhHidden">
+                <i class="ti ti-eye-off me-1"></i>
+                Hidden
+            </label>
+            <input type="radio"
+                   class="btn-check"
+                   name="disabledBehavior"
+                   id="bhGrayed"
+                   checked="@(_disabledBehavior == "grayed")"
+                   @onchange="@(() => SetDisabledBehavior("grayed"))"/>
+            <label class="btn btn-app-ghost" for="bhGrayed">
+                <i class="ti ti-eye me-1"></i>
+                Grayed Out
+            </label>
         </div>
     </div>
+
 </div>
 
 @code {
@@ -85,6 +139,18 @@
         _origDisabledBehavior = _disabledBehavior;
         _origAutoStartRoutines = _autoStartRoutines;
         _origDefaultServerType = _defaultServerType;
+    }
+
+    private void SetServerType(string type)
+    {
+        _defaultServerType = type;
+        MarkDirty();
+    }
+
+    private void SetDisabledBehavior(string behavior)
+    {
+        _disabledBehavior = behavior;
+        MarkDirty();
     }
 
     private void MarkDirty()

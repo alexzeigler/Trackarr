@@ -134,7 +134,7 @@ namespace Trackarr.Data.Migrations
                     b.Property<int?>("SeriesId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("ServerId")
+                    b.Property<int?>("ServerId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ServiceType")
@@ -870,7 +870,7 @@ namespace Trackarr.Data.Migrations
                     b.Property<int>("Runtime")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("ServerId")
+                    b.Property<int?>("ServerId")
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("SizeOnDisk")
@@ -1007,7 +1007,7 @@ namespace Trackarr.Data.Migrations
                     b.Property<string>("SeriesJson")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("ServerId")
+                    b.Property<int?>("ServerId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Title")
@@ -1136,7 +1136,7 @@ namespace Trackarr.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("ServerId")
+                    b.Property<int?>("ServerId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("SortTitle")
@@ -1490,7 +1490,7 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("INTEGER")
                         .HasJsonPropertyName("id");
 
-                    b.Property<int>("ServerId")
+                    b.Property<int?>("ServerId")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
@@ -1725,8 +1725,7 @@ namespace Trackarr.Data.Migrations
                     b.HasOne("Trackarr.Core.Server.MediaServer", "Server")
                         .WithMany()
                         .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Server");
                 });
@@ -1781,13 +1780,30 @@ namespace Trackarr.Data.Migrations
                     b.Navigation("Server");
                 });
 
+            modelBuilder.Entity("Trackarr.Core.Media.Missing.MissingMediaRecord", b =>
+                {
+                    b.HasOne("Trackarr.Core.Server.MediaServer", null)
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Media.Missing.MissingSearchEvent", b =>
+                {
+                    b.HasOne("Trackarr.Core.Server.MediaServer", null)
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Trackarr.Core.Media.Movies.Movie", b =>
                 {
                     b.HasOne("Trackarr.Core.Server.MediaServer", "ParentServer")
                         .WithMany()
                         .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("ParentServer");
                 });
@@ -1802,8 +1818,7 @@ namespace Trackarr.Data.Migrations
                     b.HasOne("Trackarr.Core.Server.MediaServer", "ParentServer")
                         .WithMany()
                         .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("ParentServer");
 
@@ -1815,10 +1830,18 @@ namespace Trackarr.Data.Migrations
                     b.HasOne("Trackarr.Core.Server.MediaServer", "ParentServer")
                         .WithMany()
                         .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("ParentServer");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Queue.DownloadItem", b =>
+                {
+                    b.HasOne("Trackarr.Core.Server.MediaServer", null)
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Trackarr.Core.Routine.RoutineRun", b =>
@@ -1847,8 +1870,7 @@ namespace Trackarr.Data.Migrations
                     b.HasOne("Trackarr.Core.Server.MediaServer", "ParentServer")
                         .WithMany()
                         .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("ParentServer");
                 });

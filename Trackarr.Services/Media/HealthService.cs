@@ -576,8 +576,10 @@ public sealed class HealthService(IDbContextFactory<AppDbContext> dbFactory, Set
                 .FirstOrDefaultAsync(cancellationToken);
 
             if (movieId > 0)
+            {
                 return await db.MediaHealthSummaries.AsNoTracking().Where(e => e.MovieId == movieId)
                     .OrderByDescending(e => e.CreatedAt).FirstOrDefaultAsync(cancellationToken);
+            }
         }
 
         if (seriesRemoteId is not > 0) return null;
@@ -587,8 +589,10 @@ public sealed class HealthService(IDbContextFactory<AppDbContext> dbFactory, Set
                 .FirstOrDefaultAsync(cancellationToken);
 
             if (seriesId > 0)
+            {
                 return await db.MediaHealthSummaries.AsNoTracking().Where(e => e.SeriesId == seriesId)
                     .OrderByDescending(e => e.CreatedAt).FirstOrDefaultAsync(cancellationToken);
+            }
         }
 
         return null;
@@ -659,19 +663,25 @@ public sealed class HealthService(IDbContextFactory<AppDbContext> dbFactory, Set
         int? episodeId = null;
 
         if (remoteMovieId > 0)
+        {
             movieId = await db.Movies.AsNoTracking()
                 .Where(x => x.ServerId == item.ServerId && x.RemoteId == remoteMovieId).Select(x => (int?)x.Id)
                 .FirstOrDefaultAsync(cancellationToken);
+        }
 
         if (remoteSeriesId > 0)
+        {
             seriesId = await db.Series.AsNoTracking()
                 .Where(x => x.ServerId == item.ServerId && x.RemoteId == remoteSeriesId).Select(x => (int?)x.Id)
                 .FirstOrDefaultAsync(cancellationToken);
+        }
 
         if (remoteEpisodeId > 0)
+        {
             episodeId = await db.Episodes.AsNoTracking()
                 .Where(x => x.ServerId == item.ServerId && x.RemoteId == remoteEpisodeId).Select(x => (int?)x.Id)
                 .FirstOrDefaultAsync(cancellationToken);
+        }
 
         return await db.DownloadAttempts.AsNoTracking().Where(x =>
                 x.ServerId == item.ServerId && ((movieId != null && x.MovieId == movieId) ||

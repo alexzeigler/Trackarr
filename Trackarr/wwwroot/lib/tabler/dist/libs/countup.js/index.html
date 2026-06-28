@@ -49,12 +49,15 @@
   </header>
   <section>
     <div class="col full">
-      <h1>CountUp.js &nbsp;<small class="lt-gray" id="version"></small></h1>
+      <h1>CountUp.js &nbsp;<small class="lt-gray" id="version"></small>
+      </h1>
     </div>
     <div class="col full">
       <p>CountUp.js is a dependency-free, lightweight JavaScript class that can be used to quickly create animations
         that display numerical data in a more interesting way.</p>
-      <p>Install via npm/yarn using the package name &nbsp;<code class="indigo large">countup.js</code>.</p>
+      <p>Install via npm/yarn using the package name &nbsp;<code class="indigo large">countup.js</code>
+        .
+      </p>
       <h3 class="marginTop marginBottom">
         <a class="lime weight700" href="https://github.com/inorganik/CountUp.js">View on Github</a>
       </h3>
@@ -71,7 +74,8 @@
     <form>
       <h4 class="inlineLeft noMargin weight300">Params:</h4>
       <div class="inlineLeft marginLeft marginRight">
-        <input class="updateCodeVis" id="startVal" style="width:80px" type="text" value="0"> <label class="inlineLabel">Start</label>
+        <input class="updateCodeVis" id="startVal" style="width:80px" type="text" value="0">
+        <label class="inlineLabel">Start</label>
       </div>
       <input class="inlineLeft marginRight" id="swapValues" style="width:80px;" type="button" value="Swap">
       <div class="inlineLeft marginRight">
@@ -79,8 +83,8 @@
         <label class="inlineLabel">End</label>
       </div>
       <div class="inlineLeft marginRight">
-        <input class="updateCodeVis" id="decimalPlaces" step="1" style="width:50px" type="number" value="0"> <label
-        class="inlineLabel">Decimal places</label>
+        <input class="updateCodeVis" id="decimalPlaces" step="1" style="width:50px" type="number" value="0">
+        <label class="inlineLabel">Decimal places</label>
       </div>
       <div class="inlineLeft marginRight">
         <input class="updateCodeVis" id="duration" step=".1" style="width:50px" type="number" value="2">
@@ -92,18 +96,20 @@
     <form>
       <h4 class="inlineLeft noMargin weight300">Options:</h4>
       <div class="inlineLeft marginLeft marginRight">
-        <input checked id="useEasing" type="checkbox"><label class="inlineLabel updateCodeVis">Use easing</label>
+        <input checked id="useEasing" type="checkbox">
+        <label class="inlineLabel updateCodeVis">Use easing</label>
       </div>
       <div class="inlineLeft marginRight">
-        <input checked id="useGrouping" type="checkbox"><label class="inlineLabel updateCodeVis">Use grouping</label>
+        <input checked id="useGrouping" type="checkbox">
+        <label class="inlineLabel updateCodeVis">Use grouping</label>
       </div>
       <div class="inlineLeft marginRight">
-        <input id="useIndianSeparators" type="checkbox"><label class="inlineLabel updateCodeVis">Use Indian
-        separators</label>
+        <input id="useIndianSeparators" type="checkbox">
+        <label class="inlineLabel updateCodeVis">Use Indian separators</label>
       </div>
       <div class="inlineLeft marginRight">
-        <input class="updateCodeVis" id="separator" style="width:25px; padding:0 5px;" type="text" value=","> <label
-        class="inlineLabel">Separator</label>
+        <input class="updateCodeVis" id="separator" style="width:25px; padding:0 5px;" type="text" value=",">
+        <label class="inlineLabel">Separator</label>
       </div>
       <div class="inlineLeft marginRight">
         <input class="updateCodeVis" id="decimal" style="width:25px; padding:0 5px;" type="text" value=".">
@@ -124,17 +130,14 @@
       <h4 class="inlineLeft noMargin weight300">Methods:</h4>
       <input class="inlineLeft marginLeft marginRight" id="start" type="button" value="Start">
       <input class="inlineLeft marginRight" id="pauseResume" type="button" value="Pause/Resume">
-      <input class="inlineLeft marginRight" id="reset" type="button" value="Reset"> <input class="inlineLeft"
-                                                                                           id="update"
-                                                                                           style="margin-right:5px"
-                                                                                           type="button"
-                                                                                           value="Update:">
+      <input class="inlineLeft marginRight" id="reset" type="button" value="Reset">
+      <input class="inlineLeft" id="update" style="margin-right:5px" type="button" value="Update:">
       <div class="inlineLeft marginRight">
         <input id="updateVal" style="width:80px" type="text" value="6789">
       </div>
       <div class="inlineLeft">
-        <input class="updateCodeVis" id="useOnComplete" type="checkbox"><label class="inlineLabel">Alert on
-        complete</label>
+        <input class="updateCodeVis" id="useOnComplete" type="checkbox">
+        <label class="inlineLabel">Alert on complete</label>
       </div>
     </form>
   </section>
@@ -142,19 +145,20 @@
     <form>
       <h4 class="inlineLeft noMargin weight300">Custom:</h4>
       <div class="inlineLeft marginLeft">
-        <label class="inlineLabel">Easing: &nbsp;</label> <select class="marginRight updateCodeVis"
-                                                                  id="easingFnsDropdown">
-        <option selected value="easeOutExpo">easeOutExpo (default, built-in)</option>
-        <option value="outQuintic">outQuintic</option>
-        <option value="outCubic">outCubic</option>
-      </select>
+        <label class="inlineLabel">Easing: &nbsp;</label>
+        <select class="marginRight updateCodeVis" id="easingFnsDropdown">
+          <option selected value="easeOutExpo">easeOutExpo (default, built-in)</option>
+          <option value="outQuintic">outQuintic</option>
+          <option value="outCubic">outCubic</option>
+        </select>
       </div>
       <div class="inlineLeft marginRight">
-        <label class="inlineLabel">Numerals: &nbsp;</label> <select class="updateCodeVis" id="numeralsDropdown">
-        <option selected value="">Default ("1234")</option>
-        <option value="ea">Eastern Arabic ("١٢٣٤")</option>
-        <option value="fa">Farsi ("۱۲۳۴")</option>
-      </select>
+        <label class="inlineLabel">Numerals: &nbsp;</label>
+        <select class="updateCodeVis" id="numeralsDropdown">
+          <option selected value="">Default ("1234")</option>
+          <option value="ea">Eastern Arabic ("١٢٣٤")</option>
+          <option value="fa">Farsi ("۱۲۳۴")</option>
+        </select>
       </div>
       <div class="inlineLeft">
         <input id="apply" type="button" value="Apply">

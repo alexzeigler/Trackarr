@@ -26,7 +26,8 @@
                     @foreach (var server in _servers)
                     {
                         <option value="@server.Id" selected="@(_serverFilter == server.Id)">@server.Name</option>
-                    } </select>
+                    }
+                </select>
             </div>
 
             <div class="col-md-2">
@@ -35,7 +36,8 @@
                     @foreach (var type in _mediaTypes)
                     {
                         <option value="@type" selected="@(_typeFilter == type)">@type</option>
-                    } </select>
+                    }
+                </select>
             </div>
 
             <div class="col-md-2">
@@ -44,7 +46,8 @@
                     @foreach (var status in _statuses)
                     {
                         <option value="@status" selected="@(_statusFilter == status)">@status</option>
-                    } </select>
+                    }
+                </select>
             </div>
 
             <div class="col-md-2">
@@ -270,29 +273,34 @@
                 <button type="button"
                         class="@TabClass(HistoryTab.DownloadEvents)"
                         @onclick="() => SetTab(HistoryTab.DownloadEvents)">
-                    <i class="ti ti-download me-2"></i>Download Events
+                    <i class="ti ti-download me-2"></i>
+                    Download Events
                 </button>
             </li>
             <li class="nav-item">
                 <button type="button" class="@TabClass(HistoryTab.Events)" @onclick="() => SetTab(HistoryTab.Events)">
-                    <i class="ti ti-clipboard-list me-2"></i>Events
+                    <i class="ti ti-clipboard-list me-2"></i>
+                    Events
                 </button>
             </li>
             <li class="nav-item">
                 <button type="button"
                         class="@TabClass(HistoryTab.Searches)"
                         @onclick="() => SetTab(HistoryTab.Searches)">
-                    <i class="ti ti-search me-2"></i>Searches
+                    <i class="ti ti-search me-2"></i>
+                    Searches
                 </button>
             </li>
             <li class="nav-item">
                 <button type="button" class="@TabClass(HistoryTab.Health)" @onclick="() => SetTab(HistoryTab.Health)">
-                    <i class="ti ti-heartbeat me-2"></i>Health
+                    <i class="ti ti-heartbeat me-2"></i>
+                    Health
                 </button>
             </li>
             <li class="nav-item">
                 <button type="button" class="@TabClass(HistoryTab.Changes)" @onclick="() => SetTab(HistoryTab.Changes)">
-                    <i class="ti ti-history me-2"></i>Changes
+                    <i class="ti ti-history me-2"></i>
+                    Changes
                 </button>
             </li>
         </ul>
@@ -349,12 +357,16 @@
                     <tr>
                         <td>@FormatDate(row.OccurredAt)</td>
                         <td>
-                            <span class="@EventIconClass(row)"><i class="@EventIcon(row)"></i></span>
+                            <span class="@EventIconClass(row)">
+                                <i class="@EventIcon(row)"></i>
+                            </span>
                             <span class="ms-2">@row.Event</span>
                         </td>
                         <td>
                             <div class="d-flex align-items-center">
-                                <span class="avatar avatar-xs me-2"><i class="ti ti-photo"></i></span>
+                                <span class="avatar avatar-xs me-2">
+                                    <i class="ti ti-photo"></i>
+                                </span>
                                 <span>@row.Item</span>
                             </div>
                         </td>

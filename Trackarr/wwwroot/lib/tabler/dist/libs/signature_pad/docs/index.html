@@ -2,73 +2,73 @@
 <html lang="en">
 
 <head>
-	<meta charset="utf-8">
-	<title>Signature Pad demo</title>
-	<meta content="Signature Pad - HTML5 canvas based smooth signature drawing using variable width spline interpolation."
-	      name="description">
-	
-	<meta content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no"
-	      name="viewport">
-	
-	<meta content="yes" name="apple-mobile-web-app-capable">
-	<meta content="black" name="apple-mobile-web-app-status-bar-style">
-	
-	<link href="css/signature-pad.css" rel="stylesheet">
-	
-	<script type="text/javascript">
-		var _gaq = _gaq || [];
-		_gaq.push(['_setAccount', 'UA-39365077-1']);
-		_gaq.push(['_trackPageview']);
-		
-		(function () {
-			var ga = document.createElement('script');
-			ga.type = 'text/javascript';
-			ga.async = true;
-			ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
-			var s = document.getElementsByTagName('script')[0];
-			s.parentNode.insertBefore(ga, s);
-		})();
-	</script>
+    <meta charset="utf-8">
+    <title>Signature Pad demo</title>
+    <meta content="Signature Pad - HTML5 canvas based smooth signature drawing using variable width spline interpolation."
+          name="description">
+
+    <meta content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no"
+          name="viewport">
+
+    <meta content="yes" name="apple-mobile-web-app-capable">
+    <meta content="black" name="apple-mobile-web-app-status-bar-style">
+
+    <link href="css/signature-pad.css" rel="stylesheet">
+
+    <script type="text/javascript">
+        var _gaq = _gaq || [];
+        _gaq.push(['_setAccount', 'UA-39365077-1']);
+        _gaq.push(['_trackPageview']);
+
+        (function () {
+            var ga = document.createElement('script');
+            ga.type = 'text/javascript';
+            ga.async = true;
+            ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+            var s = document.getElementsByTagName('script')[0];
+            s.parentNode.insertBefore(ga, s);
+        })();
+    </script>
 </head>
 
 <body onselectstart="return false">
 <span id="forkongithub">
-	<a href="https://github.com/szimek/signature_pad">Fork me on GitHub</a>
+    <a href="https://github.com/szimek/signature_pad">Fork me on GitHub</a>
 </span>
 
 <div class="signature-pad" id="signature-pad">
-	<div class="signature-pad--body" id="canvas-wrapper">
-		<canvas></canvas>
-	</div>
-	<div class="signature-pad--footer">
-		<div class="description">Sign above</div>
-		
-		<div class="signature-pad--actions">
-			<div class="column">
-				<button class="button clear" data-action="clear" type="button">Clear</button>
-				<button class="button" data-action="undo" title="Ctrl-Z" type="button">Undo</button>
-				<button class="button" data-action="redo" title="Ctrl-Y" type="button">Redo</button>
-				<br/>
-				<button class="button" data-action="change-color" type="button">Change color</button>
-				<button class="button" data-action="change-width" type="button">Change width</button>
-				<button class="button" data-action="change-background-color" type="button">Change background color
-				</button>
-			
-			</div>
-			<div class="column">
-				<button class="button save" data-action="save-png" type="button">Save as PNG</button>
-				<button class="button save" data-action="save-jpg" type="button">Save as JPG</button>
-				<button class="button save" data-action="save-svg" type="button">Save as SVG</button>
-				<button class="button save" data-action="save-svg-with-background" type="button">Save as SVG with
-					background
-				</button>
-			</div>
-		</div>
-		
-		<div>
-			<button class="button" data-action="open-in-window" type="button">Open in Window</button>
-		</div>
-	</div>
+    <div class="signature-pad--body" id="canvas-wrapper">
+        <canvas></canvas>
+    </div>
+    <div class="signature-pad--footer">
+        <div class="description">Sign above</div>
+
+        <div class="signature-pad--actions">
+            <div class="column">
+                <button class="button clear" data-action="clear" type="button">Clear</button>
+                <button class="button" data-action="undo" title="Ctrl-Z" type="button">Undo</button>
+                <button class="button" data-action="redo" title="Ctrl-Y" type="button">Redo</button>
+                <br/>
+                <button class="button" data-action="change-color" type="button">Change color</button>
+                <button class="button" data-action="change-width" type="button">Change width</button>
+                <button class="button" data-action="change-background-color" type="button">Change background color
+                </button>
+
+            </div>
+            <div class="column">
+                <button class="button save" data-action="save-png" type="button">Save as PNG</button>
+                <button class="button save" data-action="save-jpg" type="button">Save as JPG</button>
+                <button class="button save" data-action="save-svg" type="button">Save as SVG</button>
+                <button class="button save" data-action="save-svg-with-background" type="button">Save as SVG with
+                    background
+                </button>
+            </div>
+        </div>
+
+        <div>
+            <button class="button" data-action="open-in-window" type="button">Open in Window</button>
+        </div>
+    </div>
 </div>
 
 <script src="js/signature_pad.umd.min.js"></script>

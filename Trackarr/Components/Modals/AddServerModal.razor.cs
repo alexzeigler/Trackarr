@@ -56,15 +56,19 @@ public partial class AddServerModal : ComponentBase
         _showApiKey = !_showApiKey;
     }
 
-    public async Task OpenForAdd(ServiceType type = ServiceType.Radarr)
+    public async Task OpenForAdd(ServiceType? type = null)
     {
-        ServiceType = type;
+        type ??= Enum.TryParse<ServiceType>(Settings.GetString("General", "DefaultServerType", "Radarr"),
+            out var parsed)
+            ? parsed
+            : ServiceType.Radarr;
+        ServiceType = type.Value;
 
         Model = new MediaServer
         {
             IsEnabled = true,
-            ServiceType = type,
-            Port = type switch
+            ServiceType = type.Value,
+            Port = type.Value switch
             {
                 ServiceType.Radarr => 7878,
                 ServiceType.Sonarr => 8989,
@@ -94,8 +98,10 @@ public partial class AddServerModal : ComponentBase
             var selected = Profiles?.FirstOrDefault(p =>
                 string.Equals(p.Name, Model.FallbackProfile?.Name, StringComparison.OrdinalIgnoreCase));
             if (selected == null)
+            {
                 TestResult = new ValueTuple<bool, long, string?>(false, 0,
                     $"Profile does not exist on the server: \"{Model.FallbackProfile}\".");
+            }
 
             HasProfiles = Profiles?.Count > 0;
         }

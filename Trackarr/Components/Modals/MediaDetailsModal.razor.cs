@@ -291,7 +291,7 @@ public partial class MediaDetailsModal : ComponentBase
 
     #region Data Loading
 
-    private async Task OpenMediaAsync(int serverId, Movie? movie, Series? series, Episode? episode,
+    private async Task OpenMediaAsync(int? serverId, Movie? movie, Series? series, Episode? episode,
         DownloadItem? queueItem = null)
     {
         ResetModalState();
@@ -302,7 +302,7 @@ public partial class MediaDetailsModal : ComponentBase
         _media = (MediaItem?)movie ?? series;
         _queueItem = queueItem;
 
-        _server = await MediaServerService.GetServerByIdAsync(serverId);
+        _server = serverId.HasValue ? await MediaServerService.GetServerByIdAsync(serverId.Value) : null;
         await LoadProfilesAsync();
 
         await ResolveMediaAsync(_queueItem);
@@ -410,9 +410,9 @@ public partial class MediaDetailsModal : ComponentBase
         if (_server == null)
             return;
 
-        if (_series != null)
+        if (_series is { ServerId: not null })
         {
-            _episodes = await MediaServerService.GetEpisodesBySeriesIdAsync(_series.ServerId, _series.RemoteId);
+            _episodes = await MediaServerService.GetEpisodesBySeriesIdAsync(_series.ServerId.Value, _series.RemoteId);
             _episodes = _episodes.OrderBy(x => x.SeasonNumber).ThenBy(x => x.EpisodeNumber).ToList();
         }
     }

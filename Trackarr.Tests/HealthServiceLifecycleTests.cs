@@ -23,11 +23,14 @@ public class HealthServiceLifecycleTests
         return (factory, server.Id);
     }
 
-    private static HealthService CreateService(SqliteInMemoryFactory factory) =>
-        new(factory, new SettingsService(factory, NullLogger<SettingsService>.Instance));
+    private static HealthService CreateService(SqliteInMemoryFactory factory)
+    {
+        return new HealthService(factory, new SettingsService(factory, NullLogger<SettingsService>.Instance));
+    }
 
-    private static DownloadItem MovieItem(int serverId, string downloadId = "dl-1", long sizeLeft = 1000) =>
-        new()
+    private static DownloadItem MovieItem(int serverId, string downloadId = "dl-1", long sizeLeft = 1000)
+    {
+        return new DownloadItem
         {
             ServerId = serverId,
             RemoteId = 100,
@@ -38,6 +41,7 @@ public class HealthServiceLifecycleTests
             SizeLeft = sizeLeft,
             Protocol = "torrent"
         };
+    }
 
     #region MarkFailed
 
@@ -360,7 +364,7 @@ public class HealthServiceLifecycleTests
         var (factory, serverId) = await SetupAsync();
         using var _ = factory;
         var service = CreateService(factory);
-        var item = MovieItem(serverId, downloadId: "nonexistent");
+        var item = MovieItem(serverId, "nonexistent");
 
         await service.SetScoreAsync(item, 50, 50);
     }
@@ -485,8 +489,8 @@ public class HealthServiceLifecycleTests
         var (factory, serverId) = await SetupAsync();
         using var _ = factory;
         var service = CreateService(factory);
-        await service.EvaluateAsync(MovieItem(serverId, downloadId: "dl-1"));
-        await service.EvaluateAsync(MovieItem(serverId, downloadId: "dl-2"));
+        await service.EvaluateAsync(MovieItem(serverId, "dl-1"));
+        await service.EvaluateAsync(MovieItem(serverId, "dl-2"));
 
         var history = await service.GetHistoryAsync();
 
@@ -513,8 +517,8 @@ public class HealthServiceLifecycleTests
         var (factory, serverId) = await SetupAsync();
         using var _ = factory;
         var service = CreateService(factory);
-        await service.EvaluateAsync(MovieItem(serverId, downloadId: "dl-1"));
-        await service.EvaluateAsync(MovieItem(serverId, downloadId: "dl-2"));
+        await service.EvaluateAsync(MovieItem(serverId, "dl-1"));
+        await service.EvaluateAsync(MovieItem(serverId, "dl-2"));
 
         var missing = await service.GetMissingDownloadIdsAsync(serverId, ["dl-1"]);
 

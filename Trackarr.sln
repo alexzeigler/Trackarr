@@ -37,6 +37,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trackarr.Routines", "Tracka
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trackarr.Tests", "Trackarr.Tests\Trackarr.Tests.csproj", "{C0F9A6AD-322B-4949-9E5B-BA2C627C6AF0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trackarr.MockServer", "Trackarr.MockServer\Trackarr.MockServer.csproj", "{A4D6E2E0-7AED-4F34-95A2-570A54F50034}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -131,6 +133,18 @@ Global
 		{C0F9A6AD-322B-4949-9E5B-BA2C627C6AF0}.Release|x64.Build.0 = Release|Any CPU
 		{C0F9A6AD-322B-4949-9E5B-BA2C627C6AF0}.Release|x86.ActiveCfg = Release|Any CPU
 		{C0F9A6AD-322B-4949-9E5B-BA2C627C6AF0}.Release|x86.Build.0 = Release|Any CPU
+		{A4D6E2E0-7AED-4F34-95A2-570A54F50034}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A4D6E2E0-7AED-4F34-95A2-570A54F50034}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A4D6E2E0-7AED-4F34-95A2-570A54F50034}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A4D6E2E0-7AED-4F34-95A2-570A54F50034}.Debug|x64.Build.0 = Debug|Any CPU
+		{A4D6E2E0-7AED-4F34-95A2-570A54F50034}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A4D6E2E0-7AED-4F34-95A2-570A54F50034}.Debug|x86.Build.0 = Debug|Any CPU
+		{A4D6E2E0-7AED-4F34-95A2-570A54F50034}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A4D6E2E0-7AED-4F34-95A2-570A54F50034}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A4D6E2E0-7AED-4F34-95A2-570A54F50034}.Release|x64.ActiveCfg = Release|Any CPU
+		{A4D6E2E0-7AED-4F34-95A2-570A54F50034}.Release|x64.Build.0 = Release|Any CPU
+		{A4D6E2E0-7AED-4F34-95A2-570A54F50034}.Release|x86.ActiveCfg = Release|Any CPU
+		{A4D6E2E0-7AED-4F34-95A2-570A54F50034}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

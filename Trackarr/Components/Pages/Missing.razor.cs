@@ -76,6 +76,12 @@ public partial class Missing : ComponentBase, IAsyncDisposable
     private string? _stateFilter;
     private string? _typeFilter;
 
+    private int _page = 1;
+
+    private int PageSize => Settings.GetInt("Display", "MissingPageSize", 10);
+    private List<MissingMediaRow> PagedRows => FilteredRows.Skip((_page - 1) * PageSize).Take(PageSize).ToList();
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredRows.Count / (double)PageSize));
+
     private string TableDensityClass =>
         Settings.GetString("Display", "TableDensity", "normal") switch
         {
@@ -198,6 +204,17 @@ public partial class Missing : ComponentBase, IAsyncDisposable
         _stateFilter = null;
         _serverFilter = null;
         _typeFilter = null;
+        _page = 1;
+    }
+
+    private void PrevPage()
+    {
+        if (_page > 1) _page--;
+    }
+
+    private void NextPage()
+    {
+        if (_page < TotalPages) _page++;
     }
 
     private void SortBy(string column)
@@ -277,17 +294,19 @@ public partial class Missing : ComponentBase, IAsyncDisposable
                 serverQuery = serverQuery.Where(x => x.IsEnabled);
             var servers = await serverQuery.ToListAsync();
 
-            var movies = await db.Movies.AsNoTracking()
-                .Where(x => serverIds.Contains(x.ServerId) && remoteIds.Contains(x.RemoteId)).ToListAsync();
+            var movies = await db.Movies.AsNoTracking().Where(x =>
+                    x.ServerId.HasValue && serverIds.Contains(x.ServerId.Value) && remoteIds.Contains(x.RemoteId))
+                .ToListAsync();
 
-            var series = await db.Series.AsNoTracking()
-                .Where(x => serverIds.Contains(x.ServerId) && remoteIds.Contains(x.RemoteId)).ToListAsync();
+            var series = await db.Series.AsNoTracking().Where(x =>
+                    x.ServerId.HasValue && serverIds.Contains(x.ServerId.Value) && remoteIds.Contains(x.RemoteId))
+                .ToListAsync();
 
             var episodes = missingEpisodeIds.Count == 0
                 ? []
                 : await db.Episodes.AsNoTracking().Where(x =>
-                        serverIds.Contains(x.ServerId) && (missingEpisodeIds.Contains(x.RemoteId) ||
-                                                           missingSeriesRemoteIds.Contains(x.RemoteSeriesId)))
+                        x.ServerId.HasValue && serverIds.Contains(x.ServerId.Value) &&
+                        (missingEpisodeIds.Contains(x.RemoteId) || missingSeriesRemoteIds.Contains(x.RemoteSeriesId)))
                     .ToListAsync();
 
             _servers = servers.ToDictionary(x => x.Id);
@@ -509,12 +528,12 @@ public partial class Missing : ComponentBase, IAsyncDisposable
             : $"{item.ServerId}_{item.RemoteId}";
     }
 
-    private static string MediaKey(int serverId, int remoteId)
+    private static string MediaKey(int? serverId, int remoteId)
     {
         return $"{serverId}_{remoteId}";
     }
 
-    private static string EpisodeKey(int serverId, int remoteSeriesId, int remoteEpisodeId)
+    private static string EpisodeKey(int? serverId, int remoteSeriesId, int remoteEpisodeId)
     {
         return $"{serverId}_{remoteSeriesId}_{remoteEpisodeId}";
     }

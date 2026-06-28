@@ -232,8 +232,10 @@ public static class Utils
     public static MarkupString GetChecked(bool value, int size = 24)
     {
         if (value)
+        {
             return (MarkupString)
                 $"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon text-green icon-2\"><path d=\"M5 12l5 5l10 -10\"></path></svg>";
+        }
 
         return (MarkupString)
             $"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon text-red icon-2\">\n\t<path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\" />\n\t<path d=\"M18 6l-12 12\" />\n\t<path d=\"M6 6l12 12\" />\n</svg>";

@@ -4,171 +4,192 @@
 @layout SettingsLayout
 @inject SettingsService SettingsService
 
-<div class="subheader mb-2">Date & Time</div>
-<div class="card app-card mb-4">
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-12 col-md-6">
-                <label class="form-label">Date Format</label> <select class="form-select"
-                                                                      @bind="_dateFormat"
-                                                                      @bind:after="MarkDirty">
-                    <option value="MMM d, yyyy h:mm tt">Jun 22, 2026 3:45 PM</option>
-                    <option value="yyyy-MM-dd HH:mm">2026-06-22 15:45</option>
-                    <option value="dd/MM/yyyy HH:mm">22/06/2026 15:45</option>
-                    <option value="MM/dd/yyyy h:mm tt">06/22/2026 3:45 PM</option>
-                    <option value="d MMM yyyy HH:mm">22 Jun 2026 15:45</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-label">Time Ago Threshold</label>
-                <div class="input-group">
-                    <input type="number"
-                           class="form-control"
-                           min="1"
-                           max="168"
-                           @bind="_timeAgoThreshold"
-                           @bind:after="MarkDirty"/>
-                    <span class="input-group-text">hours</span>
-                </div>
-                <div class="form-text">After this many hours, show absolute date instead of "time ago".</div>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-check form-switch"> <input class="form-check-input"
-                                                              type="checkbox"
-                                                              @bind="_useTimeAgo"
-                                                              @bind:after="MarkDirty"/>
-                    <span class="form-check-label">Use Friendly "Time Ago"</span>
-                </label>
-                <div class="form-text">Show relative time like "5m ago" instead of absolute dates.</div>
-            </div>
+<h2 class="mb-1">Display</h2>
+<p class="text-muted mb-4">Customize dates, tables, and visual elements.</p>
+
+<h3 class="card-title">Date & Time</h3>
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <label class="form-label">Date Format</label>
+        <select class="form-select" @bind="_dateFormat" @bind:after="MarkDirty">
+            <option value="MMM d, yyyy h:mm tt">Jun 22, 2026 3:45 PM</option>
+            <option value="yyyy-MM-dd HH:mm">2026-06-22 15:45</option>
+            <option value="dd/MM/yyyy HH:mm">22/06/2026 15:45</option>
+            <option value="MM/dd/yyyy h:mm tt">06/22/2026 3:45 PM</option>
+            <option value="d MMM yyyy HH:mm">22 Jun 2026 15:45</option>
+        </select>
+    </div>
+    <div class="col-3">
+        <label class="form-check form-switch mt-lg-4">
+            <input class="form-check-input" type="checkbox" @bind="_useTimeAgo" @bind:after="MarkDirty"/>
+            <span class="form-check-label"
+                  data-bs-toggle="tooltip"
+                  title="Show relative time like '5m ago' instead of absolute dates">Friendly "time ago"
+                <i class="ti ti-info-circle ms-1 opacity-50"></i>
+            </span>
+        </label>
+    </div>
+    <div class="col-3">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="After this many hours, show the absolute date instead of 'time ago'">Threshold
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <div class="input-group input-group-flat">
+            <input type="number"
+                   class="form-control"
+                   style="max-width: 5rem;"
+                   min="1"
+                   max="168"
+                   @bind="_timeAgoThreshold"
+                   @bind:after="MarkDirty"/>
+            <span class="input-group-text">hrs</span>
         </div>
     </div>
 </div>
 
-<div class="subheader mb-2">Tables</div>
-<div class="card app-card mb-4">
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-12 col-md-3">
-                <label class="form-label">Queue Page Size</label> <select class="form-select"
-                                                                          @bind="_queuePageSize"
-                                                                          @bind:after="MarkDirty">
-                    <option value="10">10</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label">Missing Page Size</label> <select class="form-select"
-                                                                            @bind="_missingPageSize"
-                                                                            @bind:after="MarkDirty">
-                    <option value="10">10</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label">History Page Size</label> <select class="form-select"
-                                                                            @bind="_historyPageSize"
-                                                                            @bind:after="MarkDirty">
-                    <option value="10">10</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label">Events Page Size</label> <select class="form-select"
-                                                                           @bind="_eventsPageSize"
-                                                                           @bind:after="MarkDirty">
-                    <option value="10">10</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-label">Table Density</label> <select class="form-select"
-                                                                        @bind="_tableDensity"
-                                                                        @bind:after="MarkDirty">
-                    <option value="compact">Compact</option>
-                    <option value="normal">Normal</option>
-                    <option value="comfortable">Comfortable</option>
-                </select>
-            </div>
+<h3 class="card-title">Page Sizes</h3>
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <label class="form-label">Queue</label>
+        <select class="form-select form-select" @bind="_queuePageSize" @bind:after="MarkDirty">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+        </select>
+    </div>
+    <div class="col-6 col-lg-3">
+        <label class="form-label">Missing</label>
+        <select class="form-select form-select" @bind="_missingPageSize" @bind:after="MarkDirty">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+        </select>
+    </div>
+    <div class="col-6 col-lg-3">
+        <label class="form-label">History</label>
+        <select class="form-select form-select" @bind="_historyPageSize" @bind:after="MarkDirty">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+        </select>
+    </div>
+    <div class="col-6 col-lg-3">
+        <label class="form-label">Events</label>
+        <select class="form-select form-select" @bind="_eventsPageSize" @bind:after="MarkDirty">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+        </select>
+    </div>
+</div>
+
+<h3 class="card-title" data-bs-toggle="tooltip" title="Controls vertical padding in table rows across all pages">Table
+    Density
+    <i class="ti ti-info-circle ms-1 opacity-50"></i>
+</h3>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="btn-group w-100" role="group">
+            <input type="radio"
+                   class="btn-check"
+                   name="density"
+                   id="dCompact"
+                   checked="@(_tableDensity ==)"
+                   @onchange="@(() =>())"/>
+            <label class="btn btn-app-ghost" for="dCompact">Compact</label>
+            <input type="radio"
+                   class="btn-check"
+                   name="density"
+                   id="dNormal"
+                   checked="@(_tableDensity ==)"
+                   @onchange="@(() => SetDensity("normal"))"/>
+            <label class="btn btn-app-ghost" for="dNormal">Normal</label>
+            <input type="radio"
+                   class="btn-check"
+                   name="density"
+                   id="dComfy"
+                   checked="@(_tableDensity == "comfortable")"
+                   @onchange="@(() =>
+                   SetDensity(
+                   "comfortable"))
+
+                   "/>
+            <label class="btn btn-app-ghost" for="dComfy">Comfortable</label>
         </div>
     </div>
 </div>
 
-<div class="subheader mb-2">Charts & Visuals</div>
-<div class="card app-card mb-4">
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-12 col-md-6">
-                <label class="form-check form-switch"> <input class="form-check-input"
-                                                              type="checkbox"
-                                                              @bind="_showQueueCharts"
-                                                              @bind:after="MarkDirty"/>
-                    <span class="form-check-label">Show Queue Charts</span>
-                </label>
-                <div class="form-text">Display activity and trend charts on the Queue page.</div>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-check form-switch"> <input class="form-check-input"
-                                                              type="checkbox"
-                                                              @bind="_showMissingCharts"
-                                                              @bind:after="MarkDirty"/>
-                    <span class="form-check-label">Show Missing Charts</span>
-                </label>
-                <div class="form-text">Display activity and trend charts on the Missing page.</div>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-check form-switch"> <input class="form-check-input"
-                                                              type="checkbox"
-                                                              @bind="_showHealthBadges"
-                                                              @bind:after="MarkDirty"/>
-                    <span class="form-check-label">Show Health Score Badges</span>
-                </label>
-                <div class="form-text">Display score badges on queue items.</div>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-check form-switch"> <input class="form-check-input"
-                                                              type="checkbox"
-                                                              @bind="_showServerIcons"
-                                                              @bind:after="MarkDirty"/>
-                    <span class="form-check-label">Show Server Icons in Queue</span>
-                </label>
-                <div class="form-text">Display server type icons next to queue items.</div>
-            </div>
-        </div>
+<h3 class="card-title">Visual Elements</h3>
+<div class="mb-4">
+    <div class="form-selectgroup">
+        <label class="form-selectgroup-item">
+            <input type="checkbox" class="form-selectgroup-input" checked="@" @onchange="@(e =>
+            {
+            _showQueueCharts = (bool)e.Value!;
+                MarkDirty();
+            })"/>
+            <span class="form-selectgroup-label">
+                <i class="ti ti-chart-bar me-1"></i>
+                Queue Charts
+            </span>
+        </label>
+        <label class="form-selectgroup-item">
+            <input type="checkbox" class="form-selectgroup-input" checked="@" @onchange="@
+            (e =>
+            {
+            _showMissingCharts = (bool)e.Value!;})"/>
+            <span class="form-selectgroup-label">
+                <i class="ti ti-chart-line me-1"></i>
+                Missing Charts
+            </span>
+        </label>
+    <label class="form-selectgroup-item">
+        <input type="checkbox" class="form-selectgroup-input" checked="@_showHealthBadges" @onchange="@(e =>
+        {
+        _showHealthBadges = (bool)e.Value!;
+        MarkDirty();
+        })"/>
+    <span class="form-selectgroup-label" data-bs-toggle="tooltip" title="Show health score badges on queue items">
+        <i class="ti ti-heart-rate-monitor me-1"></i>
+        Health Badges
+        </>
+    </label>
+        <label class="form-selectgroup-item">
+            <input type="checkbox" class="form-selectgroup-input" checked="@_showServerIcons" @onchange="@(e =>
+            {
+            _showServerIcons = (bool)e.Value!;
+            MarkDirty();
+            })"/>
+            <span class="form-selectgroup-label"
+                  data-bs-toggle="tooltip"
+                  title="Show Radarr/Sonarr icons next to queue items">
+                <i class="ti ti-server me-1"></i>
+                Server Icons
+            </span>
+        </label>
     </div>
 </div>
-
-<div class="subheader mb-2">Grouping</div>
-<div class="card app-card mb-4">
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-12 col-md-6">
-                <label class="form-label">Default Queue Grouping</label> <select class="form-select"
-                                                                                 @bind="_defaultGrouping"
-                                                                                 @bind:after="MarkDirty">
-                    <option value="none">None</option>
-                    <option value="server">By Server</option>
-                    <option value="status">By Status</option>
-                    <option value="mediaType">By Media Type</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-check form-switch mt-4"> <input class="form-check-input"
-                                                                   type="checkbox"
-                                                                   @bind="_expandGroups"
-                                                                   @bind:after="MarkDirty"/>
-                    <span class="form-check-label">Expand Groups by Default</span>
-                </label>
-            </div>
-        </div>
+<h3 class="card-title">Queue Grouping</h3>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <label class="form-label">Default Grouping</label>
+    <select class="form-select" @bind="" @bind:after="MarkDirty">
+        <option value="none">None</option>
+    <>By Server</option>
+    <value="status">By Status</option>
+        <option value="mediaType">By Media Type</option>
+    </select>
+    </div>
+    <div class="col-12 col-lg-6">
+        <label class="form-check form-switch mt-lg-4">
+            <input class="form-check-input" type="checkbox" @bind="_expandGroups" @="MarkDirty"/>
+            <span class="form-check-label">Expand groups by default</span>
+        </label>
     </div>
 </div>
 
@@ -243,6 +264,10 @@
         _origShowServerIcons = _showServerIcons;
         _origDefaultGrouping = _defaultGrouping;
         _origExpandGroups = _expandGroups;
+    }
+
+    private void()
+    {MarkDirty();
     }
 
     private void MarkDirty()

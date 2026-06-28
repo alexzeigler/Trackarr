@@ -1,42 +1,107 @@
 @using Trackarr.Core.UI
 @inherits LayoutComponentBase
 @layout MainLayout
+@inject NavigationManager Nav
+@inject IJSRuntime Js
 @rendermode InteractiveServer
 
 <CascadingValue Value="_context">
-    <div class="btn-group">
-        <button type="button"
-                class="btn @(_context.HasChanges ? "btn-app-primary" : "btn-app-ghost") d-flex align-items-center gap-1"
-                disabled="@(!_context.HasChanges)"
-                @onclick="SaveAsync">
-            @if (_saving)
-            {
-                <span class="spinner-border spinner-border-sm"></span>
-            }
-            else
-            {
-                <i class="bi bi-floppy"></i>
-            }
-        </button>
-        @if (_context.HasChanges)
-        {
-            <button type="button"
-                    class="btn btn-sm btn-app-ghost d-flex align-items-center gap-1"
-                    @onclick="DiscardAsync">
-                <i class="bi bi-arrow-counterclockwise"></i>
-                <span>Discard</span>
-            </button>
-        }
-        @if (!string.IsNullOrEmpty(_successMessage))
-        {
-            <span class="text-success small ms-2">
-                <i class="bi bi-check-circle me-1"></i>@_successMessage
-            </span>
-        }
-    </div>
+    <div class="container-xl">
+        <div class="card app-card">
+            <div class="row g-0">
+                <div class="col-12 col-md-3 border-end" style="border-color: rgba(255,255,255,.08) !important;">
+                    <div class="card-body">
+                        <h4 class="subheader">Application</h4>
+                        <div class="list-group list-group-transparent">
+                            <a href="/settings/general"
+                               class="list-group-item list-group-item-action d-flex align-items-center @ActiveCss("/settings/general")">
+                                <i class="ti ti-adjustments-alt me-2 opacity-75"></i>
+                                General
+                            </a>
+                            <a href="/settings/display"
+                               class="list-group-item list-group-item-action d-flex align-items-center @ActiveCss("/settings/display")">
+                                <i class="ti ti-palette me-2 opacity-75"></i>
+                                Display
+                            </a>
+                            <a href="/settings/services"
+                               class="list-group-item list-group-item-action d-flex align-items-center @ActiveCss("/settings/services")">
+                                <i class="ti ti-server me-2 opacity-75"></i>
+                                Servers
+                            </a>
+                        </div>
 
-    <div class="p-3">
-        @Body
+                        <h4 class="subheader mt-4">Policies</h4>
+                        <div class="list-group list-group-transparent">
+                            <a href="/settings/health"
+                               class="list-group-item list-group-item-action d-flex align-items-center @ActiveCss("/settings/health")">
+                                <i class="ti ti-heartbeat me-2 opacity-75"></i>
+                                Health Scoring
+                            </a>
+                            <a href="/settings/missing"
+                               class="list-group-item list-group-item-action d-flex align-items-center @ActiveCss("/settings/missing")">
+                                <i class="ti ti-search me-2 opacity-75"></i>
+                                Missing Media
+                            </a>
+                            <a href="/settings/blacklist"
+                               class="list-group-item list-group-item-action d-flex align-items-center @ActiveCss("/settings/blacklist")">
+                                <i class="ti ti-shield-off me-2 opacity-75"></i>
+                                Blacklist
+                            </a>
+                        </div>
+
+                        <h4 class="subheader mt-4">System</h4>
+                        <div class="list-group list-group-transparent">
+                            <a href="/settings/maintenance"
+                               class="list-group-item list-group-item-action d-flex align-items-center @ActiveCss("/settings/maintenance")">
+                                <i class="ti ti-tool me-2 opacity-75"></i>
+                                Maintenance
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-9 d-flex flex-column">
+                    <div class="card-body flex-grow-1">
+                        @Body
+                    </div>
+
+                    @if (_context.SaveAsync is not null)
+                    {
+                        <div class="card-footer bg-transparent border-top"
+                             style="border-color: rgba(255,255,255,.08) !important;">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    @if (!string.IsNullOrEmpty(_successMessage))
+                                    {
+                                        <span class="text-success small">
+                                            <i class="bi bi-check-circle me-1"></i>@_successMessage
+                                        </span>
+                                    }
+                                </div>
+                                <div class="btn-list">
+                                    @if (_context.HasChanges)
+                                    {
+                                        <button type="button" class="btn btn-app-ghost" @onclick="DiscardAsync">
+                                            Discard
+                                        </button>
+                                    }
+                                    <button type="button"
+                                            class="btn @(_context.HasChanges ? "btn-app-primary" : "btn-app-ghost")"
+                                            disabled="@(!_context.HasChanges)"
+                                            @onclick="SaveAsync">
+                                        @if (_saving)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        Save Changes
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
     </div>
 </CascadingValue>
 
@@ -49,6 +114,18 @@
     protected override void OnInitialized()
     {
         _context.OnStateChanged += () => InvokeAsync(StateHasChanged);
+        Nav.LocationChanged += (_, _) => InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await Js.InvokeVoidAsync("eval", "document.querySelectorAll('[data-bs-toggle=tooltip]').forEach(el => { bootstrap.Tooltip.getInstance(el)?.dispose(); new bootstrap.Tooltip(el); })");
+    }
+
+    private string ActiveCss(string href)
+    {
+        var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimEnd('/');
+        return path.Equals(href, StringComparison.OrdinalIgnoreCase) ? "active" : "";
     }
 
     private async Task SaveAsync()
@@ -60,7 +137,7 @@
         try
         {
             await _context.SaveAsync();
-            _successMessage = "Saved";
+            _successMessage = "Settings saved";
             _context.HasChanges = false;
             _context.NotifyChanged();
             _ = ClearMessageAfterDelay();

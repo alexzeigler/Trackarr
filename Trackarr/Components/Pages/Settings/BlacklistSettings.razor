@@ -6,15 +6,14 @@
 @inject BlacklistService BlacklistService
 @inject IJSRuntime Js
 
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <div>
-        <div class="subheader mb-1">Blacklist</div>
-        <p class="text-muted mb-0">Block specific indexers, release groups, or keywords from being downloaded.</p>
-    </div>
+<div class="d-flex align-items-center justify-content-between mb-1">
+    <h2 class="mb-0">Blacklist</h2>
     <button class="btn btn-sm btn-app-primary" @onclick="OpenAdd">
-        <i class="ti ti-plus me-1"></i>Add Entry
+        <i class="ti ti-plus me-1"></i>
+        Add Entry
     </button>
 </div>
+<p class="text-muted mb-4">Block specific indexers, release groups, or keywords from being downloaded.</p>
 
 @if (_filterType is not null)
 {
@@ -25,7 +24,7 @@
     </div>
 }
 
-<div class="d-flex gap-2 mb-3">
+<div class="btn-group mb-3" role="group">
     <button class="btn btn-sm @(_filterType is null ? "btn-app-primary" : "btn-app-ghost")" @onclick="ClearFilter">All
     </button>
     <button class="btn btn-sm @(_filterType == BlacklistType.Indexer ? "btn-app-primary" : "btn-app-ghost")"
@@ -41,49 +40,47 @@
 
 @if (!FilteredEntries.Any())
 {
-    <div class="card app-card">
-        <div class="card-body text-center py-5 text-muted">
+    <div class="empty py-5">
+        <div class="empty-icon">
             <i class="ti ti-shield-off" style="font-size:2rem;"></i>
-            <div class="mt-2">No blacklist entries yet.</div>
         </div>
+        <p class="empty-title text-muted mt-2">No blacklist entries yet.</p>
     </div>
 }
 else
 {
-    <div class="card app-card">
-        <div class="table-responsive">
-            <table class="table table-vcenter card-table">
-                <thead>
+    <div class="table-responsive">
+        <table class="table table-vcenter table-sm">
+            <thead>
+            <tr>
+                <th>Pattern</th>
+                <th>Type</th>
+                <th>Regex</th>
+                <th>Note</th>
+                <th>Added</th>
+                <th class="w-1"></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var entry in FilteredEntries)
+            {
                 <tr>
-                    <th>Pattern</th>
-                    <th>Type</th>
-                    <th>Regex</th>
-                    <th>Note</th>
-                    <th>Added</th>
-                    <th class="w-1"></th>
+                    <td class="text-white fw-semibold">@entry.Pattern</td>
+                    <td>
+                        <span class="badge @TypeBadge(entry.Type)">@entry.Type</span>
+                    </td>
+                    <td>@(entry.IsRegex ? "Yes" : "No")</td>
+                    <td class="text-muted">@(entry.Note ?? "—")</td>
+                    <td class="text-muted">@entry.CreatedAt.ToString("MMM d, yyyy")</td>
+                    <td>
+                        <button class="btn btn-sm btn-app-ghost text-danger" @onclick="() => RemoveEntry(entry.Id)">
+                            <i class="ti ti-trash"></i>
+                        </button>
+                    </td>
                 </tr>
-                </thead>
-                <tbody>
-                @foreach (var entry in FilteredEntries)
-                {
-                    <tr>
-                        <td class="text-white fw-semibold">@entry.Pattern</td>
-                        <td>
-                            <span class="badge @TypeBadge(entry.Type)">@entry.Type</span>
-                        </td>
-                        <td>@(entry.IsRegex ? "Yes" : "No")</td>
-                        <td class="text-muted">@(entry.Note ?? "—")</td>
-                        <td class="text-muted">@entry.CreatedAt.ToString("MMM d, yyyy")</td>
-                        <td>
-                            <button class="btn btn-sm btn-app-ghost text-danger" @onclick="() => RemoveEntry(entry.Id)">
-                                <i class="ti ti-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
+            }
+            </tbody>
+        </table>
     </div>
 }
 
@@ -97,28 +94,28 @@ else
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label">Pattern</label> <input class="form-control"
-                                                                     placeholder="e.g. YIFY, rarbg, *.cam.*"
-                                                                     @bind="_newPattern"/>
+                    <label class="form-label">Pattern</label>
+                    <input class="form-control" placeholder="e.g. YIFY, rarbg, *.cam.*" @bind="_newPattern"/>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Type</label> <select class="form-select" @bind="_newType">
+                    <label class="form-label">Type</label>
+                    <select class="form-select" @bind="_newType">
                         <option value="@BlacklistType.Indexer">Indexer</option>
                         <option value="@BlacklistType.ReleaseGroup">Release Group</option>
                         <option value="@BlacklistType.Keyword">Keyword</option>
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-check form-switch"> <input class="form-check-input"
-                                                                  type="checkbox"
-                                                                  @bind="_newIsRegex"/>
+                    <label class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" @bind="_newIsRegex"/>
                         <span class="form-check-label">Use Regular Expression</span>
                     </label>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Note
                         <span class="text-muted">(optional)</span>
-                    </label> <input class="form-control" placeholder="Why is this blocked?" @bind="_newNote"/>
+                    </label>
+                    <input class="form-control" placeholder="Why is this blocked?" @bind="_newNote"/>
                 </div>
             </div>
             <div class="modal-footer">

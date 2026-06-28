@@ -8,7 +8,7 @@ public class DownloadAttempt
 
     public int Id { get; set; }
 
-    public int ServerId { get; set; }
+    public int? ServerId { get; set; }
 
     public ServiceType ServiceType { get; set; }
 

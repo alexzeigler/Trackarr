@@ -84,17 +84,17 @@
                 <div class="mb-3">
                     <div class="row g-3 mb-3">
                         <div class="col-6">
-                            <label class="form-check form-switch form-switch-3"> <input class="form-check-input"
-                                                                                        type="checkbox"
-                                                                                        @bind="Model.IsEnabled">
+                            <label class="form-check form-switch form-switch-3">
+                                <input class="form-check-input" type="checkbox" @bind="Model.IsEnabled">
                                 <span class="form-check-label">Enabled</span>
                             </label>
                         </div>
                         <div class="col-6">
-                            <label class="form-check form-switch form-switch-3"> <input class="form-check-input"
-                                                                                        type="checkbox"
-                                                                                        @bind="Model.UseHttps"
-                                                                                        @bind:after="UpdatePort">
+                            <label class="form-check form-switch form-switch-3">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       @bind="Model.UseHttps"
+                                       @bind:after="UpdatePort">
                                 <span class="form-check-label">Use SSL</span>
                             </label>
                         </div>
@@ -167,9 +167,8 @@
                         <div class="form-text">Leave empty to use global default.</div>
                     </div>
                     <div class="col-6">
-                        <label class="form-label">Priority</label> <input type="number"
-                                                                          class="form-control"
-                                                                          @bind="Model.Priority"/>
+                        <label class="form-label">Priority</label>
+                        <input type="number" class="form-control" @bind="Model.Priority"/>
                         <div class="form-text">Lower numbers run first.</div>
                     </div>
                 </div>
@@ -218,7 +217,8 @@
                             {
                                 <option value="@p.Name"
                                         selected="@(p.Name == Model.FallbackProfile?.Name)">@p.Name</option>
-                            } </select>
+                            }
+                        </select>
                     </span>
                     <div class="form-text">The fallback profile to apply to repeated missing items.</div>
                 </div>
@@ -272,7 +272,8 @@
                     {
                         <span class="spinner-border spinner-border-sm me-1"></span>
                     }
-                    <i class="bi bi-floppy me-1"></i>Save Server
+                    <i class="bi bi-floppy me-1"></i>
+                    Save Server
                 </button>
             </div>
 

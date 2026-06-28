@@ -114,7 +114,8 @@
                         @foreach (var type in AvailableTypes)
                         {
                             <option value="@type" selected="@(_typeFilter == type)">@type</option>
-                        } </select>
+                        }
+                    </select>
 
                     <select class="form-select w-auto" @onchange="OnStatusFilterChanged">
                         <option value="" selected="@(_statusFilter == null)">All Statuses</option>

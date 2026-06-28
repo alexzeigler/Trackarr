@@ -5,16 +5,17 @@ using Trackarr.Core.Media.Shows;
 namespace Trackarr.Services.Media;
 
 /// <summary>
-/// Maps the JSON DTOs returned by the Radarr/Sonarr APIs onto the persisted entities.
-/// Pure, stateless projections — extracted out of <see cref="MediaServerService" /> so the
-/// mapping lives in exactly one place per type instead of being copy-pasted per call site.
+///     Maps the JSON DTOs returned by the Radarr/Sonarr APIs onto the persisted entities.
+///     Pure, stateless projections — extracted out of <see cref="MediaServerService" /> so the
+///     mapping lives in exactly one place per type instead of being copy-pasted per call site.
 /// </summary>
 internal static class MediaRecordMappers
 {
     #region Mappers
 
-    public static Movie ToEntity(this MovieRecord x, int serverId) =>
-        new()
+    public static Movie ToEntity(this MovieRecord x, int serverId)
+    {
+        return new Movie
         {
             RemoteId = x.Id,
             Title = x.Title,
@@ -59,9 +60,11 @@ internal static class MediaRecordMappers
             CollectionJson = JsonSerializer.Serialize(x.Collection),
             StatisticsJson = JsonSerializer.Serialize(x.Statistics)
         };
+    }
 
-    public static Episode ToEntity(this MissingEpisodeRecord x, int serverId) =>
-        new()
+    public static Episode ToEntity(this MissingEpisodeRecord x, int serverId)
+    {
+        return new Episode
         {
             RemoteId = x.Id,
             RemoteSeriesId = x.SeriesId,
@@ -90,9 +93,11 @@ internal static class MediaRecordMappers
             EpisodeFileJson = JsonSerializer.Serialize(x.EpisodeFile),
             SeriesJson = JsonSerializer.Serialize(x.Series)
         };
+    }
 
-    public static Episode ToEntity(this EpisodeRecord x, int serverId) =>
-        new()
+    public static Episode ToEntity(this EpisodeRecord x, int serverId)
+    {
+        return new Episode
         {
             RemoteId = x.Id,
             RemoteSeriesId = x.SeriesId,
@@ -113,9 +118,11 @@ internal static class MediaRecordMappers
             ImagesJson = JsonSerializer.Serialize(x.Images),
             EpisodeFileJson = JsonSerializer.Serialize(x.EpisodeFile)
         };
+    }
 
-    public static Series ToEntity(this SeriesRecord x, int serverId) =>
-        new()
+    public static Series ToEntity(this SeriesRecord x, int serverId)
+    {
+        return new Series
         {
             RemoteId = x.Id,
             Title = x.Title,
@@ -159,6 +166,7 @@ internal static class MediaRecordMappers
             RatingsJson = JsonSerializer.Serialize(x.Ratings),
             StatisticsJson = JsonSerializer.Serialize(x.Statistics)
         };
+    }
 
     #endregion
 }

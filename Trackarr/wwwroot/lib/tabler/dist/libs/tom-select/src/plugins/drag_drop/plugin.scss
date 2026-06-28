@@ -1,10 +1,10 @@
 .#{$select-ns}-wrapper.plugin-drag_drop {
-  .ts-dragging {
-    color: transparent !important;
-  }
+    .ts-dragging {
+        color: transparent !important;
+    }
 
-  .ts-dragging > * {
-    visibility: hidden !important;
-  }
+    .ts-dragging > * {
+        visibility: hidden !important;
+    }
 
 }

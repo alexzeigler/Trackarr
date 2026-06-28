@@ -97,12 +97,16 @@
                     <ul class="nav nav-underline tab-control">
                         <li class="nav-item">
                             <a class="nav-link py-3 @(_activeTab == "overview" ? "active" : "")"
-                               @onclick='() => _activeTab = "overview"'><i class="bi bi-grid me-1"></i>Overview
+                               @onclick='() => _activeTab = "overview"'>
+                                <i class="bi bi-grid me-1"></i>
+                                Overview
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link py-3 @(_activeTab == "attempts" ? "active" : "")"
-                               @onclick='() => _activeTab = "attempts"'><i class="bi bi-arrow-repeat me-1"></i>Attempts
+                               @onclick='() => _activeTab = "attempts"'>
+                                <i class="bi bi-arrow-repeat me-1"></i>
+                                Attempts
                                 @if (_downloadAttempts.Count > 0)
                                 {
                                     <span class="badge bg-secondary-lt text-secondary ms-1">@_downloadAttempts.Count</span>
@@ -111,7 +115,9 @@
                         </li>
                         <li class="nav-item">
                             <a class="nav-link py-3 @(_activeTab == "activity" ? "active" : "")"
-                               @onclick='() => _activeTab = "activity"'><i class="bi bi-activity me-1"></i>Activity
+                               @onclick='() => _activeTab = "activity"'>
+                                <i class="bi bi-activity me-1"></i>
+                                Activity
                             </a>
                         </li>
                         @if (_series != null || _episode != null)
@@ -123,7 +129,8 @@
                                                  _activeTab = "episodes";
                                                  await LoadFilesAsync();
                                              })">
-                                    <i class="bi bi-collection-play me-1"></i>Episodes
+                                    <i class="bi bi-collection-play me-1"></i>
+                                    Episodes
                                 </a>
                             </li>
                         }

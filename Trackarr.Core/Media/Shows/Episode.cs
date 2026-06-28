@@ -60,7 +60,7 @@ public class Episode
     [ForeignKey(nameof(SeriesDbId))]
     public Series? Series { get; set; }
 
-    public int ServerId { get; set; }
+    public int? ServerId { get; set; }
 
     [JsonIgnore]
     [ForeignKey(nameof(ServerId))]

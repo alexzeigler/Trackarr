@@ -123,7 +123,7 @@
                                     <div class="text-secondary">@FormatNumber(s.Total)</div>
                                 </div>
                             }
-                    </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -147,7 +147,9 @@
                             @if (_pageData.StatusBreakdown.Count == 0)
                             {
                                 <div class="empty">
-                                    <div class="empty-icon"><i class="ti ti-chart-pie"></i></div>
+                                    <div class="empty-icon">
+                                        <i class="ti ti-chart-pie"></i>
+                                    </div>
                                     <p class="empty-title">No queue data</p>
                                 </div>
                             }
@@ -175,14 +177,16 @@
                             @if (_pageData.ScoreDistribution.Count == 0)
                             {
                                 <div class="empty">
-                                    <div class="empty-icon"><i class="ti ti-heartbeat"></i></div>
+                                <div class="empty-icon">
+                                    <i class="ti ti-heartbeat"></i>
+        </div>
                                     <p class="empty-title">No health data</p>
                                 </div>
                             }
-                    </div>
-                </div>
-            </div>
-        </div>
+    </div>
+    </div>
+    </div>
+    </div>
     </div>
     }
 
@@ -216,7 +220,8 @@
                         @foreach (var status in AvailableStatuses)
                         {
                             <option value="@status" selected="@(_statusFilter == status)">@status</option>
-                        } </select>
+                        }
+                    </select>
 
                     <select class="form-select w-auto" @onchange="OnServerFilterChanged">
                         <option value="" selected="@(_serverFilter == null)">All Servers</option>
@@ -224,14 +229,16 @@
                         {
                             <option value="@server.Name"
                                     selected="@(_serverFilter == server.Name)">@server.Name</option>
-                        } </select>
+                        }
+                            </>
 
                     <select class="form-select w-auto" @onchange="OnTypeFilterChanged">
                         <option value="" selected="@(_typeFilter == null)">All Types</option>
                         @foreach (var type in AvailableTypes)
                         {
                             <option value="@type" selected="@(_typeFilter == type)">@type</option>
-                        } </select>
+                        }
+                    </select>
 
 
                     <button class="btn btn-app-ghost" @onclick="RefreshAsync" disabled="@IsRefreshing">
@@ -301,7 +308,8 @@
                 </tr>
                 </thead>
                 <tbody class="table-tbody">
-                @if (Groups.Count == 0)
+                @if (PagedGroups
+                .Count == 0)
                 {
                     <tr>
                         <td colspan="6" class="text-center text-muted py-4">No downloads in queue</td>
@@ -309,7 +317,7 @@
                 }
                 else
                 {
-                    @foreach (var group in Groups)
+                @foreach (var group in PagedGroups)
                     {
                         var expanded = IsExpanded(group.Key);
                         var itemCount = group.Items.Count;
@@ -338,6 +346,11 @@
                                          style="transition: transform .15s; transform: rotate(@(expanded ? "90" : "0")deg);">
                                         <path d="M9 6l6 6l-6 6"/>
                                     </svg>
+                                    @if (Settings.GetBool("Display",, true) &&.ServerType != null)
+                                    {
+                                    <src="img/@(group.ServerType).svg"
+                                    alt="@.ServerType"title="@group.ServerName"/>
+                                    }
                                     @if (group.PosterUrl != null)
                                     {
                                         <img src="@group.PosterUrl" class="media-poster media-poster-md" alt=""/>
@@ -523,8 +536,19 @@
             </table>
         </div>
 
-        <div class="card-footer d-flex align-items-center justify-content-end">
-            <div class="fw-semibold">@Groups.Count groups, @_downloads.Count total</div>
+        <div class="card-footer d-flex align-items-center">
+            <p class="m-0 text-secondary">Showing @.Count of @Groups.Count groups (@_downloads.Count total)</p>
+            <ul class="pagination m-0 ms-auto">
+                <li class="page-item @(<= 1 ?: "")">
+                    <button class="page-link" @onclick="PrevPage">Prev</button>
+                </li>
+                <li class="page-item">
+                    <span class="page-link">@_page / @TotalPages</span>
+                </li>
+                <li class="page-item @(_page >= TotalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="NextPage">Next</button>
+                </li>
+            </ul>
         </div>
     </div>
 </div>

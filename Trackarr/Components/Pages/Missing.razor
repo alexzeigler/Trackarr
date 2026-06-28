@@ -124,15 +124,17 @@
                             @if (_pageData.StateBreakdown.Count == 0)
                             {
                                 <div class="empty">
-                                    <div class="empty-icon"><i class="ti ti-chart-pie"></i></div>
+                                    <div class="empty-icon">
+                                        <i class="ti ti-chart-pie"></i>
+                                    </div>
                                     <p class="empty-title">No missing data</p>
                                 </div>
                             }
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
     }
 
     <div class="card app-card">
@@ -164,7 +166,8 @@
                         @foreach (var state in AvailableStates)
                         {
                             <option value="@state" selected="@(_stateFilter == state)">@state</option>
-                        } </select>
+                        }
+                    </select>
 
                     <select class="form-select w-auto" @onchange="OnServerFilterChanged">
                         <option value="" selected="@(_serverFilter == null)">All Servers</option>
@@ -172,14 +175,16 @@
                         {
                             <option value="@server.Name"
                                     selected="@(_serverFilter == server.Name)">@server.Name</option>
-                        } </select>
+                        }
+                    </select>
 
                     <select class="form-select w-auto" @onchange="OnTypeFilterChanged">
                         <option value="" selected="@(_typeFilter == null)">All Types</option>
                         @foreach (var type in AvailableTypes)
                         {
                             <option value="@type" selected="@(_typeFilter == type)">@type</option>
-                        } </select>
+                        }
+                    </select>
 
                     <button class="btn btn-app-ghost" @onclick="RefreshAsync" disabled="@IsRefreshing">
                         <svg xmlns="http://www.w3.org/2000/svg"
@@ -249,7 +254,7 @@
                 </tr>
                 </thead>
                 <tbody class="table-tbody">
-                @if (FilteredRows.Count == 0)
+                @if (PagedRows.Count == 0)
                 {
                     <tr>
                         <td colspan="6" class="text-center text-muted py-4">No missing media found</td>
@@ -257,7 +262,7 @@
                 }
                 else
                 {
-                    @foreach (var row in FilteredRows)
+                    @foreach (var row in PagedRows)
                     {
                         var server = GetServer(row);
                         var movie = GetMovie(row);
@@ -357,8 +362,20 @@
             </table>
         </div>
 
-        <div class="card-footer d-flex align-items-center justify-content-end">
-            <div class="fw-semibold">@FilteredRows.Count of @_missingRows.Count groups</div>
+        <div class="card-footer d-flex align-items-center">
+            <p class="m-0 text-secondary">Showing @PagedRows.Count of @FilteredRows.Count groups
+                (@_missingRows.Count total)</p>
+            <ul class="pagination m-0 ms-auto">
+                <li class="page-item @(_page <= 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="PrevPage">Prev</button>
+                </li>
+                <li class="page-item">
+                    <span class="page-link">@_page / @TotalPages</span>
+                </li>
+                <li class="page-item @(_page >= TotalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="NextPage">Next</button>
+                </li>
+            </ul>
         </div>
     </div>
 </div>

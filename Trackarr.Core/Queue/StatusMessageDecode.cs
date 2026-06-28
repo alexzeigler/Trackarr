@@ -66,8 +66,8 @@ public class StatusMessageDecode
 
     private sealed class StatusMessageGroup
     {
-        public string Title { get; set; } = string.Empty;
-        public List<string> Messages { get; set; } = [];
+        public string Title { get; } = string.Empty;
+        public List<string> Messages { get; } = [];
     }
 
     #endregion

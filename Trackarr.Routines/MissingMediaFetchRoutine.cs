@@ -32,6 +32,7 @@ public sealed class MissingMediaFetchRoutine(
         var failed = 0;
 
         foreach (var server in servers)
+        {
             try
             {
                 var count = await missingService.EvaluateServerAsync(server, cancellationToken);
@@ -44,6 +45,7 @@ public sealed class MissingMediaFetchRoutine(
                 failed++;
                 logger.LogError(ex, "Missing evaluation failed for {name}", server.Name);
             }
+        }
 
         LastRunSuccess = failed == 0;
         return $"{movieCount} missing movies, {episodeCount} missing episodes" +

@@ -19,12 +19,8 @@
                     <div class="mb-3">
                         <label class="form-label">Score
                             <span class="text-secondary fw-normal">(@_score)</span>
-                        </label> <input type="range"
-                                        class="form-range"
-                                        min="0"
-                                        max="100"
-                                        @bind="_score"
-                                        @bind:event="oninput"/>
+                        </label>
+                        <input type="range" class="form-range" min="0" max="100" @bind="_score" @bind:event="oninput"/>
                         <div class="d-flex justify-content-between text-secondary small">
                             <span>0</span>
                             <span>100</span>
@@ -34,12 +30,13 @@
                     <div class="mb-3">
                         <label class="form-label">Confidence
                             <span class="text-secondary fw-normal">(@_confidence)</span>
-                        </label> <input type="range"
-                                        class="form-range"
-                                        min="0"
-                                        max="100"
-                                        @bind="_confidence"
-                                        @bind:event="oninput"/>
+                        </label>
+                        <input type="range"
+                               class="form-range"
+                               min="0"
+                               max="100"
+                               @bind="_confidence"
+                               @bind:event="oninput"/>
                         <div class="d-flex justify-content-between text-secondary small">
                             <span>0</span>
                             <span>100</span>

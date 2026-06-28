@@ -8,8 +8,10 @@ namespace Trackarr.Tests;
 
 public class SettingsServiceTests
 {
-    private static SettingsService Create(SqliteInMemoryFactory factory) =>
-        new(factory, NullLogger<SettingsService>.Instance);
+    private static SettingsService Create(SqliteInMemoryFactory factory)
+    {
+        return new SettingsService(factory, NullLogger<SettingsService>.Instance);
+    }
 
     #region InitializeAsync
 
@@ -144,7 +146,7 @@ public class SettingsServiceTests
         var service = Create(factory);
 
         Assert.True(service.GetBool("Missing", "Key", true));
-        Assert.False(service.GetBool("Missing", "Key", false));
+        Assert.False(service.GetBool("Missing", "Key"));
     }
 
     [Fact]

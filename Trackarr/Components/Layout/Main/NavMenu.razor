@@ -131,25 +131,26 @@
         new("System", "/system/status", "/system", "bi bi-laptop", [
             new NavChild("Status", "/system/status"),
             new NavChild("Routines", "/system/routines"),
-            new NavChild("Events", "/system/events")
+            new NavChild("Events", "/system/events"),
+            new NavChild("Releases", "/system/releases"),
+            new NavChild("License", "/system/license")
         ]),
-        new("Settings", "/settings/general", "/settings", "ti ti-settings", [
-            new NavChild("General", "/settings/general"),
-            new NavChild("Display", "/settings/display"),
-            new NavChild("Health Policy", "/settings/health"),
-            new NavChild("Missing Policy", "/settings/missing"),
-            new NavChild("Blacklist", "/settings/blacklist"),
-            new NavChild("Servers", "/settings/services"),
-            new NavChild("Maintenance", "/settings/maintenance")
-        ])
+        new("Settings", "/settings/general", "/settings", "ti ti-settings", [])
     ];
 
     private readonly HashSet<string> _expandedGroups = [];
     private string? _lastActivePrefix;
     private Timer? _refreshTimer;
 
-    private NavItem GetItem(string prefix) => _navItems.First(i => i.Prefix == prefix);
-    private NavChild GetChild(string prefix, string href) => GetItem(prefix).Children.First(c => c.Href == href);
+    private NavItem GetItem(string prefix)
+    {
+        return _navItems.First(i => i.Prefix == prefix);
+    }
+
+    private NavChild GetChild(string prefix, string href)
+    {
+        return GetItem(prefix).Children.First(c => c.Href == href);
+    }
 
     protected override async Task OnInitializedAsync()
     {

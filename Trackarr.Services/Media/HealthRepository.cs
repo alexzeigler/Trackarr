@@ -7,9 +7,9 @@ using Trackarr.Data;
 namespace Trackarr.Services.Media;
 
 /// <summary>
-/// Persistence for the health pipeline: resolving/creating attempts and snapshots and rolling up the
-/// media/source summaries. Every method takes the caller's <see cref="AppDbContext" /> so a whole
-/// evaluation stays a single unit of work (one SaveChanges in <see cref="HealthService" />).
+///     Persistence for the health pipeline: resolving/creating attempts and snapshots and rolling up the
+///     media/source summaries. Every method takes the caller's <see cref="AppDbContext" /> so a whole
+///     evaluation stays a single unit of work (one SaveChanges in <see cref="HealthService" />).
 /// </summary>
 public sealed class HealthRepository(HealthPolicy? policy = null)
 {

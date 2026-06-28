@@ -22,7 +22,7 @@ public class MediaRecordMappersTests
             Genres = JsonSerializer.SerializeToElement(new[] { "Action", "Sci-Fi" })
         };
 
-        var movie = record.ToEntity(serverId: 7);
+        var movie = record.ToEntity(7);
 
         Assert.Equal(42, movie.RemoteId);
         Assert.Equal("Inception", movie.Title);
@@ -48,7 +48,7 @@ public class MediaRecordMappersTests
             Monitored = true
         };
 
-        var episode = record.ToEntity(serverId: 4);
+        var episode = record.ToEntity(4);
 
         Assert.Equal(100, episode.RemoteId);
         Assert.Equal(9, episode.RemoteSeriesId);
@@ -71,7 +71,7 @@ public class MediaRecordMappersTests
             HasFile = true
         };
 
-        var episode = record.ToEntity(serverId: 4);
+        var episode = record.ToEntity(4);
 
         Assert.Equal(200, episode.RemoteId);
         Assert.Equal(9, episode.RemoteSeriesId);
@@ -92,7 +92,7 @@ public class MediaRecordMappersTests
             Ended = true
         };
 
-        var series = record.ToEntity(serverId: 4);
+        var series = record.ToEntity(4);
 
         Assert.Equal(9, series.RemoteId);
         Assert.Equal("Breaking Bad", series.Title);

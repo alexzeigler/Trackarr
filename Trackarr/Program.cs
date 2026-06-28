@@ -50,6 +50,7 @@ builder.Services.AddSingleton<HistoryService>();
 builder.Services.AddSingleton<QueueStatsService>();
 builder.Services.AddSingleton<MissingStatsService>();
 builder.Services.AddSingleton<SystemStatusService>();
+builder.Services.AddSingleton<GitHubReleaseService>();
 builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<BlacklistService>();
 
@@ -153,7 +154,7 @@ static string BuildSqliteConnectionString(string connectionString, string conten
 {
     var sqliteConnectionString = new SqliteConnectionStringBuilder(connectionString)
     {
-        Cache = SqliteCacheMode.Shared, Pooling = true
+        Cache = SqliteCacheMode.Shared, Pooling = true, ForeignKeys = true
     };
 
     var dataSource = sqliteConnectionString.DataSource;
