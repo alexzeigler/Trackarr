@@ -230,7 +230,7 @@
                             <option value="@server.Name"
                                     selected="@(_serverFilter == server.Name)">@server.Name</option>
                         }
-                            </>
+                    </select>
 
                     <select class="form-select w-auto" @onchange="OnTypeFilterChanged">
                         <option value="" selected="@(_typeFilter == null)">All Types</option>
@@ -308,8 +308,7 @@
                 </tr>
                 </thead>
                 <tbody class="table-tbody">
-                @if (PagedGroups
-                .Count == 0)
+                @if (PagedGroups.Count == 0)
                 {
                     <tr>
                         <td colspan="6" class="text-center text-muted py-4">No downloads in queue</td>
@@ -346,10 +345,11 @@
                                          style="transition: transform .15s; transform: rotate(@(expanded ? "90" : "0")deg);">
                                         <path d="M9 6l6 6l-6 6"/>
                                     </svg>
-                                    @if (Settings.GetBool("Display",, true) &&.ServerType != null)
+                                    @if (Settings.GetBool("Display", "ShowServerIconsInQueue", true) && group.ServerType != null)
                                     {
-                                    <src="img/@(group.ServerType).svg"
-                                    alt="@.ServerType"title="@group.ServerName"/>
+                                        <img src="img/@(group.ServerType).svg"
+                                             alt="@group.ServerType"
+                                             title="@group.ServerName"/>
                                     }
                                     @if (group.PosterUrl != null)
                                     {
@@ -537,9 +537,10 @@
         </div>
 
         <div class="card-footer d-flex align-items-center">
-            <p class="m-0 text-secondary">Showing @.Count of @Groups.Count groups (@_downloads.Count total)</p>
+            <p class="m-0 text-secondary">Showing @PagedGroups.Count of @Groups.Count groups
+                (@_downloads.Count total)</p>
             <ul class="pagination m-0 ms-auto">
-                <li class="page-item @(<= 1 ?: "")">
+                <li class="page-item @(_page <= 1 ? "disabled" : "")">
                     <button class="page-link" @onclick="PrevPage">Prev</button>
                 </li>
                 <li class="page-item">

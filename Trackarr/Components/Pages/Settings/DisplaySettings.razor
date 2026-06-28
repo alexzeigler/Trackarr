@@ -99,14 +99,12 @@
                    class="btn-check"
                    name="density"
                    id="dCompact"
-                   checked="@(_tableDensity ==)"
-                   @onchange="@(() =>())"/>
+                   checked="@(_tableDensity == "compact")"
+                   @onchange="@(() => SetDensity("compact"))"/>
             <label class="btn btn-app-ghost" for="dCompact">Compact</label>
             <input type="radio"
                    class="btn-check"
-                   name="density"
-                   id="dNormal"
-                   checked="@(_tableDensity ==)"
+                   name="density" id="dNormal" checked="@(_tableDensity == "normal")"
                    @onchange="@(() => SetDensity("normal"))"/>
             <label class="btn btn-app-ghost" for="dNormal">Normal</label>
             <input type="radio"
@@ -114,11 +112,7 @@
                    name="density"
                    id="dComfy"
                    checked="@(_tableDensity == "comfortable")"
-                   @onchange="@(() =>
-                   SetDensity(
-                   "comfortable"))
-
-                   "/>
+                   @onchange="@(() => SetDensity("comfortable"))"/>
             <label class="btn btn-app-ghost" for="dComfy">Comfortable</label>
         </div>
     </div>
@@ -128,9 +122,9 @@
 <div class="mb-4">
     <div class="form-selectgroup">
         <label class="form-selectgroup-item">
-            <input type="checkbox" class="form-selectgroup-input" checked="@" @onchange="@(e =>
+            <input type="checkbox" class="form-selectgroup-input" checked="@_showQueueCharts" @onchange="@(e =>
             {
-            _showQueueCharts = (bool)e.Value!;
+                _showQueueCharts = (bool)e.Value!;
                 MarkDirty();
             })"/>
             <span class="form-selectgroup-label">
@@ -139,26 +133,29 @@
             </span>
         </label>
         <label class="form-selectgroup-item">
-            <input type="checkbox" class="form-selectgroup-input" checked="@" @onchange="@
-            (e =>
+            <input type="checkbox" class="form-selectgroup-input" checked="@_showMissingCharts" @onchange="@(e =>
             {
-            _showMissingCharts = (bool)e.Value!;})"/>
+                _showMissingCharts = (bool)e.Value!;
+                MarkDirty();
+            })"/>
             <span class="form-selectgroup-label">
                 <i class="ti ti-chart-line me-1"></i>
                 Missing Charts
             </span>
         </label>
-    <label class="form-selectgroup-item">
-        <input type="checkbox" class="form-selectgroup-input" checked="@_showHealthBadges" @onchange="@(e =>
-        {
-        _showHealthBadges = (bool)e.Value!;
-        MarkDirty();
-        })"/>
-    <span class="form-selectgroup-label" data-bs-toggle="tooltip" title="Show health score badges on queue items">
-        <i class="ti ti-heart-rate-monitor me-1"></i>
-        Health Badges
-        </>
-    </label>
+        <label class="form-selectgroup-item">
+            <input type="checkbox" class="form-selectgroup-input" checked="@_showHealthBadges" @onchange="@(e =>
+                                                                                                          {
+                                                                                                              _showHealthBadges = (bool)e.Value!;
+                                                                                                              MarkDirty();
+                                                                                                          })"/>
+            <span class="form-selectgroup-label"
+                  data-bs-toggle="tooltip"
+                  title="Show health score badges on queue items">
+                <i class="ti ti-heart-rate-monitor me-1"></i>
+                Health Badges
+            </span>
+        </label>
         <label class="form-selectgroup-item">
             <input type="checkbox" class="form-selectgroup-input" checked="@_showServerIcons" @onchange="@(e =>
             {
@@ -178,16 +175,16 @@
 <div class="row g-3 mb-4">
     <div class="col-12 col-lg-6">
         <label class="form-label">Default Grouping</label>
-    <select class="form-select" @bind="" @bind:after="MarkDirty">
-        <option value="none">None</option>
-    <>By Server</option>
-    <value="status">By Status</option>
-        <option value="mediaType">By Media Type</option>
-    </select>
+        <select class="form-select" @bind="_defaultGrouping" @bind:after="MarkDirty">
+            <option value="none">None</option>
+            <option value="server">By Server</option>
+            <option value="status">By Status</option>
+            <option value="mediaType">By Media Type</option>
+        </select>
     </div>
     <div class="col-12 col-lg-6">
         <label class="form-check form-switch mt-lg-4">
-            <input class="form-check-input" type="checkbox" @bind="_expandGroups" @="MarkDirty"/>
+            <input class="form-check-input" type="checkbox" @bind="_expandGroups" @bind:after="MarkDirty"/>
             <span class="form-check-label">Expand groups by default</span>
         </label>
     </div>
@@ -266,8 +263,10 @@
         _origExpandGroups = _expandGroups;
     }
 
-    private void()
-    {MarkDirty();
+    private void SetDensity(string value)
+    {
+        _tableDensity = value;
+        MarkDirty();
     }
 
     private void MarkDirty()
