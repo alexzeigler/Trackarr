@@ -14,13 +14,15 @@ using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Data;
+using Trackarr.Services.UI;
 
 namespace Trackarr.Services.Media;
 
 public class MediaServerService(
     IDbContextFactory<AppDbContext> dbFactory,
     IHttpClientFactory httpClientFactory,
-    ILogger<MediaServerService> logger)
+    ILogger<MediaServerService> logger,
+    DataChangeBus changeBus)
 {
     private static readonly TimeSpan QueueCacheTtl = TimeSpan.FromSeconds(30);
 
@@ -118,6 +120,7 @@ public class MediaServerService(
             logger.LogInformation("Set profile {profile} on {resource} {id} for {name}", profileId, resource, remoteId,
                 server.Name);
         });
+        changeBus.NotifyChanged();
     }
 
     public async Task<HashSet<string>> GetImportedDownloadIdsAsync(MediaServer server, IEnumerable<string> downloadIds)
@@ -197,7 +200,8 @@ public class MediaServerService(
             throw new MediaServerException($"{server.Name}: Missing movies not supported for {server.ServiceType}.");
         if (!server.IsEnabled)
         {
-            return [];
+            await using var db = await dbFactory.CreateDbContextAsync();
+            return await db.Movies.Where(m => m.ServerId == server.Id).ToListAsync();
         }
 
         return await ExecuteApiAsync(server, "Unexpected error fetching missing movies.", async () =>
@@ -375,6 +379,12 @@ public class MediaServerService(
 
         if (server.ServiceType is not ServiceType.Sonarr)
             throw new MediaServerException($"{server.Name}: Missing episodes not supported for {server.ServiceType}.");
+
+        if (!server.IsEnabled)
+        {
+            await using var db = await dbFactory.CreateDbContextAsync();
+            return await db.Episodes.Where(e => e.ServerId == server.Id && !e.HasFile).ToListAsync();
+        }
 
         return await ExecuteApiAsync(server, "Unexpected error fetching missing episodes.", async () =>
         {
@@ -598,6 +608,55 @@ public class MediaServerService(
         });
     }
 
+    public async Task SyncSeriesEpisodesAsync(MediaServer server, int seriesId)
+    {
+        if (string.IsNullOrWhiteSpace(server.ApiKey))
+            return;
+
+        await ExecuteApiAsync(server, $"Error syncing episodes for series {seriesId}.", async () =>
+        {
+            var client = CreateClient(server, 15);
+            var url = $"{server.BaseUrl}/api/v3/episode?seriesId={seriesId}";
+
+            using var response = await client.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+                throw new ApiException(server.Name, "/api/v3/episode", (int)response.StatusCode);
+
+            var json = await response.Content.ReadAsStringAsync();
+            var records = JsonSerializer.Deserialize<List<EpisodeRecord>>(json, _jsonOptions) ?? [];
+
+            await using var db = await dbFactory.CreateDbContextAsync();
+
+            var seriesEntity =
+                await db.Series.FirstOrDefaultAsync(s => s.ServerId == server.Id && s.RemoteId == seriesId);
+
+            foreach (var record in records)
+            {
+                var episode = record.ToEntity(server.Id);
+
+                if (seriesEntity is not null)
+                    episode.SeriesDbId = seriesEntity.Id;
+
+                var existing =
+                    await db.Episodes.FirstOrDefaultAsync(e =>
+                        e.ServerId == server.Id && e.RemoteId == episode.RemoteId);
+
+                if (existing is null)
+                {
+                    db.Episodes.Add(episode);
+                }
+                else
+                {
+                    episode.Id = existing.Id;
+                    db.Entry(existing).CurrentValues.SetValues(episode);
+                }
+            }
+
+            await db.SaveChangesAsync();
+        });
+    }
+
     public async Task<List<(int EpisodeId, bool HasFile, bool Monitored)>> GetSeriesEpisodeStatesAsync(
         MediaServer server, int seriesId)
     {
@@ -675,6 +734,7 @@ public class MediaServerService(
         }
 
         server.Metadata = await GetSystemStatusAsync(server);
+        changeBus.NotifyChanged();
     }
 
     public async Task UpdateServerAsync(MediaServer server)
@@ -694,6 +754,7 @@ public class MediaServerService(
         server.Metadata = await GetSystemStatusAsync(server);
 
         logger.LogInformation("Updated server: {name}", server.Name);
+        changeBus.NotifyChanged();
     }
 
     public async Task DeleteServerAsync(int id)
@@ -708,6 +769,7 @@ public class MediaServerService(
         await db.SaveChangesAsync();
 
         logger.LogInformation("Deleted server: {name}", server.Name);
+        changeBus.NotifyChanged();
     }
 
     #endregion
@@ -869,6 +931,7 @@ public class MediaServerService(
         update(server);
         db.Entry(server).State = EntityState.Modified;
         await db.SaveChangesAsync();
+        changeBus.NotifyChanged();
     }
 
     #endregion
@@ -881,13 +944,15 @@ public class MediaServerService(
             throw new MediaServerException($"{server.Name}: Queue fetching not supported for {server.ServiceType}.");
         if (!server.IsEnabled)
         {
-            return [];
+            await using var db = await dbFactory.CreateDbContextAsync();
+            var cached = await db.DownloadQueue.Where(q => q.ServerId == server.Id).ToListAsync();
+            server.Queue = cached;
+            return cached;
         }
 
         return await ExecuteApiAsync(server, "Unexpected error fetching queue.", async () =>
         {
             await using var db = await dbFactory.CreateDbContextAsync();
-
 
             if (!forceRefresh)
             {
@@ -1052,6 +1117,7 @@ public class MediaServerService(
 
             logger.LogInformation("Removed queue item {id} from {name}", queueId, server.Name);
         });
+        changeBus.NotifyChanged();
     }
 
     private async Task TriggerSearchAsync(MediaServer server, string commandName, string paramName, object value)

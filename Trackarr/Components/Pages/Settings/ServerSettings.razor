@@ -7,47 +7,81 @@
 <h2 class="mb-1">Servers</h2>
 <p class="text-muted mb-4">Global defaults that apply to all servers unless overridden individually.</p>
 
-<h3 class="card-title">Features</h3>
+<h3 class="settings-section-title">Features</h3>
 <div class="row g-3 mb-4">
     <div class="col-12 col-lg-4">
-        <label class="form-check form-switch">
+        <label class="form-label d-block"
+               data-bs-toggle="tooltip"
+               title="Fetch and display active download queue items from your servers">
+            Queue Monitoring
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <label class="form-check form-switch mt-2">
             <input class="form-check-input" type="checkbox" @bind="_monitorQueue" @bind:after="MarkDirty"/>
-            <span class="form-check-label"
-                  data-bs-toggle="tooltip"
-                  title="Fetch and display active download queue items from your servers">Monitor Queue
-                <i class="ti ti-info-circle ms-1 opacity-50"></i>
-            </span>
+            <span class="form-check-label">Monitor Queue</span>
         </label>
     </div>
     <div class="col-12 col-lg-4">
-        <label class="form-check form-switch">
+        <label class="form-label d-block"
+               data-bs-toggle="tooltip"
+               title="Automatically remove downloads when their health score drops below the removal threshold">
+            Auto-Removal
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <label class="form-check form-switch mt-2">
             <input class="form-check-input" type="checkbox" @bind="_autoRemove" @bind:after="MarkDirty"/>
-            <span class="form-check-label"
-                  data-bs-toggle="tooltip"
-                  title="Automatically remove downloads when their health score drops below the removal threshold">
-                Auto-Remove Downloads
-                <i class="ti ti-info-circle ms-1 opacity-50"></i>
-            </span>
+            <span class="form-check-label">Auto-Remove Downloads</span>
         </label>
     </div>
     <div class="col-12 col-lg-4">
-        <label class="form-check form-switch">
+        <label class="form-label d-block"
+               data-bs-toggle="tooltip"
+               title="Periodically trigger searches on your servers for movies and episodes that are missing">
+            Missing Search
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <label class="form-check form-switch mt-2">
             <input class="form-check-input" type="checkbox" @bind="_searchMissing" @bind:after="MarkDirty"/>
-            <span class="form-check-label"
-                  data-bs-toggle="tooltip"
-                  title="Periodically trigger searches on your servers for movies and episodes that are missing">Search
-                Missing Media
-                <i class="ti ti-info-circle ms-1 opacity-50"></i>
-            </span>
+            <span class="form-check-label">Search Missing Media</span>
         </label>
     </div>
 </div>
 
-<h3 class="card-title">Connection</h3>
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Removal Behavior</h3>
 <div class="row g-3 mb-4">
     <div class="col-12 col-lg-4">
-        <label class="form-label">Request Timeout</label>
-        <div class="input-group" style="max-width: 10rem;">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="When enabled, Trackarr will still evaluate health scores and track downloads but will never automatically remove items from your download clients">
+            Passive Mode
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <label class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" @bind="_passiveMode" @bind:after="MarkDirty"/>
+            <span class="form-check-label">Disable automatic removals</span>
+        </label>
+        @if (_passiveMode)
+        {
+            <div class="text-warning small mt-1">
+                <i class="ti ti-alert-triangle me-1"></i>
+                Trackarr will not remove any downloads from your clients while passive mode is active.
+            </div>
+        }
+    </div>
+</div>
+
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Connection</h3>
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Maximum time to wait for a response from Radarr/Sonarr API calls">
+            Request Timeout
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <div class="input-group">
             <input type="number" class="form-control" min="5" max="300" @bind="_timeout" @bind:after="MarkDirty"/>
             <span class="input-group-text">sec</span>
         </div>
@@ -60,11 +94,13 @@
     private bool _monitorQueue;
     private bool _autoRemove;
     private bool _searchMissing;
+    private bool _passiveMode;
     private int _timeout;
 
     private bool _origMonitorQueue;
     private bool _origAutoRemove;
     private bool _origSearchMissing;
+    private bool _origPassiveMode;
     private int _origTimeout;
 
     protected override void OnInitialized()
@@ -79,23 +115,26 @@
         _monitorQueue = SettingsService.GetBool("Servers", "MonitorQueue", true);
         _autoRemove = SettingsService.GetBool("Servers", "AutoRemoveDownloads", true);
         _searchMissing = SettingsService.GetBool("Servers", "SearchMissing", true);
+        _passiveMode = SettingsService.GetBool("General", "PassiveMode", false);
         _timeout = SettingsService.GetInt("Servers", "RequestTimeoutSeconds", 30);
 
         _origMonitorQueue = _monitorQueue;
         _origAutoRemove = _autoRemove;
         _origSearchMissing = _searchMissing;
+        _origPassiveMode = _passiveMode;
         _origTimeout = _timeout;
     }
 
     private void MarkDirty()
     {
-        Context.HasChanges = _monitorQueue != _origMonitorQueue || _autoRemove != _origAutoRemove || _searchMissing != _origSearchMissing || _timeout != _origTimeout;
+        Context.HasChanges = _monitorQueue != _origMonitorQueue || _autoRemove != _origAutoRemove || _searchMissing != _origSearchMissing || _passiveMode != _origPassiveMode || _timeout != _origTimeout;
         Context.NotifyChanged();
     }
 
     private async Task SaveAsync()
     {
         await SettingsService.SaveCategoryAsync("Servers", new Dictionary<string, string> { ["MonitorQueue"] = _monitorQueue.ToString(), ["AutoRemoveDownloads"] = _autoRemove.ToString(), ["SearchMissing"] = _searchMissing.ToString(), ["RequestTimeoutSeconds"] = _timeout.ToString() });
+        await SettingsService.SaveCategoryAsync("General", new Dictionary<string, string> { ["PassiveMode"] = _passiveMode.ToString() });
         LoadValues();
     }
 
@@ -104,9 +143,9 @@
         _monitorQueue = _origMonitorQueue;
         _autoRemove = _origAutoRemove;
         _searchMissing = _origSearchMissing;
+        _passiveMode = _origPassiveMode;
         _timeout = _origTimeout;
         StateHasChanged();
         return Task.CompletedTask;
     }
-
 }

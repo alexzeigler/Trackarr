@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Trackarr.Core.Settings;
 using Trackarr.Data;
+using Trackarr.Services.UI;
 
 namespace Trackarr.Services.Settings;
 
-public sealed class BlacklistService(IDbContextFactory<AppDbContext> dbFactory)
+public sealed class BlacklistService(IDbContextFactory<AppDbContext> dbFactory, DataChangeBus changeBus)
 {
     public async Task<List<BlacklistEntry>> GetAllAsync()
     {
@@ -25,12 +26,14 @@ public sealed class BlacklistService(IDbContextFactory<AppDbContext> dbFactory)
         entry.CreatedAt = DateTime.UtcNow;
         db.Blacklist.Add(entry);
         await db.SaveChangesAsync();
+        changeBus.NotifyChanged();
     }
 
     public async Task RemoveAsync(int id)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
         await db.Blacklist.Where(b => b.Id == id).ExecuteDeleteAsync();
+        changeBus.NotifyChanged();
     }
 
     public async Task UpdateAsync(BlacklistEntry entry)
@@ -44,5 +47,6 @@ public sealed class BlacklistService(IDbContextFactory<AppDbContext> dbFactory)
         existing.IsRegex = entry.IsRegex;
         existing.Note = entry.Note;
         await db.SaveChangesAsync();
+        changeBus.NotifyChanged();
     }
 }

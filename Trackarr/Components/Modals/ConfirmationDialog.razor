@@ -1,5 +1,4 @@
-﻿<div class="modal fade modal-blur"
-     id="confirmationModal"
+﻿<div class="modal fade modal-blur" id="@Id"
      tabindex="-1"
      aria-labelledby="confirmationModalLabel"
      aria-hidden="true">
@@ -49,6 +48,7 @@
 </div>
 
 @code {
+    [Parameter] public string Id { get; set; } = "confirmationModal";
     [Parameter] public string Header { get; set; } = "Confirm";
     [Parameter] public string Text { get; set; } = "Are you sure?";
     [Parameter] public string ConfirmText { get; set; } = "Yes";

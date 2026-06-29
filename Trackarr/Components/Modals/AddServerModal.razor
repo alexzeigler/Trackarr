@@ -207,60 +207,31 @@
 
                 <div class="mb-3">
                     <label class="form-label">Fallback Profile</label>
-                    <span class="d-block"
-                          id="fallbackTooltip"
-                          data-bs-toggle="@(HasProfiles ? null : "tooltip")"
-                          title="Test connection to load profiles">
-                        <select class="form-select" id="fallbackProfileSelect" disabled="@(!HasProfiles)">
-                            <option value="">None</option>
-                            @foreach (var p in Profiles ?? [])
-                            {
-                                <option value="@p.Name"
-                                        selected="@(p.Name == Model.FallbackProfile?.Name)">@p.Name</option>
-                            }
-                        </select>
-                    </span>
-                    <div class="form-text">The fallback profile to apply to repeated missing items.</div>
-                </div>
-
-
-                @if (IsValid)
-                {
-                    <div class="alert alert-success d-flex align-items-center justify-content-between gap-3 mb-1"
-                         role="alert">
-                        <div class="d-flex align-items-center gap-3">
-                            <svg xmlns="http://www.w3.org/2000/svg"
-                                 width="40"
-                                 height="40"
-                                 style="width: 40px; height: 40px;"
-                                 viewBox="0 0 24 24"
-                                 fill="none"
-                                 stroke="currentColor"
-                                 stroke-width="2"
-                                 stroke-linecap="round"
-                                 stroke-linejoin="round">
-                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                <path d="M12 18l.01 0"/>
-                                <path d="M9.172 15.172a4 4 0 0 1 5.656 0"/>
-                                <path d="M6.343 12.343a8 8 0 0 1 11.314 0"/>
-                                <path d="M3.515 9.515c4.686 -4.687 12.284 -4.687 17 0"/>
-                            </svg>
-                            <div>
-                                <div class="fw-semibold">Ready to Test</div>
-                                <div>Ensure Trackarr can connect and authenticate with this server.</div>
-                            </div>
-                        </div>
-                        <button class="btn btn-ghost btn-app-ghost flex-shrink-0"
-                                @onclick="TestConnection"
-                                disabled="@IsBusy">
+                    <div class="d-flex gap-2">
+                        <span class="flex-fill"
+                              id="fallbackTooltip"
+                              data-bs-toggle="@(HasProfiles ? null : "tooltip")"
+                              title="Test connection to load profiles">
+                            <select class="form-select" id="fallbackProfileSelect" disabled="@(!HasProfiles)">
+                                <option value="">None</option>
+                                @foreach (var p in Profiles ?? [])
+                                {
+                                    <option value="@p.Name"
+                                            selected="@(p.Name == Model.FallbackProfile?.Name)">@p.Name</option>
+                                }
+                            </select>
+                        </span>
+                        <button class="btn btn-app-ghost flex-shrink-0"
+                                @onclick="TestConnection" disabled="@(!IsValid || IsBusy)">
                             @if (IsTesting)
                             {
                                 <span class="spinner-border spinner-border-sm me-1"></span>
                             }
-                            Test Connection
+                            Test
                         </button>
                     </div>
-                }
+                    <div class="form-text">Test connection to load available profiles.</div>
+                </div>
             </div>
 
             <div class="modal-footer px-4 border-top border-secondary-subtle">

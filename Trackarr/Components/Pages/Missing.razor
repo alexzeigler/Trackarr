@@ -1,8 +1,16 @@
 @page "/missing"
 @using Trackarr.Components.Modals
 @using Trackarr.Core.UI
+@using Trackarr.Services.Media
 @using static Utils
+@inject MediaServerService MediaServerService
 @implements IAsyncDisposable
+
+@if (!_hasServers)
+{
+    <NoServersPlaceholder/>
+    return;
+}
 
 <MediaDetailsModal @ref="_detailsModal"/>
 
@@ -272,7 +280,7 @@
                         var type = GetMissingType(row);
                         var state = GetStateDisplay(row);
 
-                        <tr @key="row.Key">
+                        <tr @key="row.Key" class="@(IsServerDisabled(row.ServerId) ? "server-disabled" : "")">
                             <td>
                                 <div class="item-title-cell">
                                     @if (posterUrl != null)
@@ -282,7 +290,10 @@
                                     <div>
                                         <div class="item-title fw-semibold">@title</div>
                                         <div class="item-meta">
-                                            <span class="@MediaTypeBadgeClass(type)">@type</span>
+                                            @if (ShowMediaTypeBadges)
+                                            {
+                                                <span class="@MediaTypeBadgeClass(type)">@type</span>
+                                            }
                                             @if (row.IsEpisodeGroup)
                                             {
                                                 <span class="text-secondary ms-2">@GetEpisodeSummary(row)</span>

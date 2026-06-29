@@ -7,15 +7,16 @@
 <h2 class="mb-1">Missing Media</h2>
 <p class="text-muted mb-4">Configure how Trackarr searches for missing media on your servers.</p>
 
+<h3 class="settings-section-title">Search Behavior</h3>
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">
         <label class="form-label"
                data-bs-toggle="tooltip"
-               title="Minimum time between search attempts for the same item — prevents hammering your indexers">Search
-            Cooldown
+               title="Minimum time between search attempts for the same item — prevents hammering your indexers">
+            Search Cooldown
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
-        <div class="input-group input-group-flat">
+        <div class="input-group">
             <input type="number"
                    class="form-control"
                    min="1"
@@ -28,12 +29,12 @@
     <div class="col-6 col-lg-3">
         <label class="form-label"
                data-bs-toggle="tooltip"
-               title="Number of failed searches before falling back to a lower quality profile">Max Failed Searches
+               title="Number of failed searches before falling back to a lower quality profile">
+            Max Failed Searches
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
         <input type="number"
                class="form-control"
-               style="max-width: 5rem;"
                min="1"
                max="50"
                @bind="_maxFailed"
@@ -42,12 +43,12 @@
     <div class="col-6 col-lg-3">
         <label class="form-label"
                data-bs-toggle="tooltip"
-               title="Maximum number of episodes to cascade search within a single series evaluation">Episode Cascade
+               title="Maximum number of episodes to cascade search within a single series evaluation">
+            Episode Cascade
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
         <input type="number"
                class="form-control"
-               style="max-width: 5rem;"
                min="1"
                max="50"
                @bind="_maxCascade"
@@ -55,11 +56,11 @@
     </div>
     <div class="col-6 col-lg-3">
         <label class="form-label"
-               data-bs-toggle="tooltip"
-               title="Total failures before Trackarr stops searching for an item entirely">Abandon After
+               data-bs-toggle="tooltip" title="Total failures before Trackarr stops searching for an item entirely">
+            Abandon After
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
-        <div class="input-group input-group-flat">
+        <div class="input-group">
             <input type="number" class="form-control" min="1" max="100" @bind="_abandonAfter" @bind:after="MarkDirty"/>
             <span class="input-group-text">fails</span>
         </div>
@@ -120,5 +121,4 @@
         StateHasChanged();
         return Task.CompletedTask;
     }
-
 }

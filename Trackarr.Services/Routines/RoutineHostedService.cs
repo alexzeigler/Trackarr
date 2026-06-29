@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Trackarr.Core.Routine;
 using Trackarr.Services.Settings;
 
@@ -8,7 +9,8 @@ public sealed class RoutineHostedService(
     RoutineRunner runner,
     IEnumerable<IRoutine> routines,
     RoutineService routineService,
-    SettingsService settings) : BackgroundService
+    SettingsService settings,
+    ILogger<RoutineHostedService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -23,6 +25,20 @@ public sealed class RoutineHostedService(
             return;
 
         using PeriodicTimer timer = new(TimeSpan.FromMilliseconds(500));
-        while (await timer.WaitForNextTickAsync(stoppingToken)) await runner.TickAsync(stoppingToken);
+        while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            try
+            {
+                await runner.TickAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Routine tick failed");
+            }
+        }
     }
 }

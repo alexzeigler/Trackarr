@@ -1,4 +1,5 @@
 ﻿using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 using Trackarr.Core.Health;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Routine;
@@ -12,7 +13,8 @@ public sealed class QueueEvaluationRoutine(
     MediaServerService mediaServerService,
     HealthService healthService,
     BlacklistService blacklistService,
-    SettingsService settings) : Routine
+    SettingsService settings,
+    ILogger<QueueEvaluationRoutine> logger) : Routine
 {
     public override string Key { get; set; } = "queue-evaluation";
     public override string Name { get; set; } = "Queue Evaluation";
@@ -26,6 +28,15 @@ public sealed class QueueEvaluationRoutine(
 
     public override async Task<string> ExecuteAsync(CancellationToken cancellationToken)
     {
+        var servers = (await mediaServerService.GetAllServersAsync()).Where(s => s.IsEnabled).OrderBy(s => s.Priority)
+            .ToList();
+
+        if (servers.Count == 0)
+        {
+            logger.LogDebug("No servers configured — skipping queue evaluation");
+            return "No servers configured.";
+        }
+
         var evaluated = 0;
         var removed = 0;
         var blacklisted = 0;
@@ -33,9 +44,9 @@ public sealed class QueueEvaluationRoutine(
         var disappeared = 0;
 
         var blacklist = await blacklistService.GetAllAsync();
+        var passiveMode = settings.IsPassiveMode();
 
-        foreach (var server in (await mediaServerService.GetAllServersAsync()).Where(s => s.IsEnabled)
-                 .OrderBy(s => s.Priority))
+        foreach (var server in servers)
         {
             var queue = await mediaServerService.GetQueueAsync(server);
             var downloads = queue.GroupBy(HealthService.GetDownloadId).Select(e => e.First()).ToList();
@@ -47,17 +58,21 @@ public sealed class QueueEvaluationRoutine(
                 if (IsBlacklisted(download, blacklist))
                 {
                     var blDecision = await healthService.EvaluateAsync(download, cancellationToken);
-                    await mediaServerService.RemoveFromQueueAsync(server, download.RemoteId);
-                    await healthService.MarkRemovedByTrackarrAsync(blDecision.DownloadAttemptId,
-                        $"Removed by blacklist match: {download.Title}", cancellationToken);
-                    blacklisted++;
+                    if (!passiveMode)
+                    {
+                        await mediaServerService.RemoveFromQueueAsync(server, download.RemoteId);
+                        await healthService.MarkRemovedByTrackarrAsync(blDecision.DownloadAttemptId,
+                            $"Removed by blacklist match: {download.Title}", cancellationToken);
+                        blacklisted++;
+                    }
+
                     continue;
                 }
 
                 var decision = await healthService.EvaluateAsync(download, cancellationToken);
                 evaluated++;
 
-                if (!decision.ShouldRemove || !autoRemoveEnabled) continue;
+                if (!decision.ShouldRemove || !autoRemoveEnabled || passiveMode) continue;
 
                 await mediaServerService.RemoveFromQueueAsync(server, download.RemoteId);
                 await healthService.MarkRemovedByTrackarrAsync(decision.DownloadAttemptId, decision.Message,

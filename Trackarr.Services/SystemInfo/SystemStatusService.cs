@@ -1,4 +1,6 @@
+using System.Data;
 using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +12,7 @@ namespace Trackarr.Services.SystemInfo;
 public sealed class SystemStatusService(IDbContextFactory<AppDbContext> dbFactory)
 {
     private AppInfo? _cachedAppInfo;
+    private List<SystemStatusMessage>? _healthCheckMessages;
 
     #region Helpers
 
@@ -21,12 +24,24 @@ public sealed class SystemStatusService(IDbContextFactory<AppDbContext> dbFactor
         try
         {
             var conn = db.Database.GetDbConnection();
-            await conn.OpenAsync();
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT sqlite_version()";
-            var result = await cmd.ExecuteScalarAsync();
-            if (result is string v) version = v;
-            await conn.CloseAsync();
+            var opened = false;
+            if (conn.State != ConnectionState.Open)
+            {
+                await conn.OpenAsync();
+                opened = true;
+            }
+
+            try
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT sqlite_version()";
+                var result = await cmd.ExecuteScalarAsync();
+                if (result is string v) version = v;
+            }
+            finally
+            {
+                if (opened) await conn.CloseAsync();
+            }
         }
         catch
         {
@@ -51,10 +66,15 @@ public sealed class SystemStatusService(IDbContextFactory<AppDbContext> dbFactor
         var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ??
                       assembly.GetName().Version?.ToString() ?? "0.0.0";
 
+        var buildTime = DateTime.MinValue;
         var plusIndex = version.IndexOf('+');
-        if (plusIndex > 0) version = version[..plusIndex];
-
-        var buildTime = File.GetLastWriteTimeUtc(assembly.Location);
+        if (plusIndex > 0)
+        {
+            if (DateTime.TryParseExact(version[(plusIndex + 1)..], "yyyyMMddHHmmss", CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
+                buildTime = parsed;
+            version = version[..plusIndex];
+        }
 
         var isDocker = string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true",
             StringComparison.OrdinalIgnoreCase);
@@ -84,17 +104,24 @@ public sealed class SystemStatusService(IDbContextFactory<AppDbContext> dbFactor
         return _cachedAppInfo;
     }
 
+    public void SetHealthCheckMessages(List<SystemStatusMessage> messages)
+    {
+        _healthCheckMessages = messages;
+    }
+
     public async Task<List<SystemStatusMessage>> GetStatusMessagesAsync()
     {
+        if (_healthCheckMessages is not null)
+            return _healthCheckMessages;
+
+        // Fallback before health check routine has run for the first time
         var messages = new List<SystemStatusMessage>();
 
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        var servers = await db.MediaServers.AsNoTracking().ToListAsync();
+        var servers = await db.MediaServers.AsNoTracking().Where(s => s.IsEnabled).ToListAsync();
         foreach (var server in servers)
         {
-            if (!server.IsEnabled) continue;
-
             if (!server.IsOnline)
             {
                 messages.Add(new SystemStatusMessage
@@ -115,16 +142,6 @@ public sealed class SystemStatusService(IDbContextFactory<AppDbContext> dbFactor
                         $"Server \"{server.Name}\" ({server.ServiceType}) failed authentication. Check the API key."
                 });
             }
-            else if (server.LastPingedAt is { } pinged && DateTime.UtcNow - pinged > TimeSpan.FromMinutes(15))
-            {
-                messages.Add(new SystemStatusMessage
-                {
-                    Level = StatusLevel.Warning,
-                    Source = server.Name,
-                    Message =
-                        $"Server \"{server.Name}\" ({server.ServiceType}) has not been reached in over 15 minutes."
-                });
-            }
         }
 
         if (servers.Count == 0)
@@ -135,22 +152,6 @@ public sealed class SystemStatusService(IDbContextFactory<AppDbContext> dbFactor
                 Source = "Configuration",
                 Message = "No servers configured. Add a Radarr or Sonarr server to get started."
             });
-        }
-
-        var routines = await db.Routines.AsNoTracking().ToListAsync();
-        foreach (var routine in routines)
-        {
-            if (!routine.Enabled) continue;
-
-            if (routine.LastRun is not null && !routine.LastRunSuccess)
-            {
-                messages.Add(new SystemStatusMessage
-                {
-                    Level = StatusLevel.Warning,
-                    Source = routine.Name,
-                    Message = $"Routine \"{routine.Name}\" failed on its last run."
-                });
-            }
         }
 
         return messages;

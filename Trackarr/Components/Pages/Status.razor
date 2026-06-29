@@ -1,101 +1,62 @@
 @page "/system/status"
+@inject SystemStatusService StatusService
 @using Trackarr.Core.SystemInfo
 @using Trackarr.Services.SystemInfo
-@using static Utils
-@inject SystemStatusService StatusService
 @implements IDisposable
 
 <PageTitle>Status</PageTitle>
 
 <div class="d-flex flex-column gap-3">
 
-    @* ── Application Info ───────────────────────────────────────────────── *@
+    @* ── App Info ──────────────────────────────────────────────────────────── *@
     @if (_appInfo is not null)
     {
-        <div class="subheader">Application</div>
-        <div class="row row-cards">
-            <div class="col-sm-6 col-xl-3">
-                <div class="card app-card">
-                    <div class="card-body">
-                        <div class="subheader mb-2">Uptime</div>
-                        <div class="h1 mb-0">@FormatUptime(_appInfo.Uptime)</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-sm-6 col-xl-3">
-                <div class="card app-card">
-                    <div class="card-body">
-                        <div class="subheader mb-2">Started</div>
-                        <div class="h1 mb-0">@FormatStartTime(_appInfo.StartTime)</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-sm-6 col-xl-3">
-                <div class="card app-card">
-                    <div class="card-body">
-                        <div class="subheader mb-2">Version</div>
-                        <div class="h1 mb-0">@_appInfo.Version</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-sm-6 col-xl-3">
-                <div class="card app-card">
-                    <div class="card-body">
-                        <div class="subheader mb-2">Migrations</div>
-                        <div class="h1 mb-0">@FormatNumber(_appInfo.MigrationCount)</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
-
-    @* ── Data Stats ─────────────────────────────────────────────────────── *@
-    @if (_stats is not null)
-    {
-        <div class="subheader">Data</div>
-        <div class="row row-cards">
-            <div class="col-sm-6 col-xl-3">
-                <div class="card app-card">
-                    <div class="card-body">
-                        <div class="subheader mb-2">Servers</div>
-                        <div class="h1 mb-0">@FormatNumber(_stats.Servers)</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-sm-6 col-xl-3">
-                <div class="card app-card">
-                    <div class="card-body">
-                        <div class="subheader mb-2">Movies</div>
-                        <div class="h1 mb-0">@FormatNumber(_stats.Movies)</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-sm-6 col-xl-3">
-                <div class="card app-card">
-                    <div class="card-body">
-                        <div class="subheader mb-2">Series</div>
-                        <div class="h1 mb-0">@FormatNumber(_stats.Series)</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-sm-6 col-xl-3">
-                <div class="card app-card">
-                    <div class="card-body">
-                        <div class="subheader mb-2">Downloads</div>
-                        <div class="h1 mb-0">@FormatNumber(_stats.Downloads)</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
-
-    @* ── Health Messages ─────────────────────────────────────────────────── *@
-    @if (_messages.Count > 0)
-    {
         <div class="card app-card">
-            <div class="card-header">
-                <h3 class="card-title">Health</h3>
+            <div class="card-body py-2">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="text-muted">Version</span>
+                        <span class="fw-bold">@_appInfo.Version</span>
+                        @if (_appInfo.BuildTime != DateTime.MinValue)
+                        {
+                            <span class="text-muted">&middot;</span>
+                            <span class="text-muted">Built @FormatBuildTime(_appInfo.BuildTime)</span>
+                        }
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted">Uptime</span>
+                        <span class="fw-bold">@FormatUptime(_appInfo.Uptime)</span>
+                    </div>
+                </div>
             </div>
+        </div>
+    }
+
+    @* ── Health ─────────────────────────────────────────────────────────────── *@
+    <div class="card app-card">
+        <div class="card-header">
+            <h3 class="card-title">Health</h3>
+            <div class="card-actions">
+                <button type="button" class="btn btn-app-ghost btn-sm" disabled="@_isRefreshing" @onclick="LoadAsync">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         width="16"
+                         height="16"
+                         viewBox="0 0 24 24"
+                         fill="none"
+                         stroke="currentColor"
+                         stroke-width="2"
+                         stroke-linecap="round"
+                         stroke-linejoin="round"
+                         class="icon m-0 @(_isRefreshing ? "spinner" : "")">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+                        <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        @if (_messages.Count > 0)
+        {
             <div class="table-responsive">
                 <table class="table table-vcenter table-nowrap mb-0">
                     <thead>
@@ -119,82 +80,20 @@
                     </tbody>
                 </table>
             </div>
-            <div class="card-footer">
-                <span class="text-muted small">
-                    Health checks run automatically. Issues shown here may resolve on the next routine cycle.
-                </span>
+        }
+        else
+        {
+            <div class="card-body text-center py-4">
+                <i class="ti ti-circle-check text-success fs-1"></i>
+                <div class="mt-2 text-muted">All systems operational</div>
             </div>
-        </div>
-    }
-
-    @* ── About ───────────────────────────────────────────────────────────── *@
-    @if (_appInfo is not null)
-    {
-        <div class="card app-card">
-            <div class="card-header">
-                <h3 class="card-title">System</h3>
-                <div class="card-actions">
-                    <button type="button"
-                            class="btn btn-app-ghost btn-sm"
-                            disabled="@_isRefreshing"
-                            @onclick="LoadAsync">
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                             width="16"
-                             height="16"
-                             viewBox="0 0 24 24"
-                             fill="none"
-                             stroke="currentColor"
-                             stroke-width="2"
-                             stroke-linecap="round"
-                             stroke-linejoin="round"
-                             class="icon m-0 @(_isRefreshing ? "spinner" : "")">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                            <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
-                            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            <div class="card-body py-2">
-                <div class="row">
-                    <div class="col-lg-6">
-                        <div class="detail-row">
-                            <span class="data-label">.NET</span>
-                            <span class="data-value">@_appInfo.RuntimeName</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="data-label">Database</span>
-                            <span class="data-value">@_appInfo.DatabaseType @_appInfo.DatabaseVersion</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="data-label">Docker</span>
-                            <span class="data-value">@YesNo(_appInfo.IsDocker)</span>
-                        </div>
-                    </div>
-                    <div class="col-lg-6">
-                        <div class="detail-row">
-                            <span class="data-label">OS</span>
-                            <span class="data-value">@_appInfo.OsName</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="data-label">Architecture</span>
-                            <span class="data-value">@_appInfo.OsArchitecture</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="data-label">Data Directory</span>
-                            <span class="data-value text-break">@_appInfo.DataDirectory</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
+        }
+    </div>
 
 </div>
 
 @code {
     private AppInfo? _appInfo;
-    private SystemStats? _stats;
     private List<SystemStatusMessage> _messages = [];
     private bool _isRefreshing;
     private Timer? _uptimeTimer;
@@ -212,7 +111,6 @@
         {
             _appInfo = await StatusService.GetAppInfoAsync();
             _messages = await StatusService.GetStatusMessagesAsync();
-            _stats = await StatusService.GetSystemStatsAsync();
         }
         finally
         {
@@ -247,19 +145,13 @@
         return $"{ts.Hours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}";
     }
 
-    private static string FormatStartTime(DateTime utc)
+    private static string FormatBuildTime(DateTime utc)
     {
-        return utc.ToLocalTime().ToString("MMM d, yyyy h:mm tt");
-    }
-
-    private static string FormatNumber(int value)
-    {
-        return value.ToString("N0");
+        return utc.ToLocalTime().ToString("MMM d, yyyy");
     }
 
     public void Dispose()
     {
         _uptimeTimer?.Dispose();
     }
-
 }

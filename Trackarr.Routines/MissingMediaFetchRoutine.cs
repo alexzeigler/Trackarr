@@ -27,6 +27,12 @@ public sealed class MissingMediaFetchRoutine(
         var servers = (await mediaServerService.GetAllServersAsync())
             .Where(s => s.IsEnabled && settings.ShouldSearchMissing(s)).OrderBy(s => s.Priority).ToList();
 
+        if (servers.Count == 0)
+        {
+            logger.LogDebug("No servers configured — skipping missing media search");
+            return "No servers configured.";
+        }
+
         var movieCount = 0;
         var episodeCount = 0;
         var failed = 0;

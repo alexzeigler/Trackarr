@@ -14,9 +14,21 @@ public partial class Servers : ComponentBase
 
     #endregion
 
+    #region Data Loading
+
+    private async Task RefreshAsync()
+    {
+        IsRefreshing = true;
+        await InvokeAsync(StateHasChanged);
+        _servers = await MediaServerService.GetAllServersAsync();
+        IsRefreshing = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    #endregion
+
     #region State
 
-    private readonly CancellationTokenSource _refreshCancellation = new();
     private ConfirmationDialog? _confirmModal;
     private string? _confirmText = "Are you sure you want to delete this server?";
 
@@ -43,18 +55,16 @@ public partial class Servers : ComponentBase
 
     #region Lifecycle
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         AppState.OnRefreshRequested -= RefreshAsync;
-        await _refreshCancellation.CancelAsync();
-        _refreshCancellation.Dispose();
+        return ValueTask.CompletedTask;
     }
 
     protected override async Task OnInitializedAsync()
     {
         AppState.OnRefreshRequested += RefreshAsync;
         _servers = await MediaServerService.GetAllServersAsync();
-        _ = RefreshLoopAsync();
     }
 
     #endregion
@@ -103,10 +113,16 @@ public partial class Servers : ComponentBase
     {
         IsRefreshing = true;
         await InvokeAsync(StateHasChanged);
-        foreach (var server in _servers)
+        foreach (var server in _servers.Where(s => s.IsEnabled))
             await SyncServer(server);
-        IsRefreshing = false;
-        await InvokeAsync(StateHasChanged);
+        await RefreshAsync();
+    }
+
+    private async Task ToggleEnabled(MediaServer server)
+    {
+        server.IsEnabled = !server.IsEnabled;
+        await MediaServerService.UpdateServerAsync(server);
+        await RefreshAsync();
     }
 
     private async Task TestConnection(MediaServer row)
@@ -144,32 +160,6 @@ public partial class Servers : ComponentBase
 
     #endregion
 
-    #region Data Loading
-
-    private async Task RefreshLoopAsync()
-    {
-        try
-        {
-            using PeriodicTimer timer = new(TimeSpan.FromSeconds(30));
-            while (await timer.WaitForNextTickAsync(_refreshCancellation.Token))
-                await RefreshAsync();
-        }
-        catch (OperationCanceledException)
-        {
-        }
-    }
-
-    private async Task RefreshAsync()
-    {
-        IsRefreshing = true;
-        await InvokeAsync(StateHasChanged);
-        _servers = await MediaServerService.GetAllServersAsync();
-        IsRefreshing = false;
-        await InvokeAsync(StateHasChanged);
-    }
-
-    #endregion
-
     #region Display Helpers
 
     private List<MediaServer> BuildFilteredServers()
@@ -195,9 +185,10 @@ public partial class Servers : ComponentBase
         {
             rows = _statusFilter switch
             {
-                "online" => rows.Where(s => s.IsOnline && s.IsAuthenticated),
-                "offline" => rows.Where(s => !s.IsOnline),
-                "error" => rows.Where(s => (s.IsOnline && !s.IsAuthenticated) || s.LastError != null),
+                "online" => rows.Where(s => s.IsEnabled && s.IsOnline && s.IsAuthenticated),
+                "offline" => rows.Where(s => s.IsEnabled && !s.IsOnline),
+                "error" => rows.Where(s => s.IsEnabled && ((s.IsOnline && !s.IsAuthenticated) || s.LastError != null)),
+                "disabled" => rows.Where(s => !s.IsEnabled),
                 _ => rows
             };
         }

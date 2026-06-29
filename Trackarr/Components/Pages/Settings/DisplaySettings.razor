@@ -7,10 +7,15 @@
 <h2 class="mb-1">Display</h2>
 <p class="text-muted mb-4">Customize dates, tables, and visual elements.</p>
 
-<h3 class="card-title">Date & Time</h3>
+<h3 class="settings-section-title">Date &amp; Time</h3>
 <div class="row g-3 mb-4">
-    <div class="col-12">
-        <label class="form-label">Date Format</label>
+    <div class="col-12 col-lg-4">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Format used for absolute timestamps throughout the application">
+            Date Format
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
         <select class="form-select" @bind="_dateFormat" @bind:after="MarkDirty">
             <option value="MMM d, yyyy h:mm tt">Jun 22, 2026 3:45 PM</option>
             <option value="yyyy-MM-dd HH:mm">2026-06-22 15:45</option>
@@ -19,26 +24,27 @@
             <option value="d MMM yyyy HH:mm">22 Jun 2026 15:45</option>
         </select>
     </div>
-    <div class="col-3">
-        <label class="form-check form-switch mt-lg-4">
-            <input class="form-check-input" type="checkbox" @bind="_useTimeAgo" @bind:after="MarkDirty"/>
-            <span class="form-check-label"
-                  data-bs-toggle="tooltip"
-                  title="Show relative time like '5m ago' instead of absolute dates">Friendly "time ago"
-                <i class="ti ti-info-circle ms-1 opacity-50"></i>
-            </span>
-        </label>
-    </div>
-    <div class="col-3">
-        <label class="form-label"
+    <div class="col-6 col-lg-4">
+        <label class="form-label d-block"
                data-bs-toggle="tooltip"
-               title="After this many hours, show the absolute date instead of 'time ago'">Threshold
+               title="Show relative time like '5m ago' instead of absolute dates">
+            Friendly Time
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
-        <div class="input-group input-group-flat">
+        <label class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" @bind="_useTimeAgo" @bind:after="MarkDirty"/>
+            <span class="form-check-label">Use "time ago" format</span>
+        </label>
+    </div>
+    <div class="col-6 col-lg-4">
+        <label class="form-label"
+               data-bs-toggle="tooltip" title="After this many hours, show the absolute date instead of 'time ago'">
+            Time Ago Threshold
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <div class="input-group">
             <input type="number"
                    class="form-control"
-                   style="max-width: 5rem;"
                    min="1"
                    max="168"
                    @bind="_timeAgoThreshold"
@@ -48,11 +54,15 @@
     </div>
 </div>
 
-<h3 class="card-title">Page Sizes</h3>
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Page Sizes</h3>
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">
-        <label class="form-label">Queue</label>
-        <select class="form-select form-select" @bind="_queuePageSize" @bind:after="MarkDirty">
+        <label class="form-label" data-bs-toggle="tooltip" title="Number of items per page on the Queue view">
+            Queue
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <select class="form-select" @bind="_queuePageSize" @bind:after="MarkDirty">
             <option value="10">10</option>
             <option value="25">25</option>
             <option value="50">50</option>
@@ -60,8 +70,11 @@
         </select>
     </div>
     <div class="col-6 col-lg-3">
-        <label class="form-label">Missing</label>
-        <select class="form-select form-select" @bind="_missingPageSize" @bind:after="MarkDirty">
+        <label class="form-label" data-bs-toggle="tooltip" title="Number of items per page on the Missing view">
+            Missing
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <select class="form-select" @bind="_missingPageSize" @bind:after="MarkDirty">
             <option value="10">10</option>
             <option value="25">25</option>
             <option value="50">50</option>
@@ -69,8 +82,11 @@
         </select>
     </div>
     <div class="col-6 col-lg-3">
-        <label class="form-label">History</label>
-        <select class="form-select form-select" @bind="_historyPageSize" @bind:after="MarkDirty">
+        <label class="form-label" data-bs-toggle="tooltip" title="Number of items per page on the History view">
+            History
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <select class="form-select" @bind="_historyPageSize" @bind:after="MarkDirty">
             <option value="10">10</option>
             <option value="25">25</option>
             <option value="50">50</option>
@@ -78,8 +94,11 @@
         </select>
     </div>
     <div class="col-6 col-lg-3">
-        <label class="form-label">Events</label>
-        <select class="form-select form-select" @bind="_eventsPageSize" @bind:after="MarkDirty">
+        <label class="form-label" data-bs-toggle="tooltip" title="Number of items per page on the Events view">
+            Events
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <select class="form-select" @bind="_eventsPageSize" @bind:after="MarkDirty">
             <option value="10">10</option>
             <option value="25">25</option>
             <option value="50">50</option>
@@ -88,12 +107,16 @@
     </div>
 </div>
 
-<h3 class="card-title" data-bs-toggle="tooltip" title="Controls vertical padding in table rows across all pages">Table
-    Density
-    <i class="ti ti-info-circle ms-1 opacity-50"></i>
-</h3>
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Table Density</h3>
 <div class="row g-3 mb-4">
     <div class="col-12 col-lg-6">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Controls row padding and which visual elements are shown in tables">
+            Density
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
         <div class="btn-group w-100" role="group">
             <input type="radio"
                    class="btn-check"
@@ -116,77 +139,95 @@
             <label class="btn btn-app-ghost" for="dComfy">Comfortable</label>
         </div>
     </div>
-</div>
-
-<h3 class="card-title">Visual Elements</h3>
-<div class="mb-4">
-    <div class="form-selectgroup">
-        <label class="form-selectgroup-item">
-            <input type="checkbox" class="form-selectgroup-input" checked="@_showQueueCharts" @onchange="@(e =>
-            {
-                _showQueueCharts = (bool)e.Value!;
-                MarkDirty();
-            })"/>
-            <span class="form-selectgroup-label">
-                <i class="ti ti-chart-bar me-1"></i>
-                Queue Charts
-            </span>
+    <div class="col-12 col-lg-6">
+        <label class="form-label d-block"
+               data-bs-toggle="tooltip"
+               title="Show movie and series poster thumbnails in table rows">
+            Poster Images
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
-        <label class="form-selectgroup-item">
-            <input type="checkbox" class="form-selectgroup-input" checked="@_showMissingCharts" @onchange="@(e =>
-            {
-                _showMissingCharts = (bool)e.Value!;
-                MarkDirty();
-            })"/>
-            <span class="form-selectgroup-label">
-                <i class="ti ti-chart-line me-1"></i>
-                Missing Charts
-            </span>
-        </label>
-        <label class="form-selectgroup-item">
-            <input type="checkbox" class="form-selectgroup-input" checked="@_showHealthBadges" @onchange="@(e =>
-                                                                                                          {
-                                                                                                              _showHealthBadges = (bool)e.Value!;
-                                                                                                              MarkDirty();
-                                                                                                          })"/>
-            <span class="form-selectgroup-label"
-                  data-bs-toggle="tooltip"
-                  title="Show health score badges on queue items">
-                <i class="ti ti-heart-rate-monitor me-1"></i>
-                Health Badges
-            </span>
-        </label>
-        <label class="form-selectgroup-item">
-            <input type="checkbox" class="form-selectgroup-input" checked="@_showServerIcons" @onchange="@(e =>
-            {
-            _showServerIcons = (bool)e.Value!;
-            MarkDirty();
-            })"/>
-            <span class="form-selectgroup-label"
-                  data-bs-toggle="tooltip"
-                  title="Show Radarr/Sonarr icons next to queue items">
-                <i class="ti ti-server me-1"></i>
-                Server Icons
-            </span>
+        <label class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" @bind="_showPosterImages" @bind:after="MarkDirty"/>
+            <span class="form-check-label">Show poster images</span>
         </label>
     </div>
 </div>
-<h3 class="card-title">Queue Grouping</h3>
+
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Visual Elements</h3>
 <div class="row g-3 mb-4">
     <div class="col-12 col-lg-6">
-        <label class="form-label">Default Grouping</label>
+        <label class="form-label" data-bs-toggle="tooltip" title="Toggle chart visibility on data pages">
+            Charts
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <div class="d-flex gap-4 mt-2">
+            <label class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" checked="@_showQueueCharts" @onchange="@(e =>
+                                                                                                       {
+                                                                                                           _showQueueCharts = (bool)e.Value!;
+                                                                                                           MarkDirty();
+                                                                                                       })"/>
+                <span class="form-check-label">Queue Charts</span>
+            </label>
+            <label class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" checked="@_showMissingCharts" @onchange="@(e =>
+                                                                                                         {
+                                                                                                             _showMissingCharts = (bool)e.Value!;
+                                                                                                             MarkDirty();
+                                                                                                         })"/>
+                <span class="form-check-label">Missing Charts</span>
+            </label>
+        </div>
+    </div>
+</div>
+
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Queue Grouping</h3>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-4">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="How queue items are grouped by default when viewing the queue page">
+            Default Grouping
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
         <select class="form-select" @bind="_defaultGrouping" @bind:after="MarkDirty">
+            <option value="mediaTitle">By Media Title</option>
             <option value="none">None</option>
             <option value="server">By Server</option>
             <option value="status">By Status</option>
             <option value="mediaType">By Media Type</option>
         </select>
     </div>
-    <div class="col-12 col-lg-6">
-        <label class="form-check form-switch mt-lg-4">
+    <div class="col-6 col-lg-4">
+        <label class="form-label d-block"
+               data-bs-toggle="tooltip"
+               title="Automatically expand all groups when the queue page loads">
+            Expand Groups
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <label class="form-check form-switch mt-2">
             <input class="form-check-input" type="checkbox" @bind="_expandGroups" @bind:after="MarkDirty"/>
             <span class="form-check-label">Expand groups by default</span>
         </label>
+    </div>
+    <div class="col-6 col-lg-4">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="How often pages sync in the background to catch external changes. Local actions update instantly.">
+            Background Sync
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <div class="input-group">
+            <input type="number"
+                   class="form-control"
+                   min="5"
+                   max="300"
+                   @bind="_queueRefreshInterval"
+                   @bind:after="MarkDirty"/>
+            <span class="input-group-text">sec</span>
+        </div>
     </div>
 </div>
 
@@ -203,10 +244,10 @@
     private string _tableDensity = "";
     private bool _showQueueCharts;
     private bool _showMissingCharts;
-    private bool _showHealthBadges;
-    private bool _showServerIcons;
+    private bool _showPosterImages;
     private string _defaultGrouping = "";
     private bool _expandGroups;
+    private int _queueRefreshInterval;
 
     private string _origDateFormat = "";
     private bool _origUseTimeAgo;
@@ -218,10 +259,10 @@
     private string _origTableDensity = "";
     private bool _origShowQueueCharts;
     private bool _origShowMissingCharts;
-    private bool _origShowHealthBadges;
-    private bool _origShowServerIcons;
+    private bool _origShowPosterImages;
     private string _origDefaultGrouping = "";
     private bool _origExpandGroups;
+    private int _origQueueRefreshInterval;
 
     protected override void OnInitialized()
     {
@@ -242,10 +283,10 @@
         _tableDensity = SettingsService.GetString("Display", "TableDensity", "normal");
         _showQueueCharts = SettingsService.GetBool("Display", "ShowQueueCharts", true);
         _showMissingCharts = SettingsService.GetBool("Display", "ShowMissingCharts", true);
-        _showHealthBadges = SettingsService.GetBool("Display", "ShowHealthScoreBadges", true);
-        _showServerIcons = SettingsService.GetBool("Display", "ShowServerIconsInQueue", true);
-        _defaultGrouping = SettingsService.GetString("Display", "DefaultQueueGrouping", "none");
+        _showPosterImages = SettingsService.GetBool("Display", "ShowPosterImages", true);
+        _defaultGrouping = SettingsService.GetString("Display", "DefaultQueueGrouping", "mediaTitle");
         _expandGroups = SettingsService.GetBool("Display", "ExpandQueueGroupsByDefault", true);
+        _queueRefreshInterval = SettingsService.GetInt("Display", "QueueRefreshIntervalSeconds", 10);
 
         _origDateFormat = _dateFormat;
         _origUseTimeAgo = _useTimeAgo;
@@ -257,10 +298,10 @@
         _origTableDensity = _tableDensity;
         _origShowQueueCharts = _showQueueCharts;
         _origShowMissingCharts = _showMissingCharts;
-        _origShowHealthBadges = _showHealthBadges;
-        _origShowServerIcons = _showServerIcons;
+        _origShowPosterImages = _showPosterImages;
         _origDefaultGrouping = _defaultGrouping;
         _origExpandGroups = _expandGroups;
+        _origQueueRefreshInterval = _queueRefreshInterval;
     }
 
     private void SetDensity(string value)
@@ -271,7 +312,7 @@
 
     private void MarkDirty()
     {
-        Context.HasChanges = _dateFormat != _origDateFormat || _useTimeAgo != _origUseTimeAgo || _timeAgoThreshold != _origTimeAgoThreshold || _queuePageSize != _origQueuePageSize || _missingPageSize != _origMissingPageSize || _historyPageSize != _origHistoryPageSize || _eventsPageSize != _origEventsPageSize || _tableDensity != _origTableDensity || _showQueueCharts != _origShowQueueCharts || _showMissingCharts != _origShowMissingCharts || _showHealthBadges != _origShowHealthBadges || _showServerIcons != _origShowServerIcons || _defaultGrouping != _origDefaultGrouping || _expandGroups != _origExpandGroups;
+        Context.HasChanges = _dateFormat != _origDateFormat || _useTimeAgo != _origUseTimeAgo || _timeAgoThreshold != _origTimeAgoThreshold || _queuePageSize != _origQueuePageSize || _missingPageSize != _origMissingPageSize || _historyPageSize != _origHistoryPageSize || _eventsPageSize != _origEventsPageSize || _tableDensity != _origTableDensity || _showQueueCharts != _origShowQueueCharts || _showMissingCharts != _origShowMissingCharts || _showPosterImages != _origShowPosterImages || _defaultGrouping != _origDefaultGrouping || _expandGroups != _origExpandGroups || _queueRefreshInterval != _origQueueRefreshInterval;
         Context.NotifyChanged();
     }
 
@@ -289,10 +330,10 @@
             ["TableDensity"] = _tableDensity,
             ["ShowQueueCharts"] = _showQueueCharts.ToString(),
             ["ShowMissingCharts"] = _showMissingCharts.ToString(),
-            ["ShowHealthScoreBadges"] = _showHealthBadges.ToString(),
-            ["ShowServerIconsInQueue"] = _showServerIcons.ToString(),
+            ["ShowPosterImages"] = _showPosterImages.ToString(),
             ["DefaultQueueGrouping"] = _defaultGrouping,
-            ["ExpandQueueGroupsByDefault"] = _expandGroups.ToString()
+            ["ExpandQueueGroupsByDefault"] = _expandGroups.ToString(),
+            ["QueueRefreshIntervalSeconds"] = _queueRefreshInterval.ToString()
         });
         LoadValues();
     }
@@ -309,12 +350,11 @@
         _tableDensity = _origTableDensity;
         _showQueueCharts = _origShowQueueCharts;
         _showMissingCharts = _origShowMissingCharts;
-        _showHealthBadges = _origShowHealthBadges;
-        _showServerIcons = _origShowServerIcons;
+        _showPosterImages = _origShowPosterImages;
         _defaultGrouping = _origDefaultGrouping;
         _expandGroups = _origExpandGroups;
+        _queueRefreshInterval = _origQueueRefreshInterval;
         StateHasChanged();
         return Task.CompletedTask;
     }
-
 }

@@ -122,6 +122,7 @@
                         <option value="online" selected="@(_statusFilter == "online")">Online</option>
                         <option value="offline" selected="@(_statusFilter == "offline")">Offline</option>
                         <option value="error" selected="@(_statusFilter == "error")">Error</option>
+                        <option value="disabled" selected="@(_statusFilter == "disabled")">Disabled</option>
                     </select>
 
                     <button class="btn btn-app-primary" @onclick="AddServer">
@@ -227,7 +228,7 @@
                 {
                     @foreach (var row in FilteredServers)
                     {
-                        <tr @key="row.Id">
+                        <tr @key="row.Id" class="@(!row.IsEnabled ? "server-disabled" : "")">
                             <td>
                                 <div class="item-title-cell">
                                     @GetServerIcon(row.ServiceType)
@@ -288,6 +289,9 @@
                                             class="btn btn-app-ghost btn-sm dropdown-toggle dropdown-toggle-split"
                                             aria-expanded="false"></button>
                                     <div class="dropdown-menu dropdown-menu-end">
+                                        <button class="dropdown-item" type="button" @onclick="() => ToggleEnabled(row)">
+                                            @(row.IsEnabled ? "Disable" : "Enable")
+                                        </button>
                                         <button class="dropdown-item" type="button" @onclick="() => SyncServer(row)">
                                             Sync Now
                                         </button>

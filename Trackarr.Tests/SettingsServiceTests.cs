@@ -1,8 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Trackarr.Core.Event;
+using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Server;
 using Trackarr.Core.Settings;
 using Trackarr.Services.Settings;
+using Trackarr.Services.UI;
 
 namespace Trackarr.Tests;
 
@@ -10,7 +14,7 @@ public class SettingsServiceTests
 {
     private static SettingsService Create(SqliteInMemoryFactory factory)
     {
-        return new SettingsService(factory, NullLogger<SettingsService>.Instance);
+        return new SettingsService(factory, NullLogger<SettingsService>.Instance, new DataChangeBus());
     }
 
     #region InitializeAsync
@@ -346,6 +350,201 @@ public class SettingsServiceTests
         Assert.Equal(3, policy.MaxFailedSearches);
         Assert.Equal(3, policy.MaxEpisodeCascade);
         Assert.Equal(5, policy.AbandonAfter);
+    }
+
+    #endregion
+
+    #region Passive Mode
+
+    [Fact]
+    public async Task IsPassiveMode_DefaultsFalse()
+    {
+        using var factory = new SqliteInMemoryFactory();
+        var service = Create(factory);
+        await service.InitializeAsync();
+
+        Assert.False(service.IsPassiveMode());
+    }
+
+    [Fact]
+    public async Task IsPassiveMode_ReflectsSettingChange()
+    {
+        using var factory = new SqliteInMemoryFactory();
+        var service = Create(factory);
+        await service.InitializeAsync();
+
+        await service.SaveCategoryAsync("General", new Dictionary<string, string> { ["PassiveMode"] = "True" });
+
+        Assert.True(service.IsPassiveMode());
+    }
+
+    #endregion
+
+    #region Console Log Level
+
+    [Fact]
+    public async Task ConsoleLogLevel_DefaultsToInformation()
+    {
+        using var factory = new SqliteInMemoryFactory();
+        var service = Create(factory);
+        await service.InitializeAsync();
+
+        Assert.Equal("Information", service.GetString("General", "ConsoleLogLevel"));
+    }
+
+    [Fact]
+    public async Task ConsoleLogLevel_CanBeChanged()
+    {
+        using var factory = new SqliteInMemoryFactory();
+        var service = Create(factory);
+        await service.InitializeAsync();
+
+        await service.SaveCategoryAsync("General", new Dictionary<string, string> { ["ConsoleLogLevel"] = "Debug" });
+
+        Assert.Equal("Debug", service.GetString("General", "ConsoleLogLevel"));
+    }
+
+    #endregion
+
+    #region ResetDatabaseAsync
+
+    [Fact]
+    public async Task ResetDatabase_ClearsAllDataTables()
+    {
+        using var factory = new SqliteInMemoryFactory();
+        var service = Create(factory);
+        await service.InitializeAsync();
+
+        await using (var db = factory.CreateDbContext())
+        {
+            db.LogEvents.Add(new LogEvent
+            {
+                Message = "test log", Source = "test", LogLevel = LogLevel.Information, TimeStamp = DateTime.UtcNow
+            });
+            db.Movies.Add(new Movie { RemoteId = 1, Title = "Test Movie" });
+            await db.SaveChangesAsync();
+        }
+
+        await service.ResetDatabaseAsync();
+
+        await using var verifyDb = factory.CreateDbContext();
+        Assert.Equal(0, await verifyDb.LogEvents.CountAsync());
+        Assert.Equal(0, await verifyDb.Movies.CountAsync());
+    }
+
+    [Fact]
+    public async Task ResetDatabase_ReseedsDefaultSettings()
+    {
+        using var factory = new SqliteInMemoryFactory();
+        var service = Create(factory);
+        await service.InitializeAsync();
+
+        await service.SaveCategoryAsync("General", new Dictionary<string, string> { ["AppName"] = "MyCustomApp" });
+
+        await service.ResetDatabaseAsync();
+
+        Assert.Equal("Trackarr", service.GetString("General", "AppName"));
+    }
+
+    [Fact]
+    public async Task ResetDatabase_DeletesServers()
+    {
+        using var factory = new SqliteInMemoryFactory();
+        var service = Create(factory);
+        await service.InitializeAsync();
+
+        await using (var db = factory.CreateDbContext())
+        {
+            db.MediaServers.Add(new MediaServer
+            {
+                Name = "TestServer",
+                Host = "localhost",
+                Port = 7878,
+                ServiceType = ServiceType.Radarr,
+                ApiKey = "test-key"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await service.ResetDatabaseAsync();
+
+        await using var verifyDb = factory.CreateDbContext();
+        Assert.Equal(0, await verifyDb.MediaServers.CountAsync());
+    }
+
+    [Fact]
+    public async Task ResetDatabase_FiresChangedEvent()
+    {
+        using var factory = new SqliteInMemoryFactory();
+        var service = Create(factory);
+        await service.InitializeAsync();
+
+        var fired = false;
+        service.OnSettingsChanged += () => fired = true;
+
+        await service.ResetDatabaseAsync();
+
+        Assert.True(fired);
+    }
+
+    #endregion
+
+    #region ResetSettingsAsync
+
+    [Fact]
+    public async Task ResetSettings_RestoresDefaults()
+    {
+        using var factory = new SqliteInMemoryFactory();
+        var service = Create(factory);
+        await service.InitializeAsync();
+
+        await service.SaveCategoryAsync("General", new Dictionary<string, string> { ["AppName"] = "CustomName" });
+        Assert.Equal("CustomName", service.GetString("General", "AppName"));
+
+        await service.ResetSettingsAsync();
+
+        Assert.Equal("Trackarr", service.GetString("General", "AppName"));
+    }
+
+    [Fact]
+    public async Task ResetSettings_PreservesData()
+    {
+        using var factory = new SqliteInMemoryFactory();
+        var service = Create(factory);
+        await service.InitializeAsync();
+
+        await using (var db = factory.CreateDbContext())
+        {
+            db.MediaServers.Add(new MediaServer
+            {
+                Name = "KeepMe",
+                Host = "localhost",
+                Port = 7878,
+                ServiceType = ServiceType.Radarr,
+                ApiKey = "key"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await service.ResetSettingsAsync();
+
+        await using var verifyDb = factory.CreateDbContext();
+        Assert.Equal(1, await verifyDb.MediaServers.CountAsync());
+    }
+
+    [Fact]
+    public async Task ResetSettings_FiresChangedEvent()
+    {
+        using var factory = new SqliteInMemoryFactory();
+        var service = Create(factory);
+        await service.InitializeAsync();
+
+        var fired = false;
+        service.OnSettingsChanged += () => fired = true;
+
+        await service.ResetSettingsAsync();
+
+        Assert.True(fired);
     }
 
     #endregion

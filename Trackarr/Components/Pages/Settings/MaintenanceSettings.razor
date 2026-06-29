@@ -9,11 +9,16 @@
 <h2 class="mb-1">Maintenance</h2>
 <p class="text-muted mb-4">Data retention and database cleanup configuration.</p>
 
-<h3 class="card-title">Retention Periods</h3>
+<h3 class="settings-section-title">Retention Periods</h3>
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">
-        <label class="form-label">Health Events</label>
-        <div class="input-group input-group">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Health events older than this are pruned for non-active downloads">
+            Health Events
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <div class="input-group">
             <input type="number"
                    class="form-control"
                    min="7"
@@ -24,8 +29,11 @@
         </div>
     </div>
     <div class="col-6 col-lg-3">
-        <label class="form-label">Routine Runs</label>
-        <div class="input-group input-group">
+        <label class="form-label" data-bs-toggle="tooltip" title="Routine execution history older than this is deleted">
+            Routine Runs
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <div class="input-group">
             <input type="number"
                    class="form-control"
                    min="7"
@@ -36,19 +44,22 @@
         </div>
     </div>
     <div class="col-6 col-lg-3">
-        <label class="form-label">Log Events</label>
-        <div class="input-group input-group">
+        <label class="form-label" data-bs-toggle="tooltip" title="Application log events older than this are deleted">
+            Log Events
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <div class="input-group">
             <input type="number" class="form-control" min="1" max="365" @bind="_logRetention" @bind:after="MarkDirty"/>
             <span class="input-group-text">days</span>
         </div>
     </div>
     <div class="col-6 col-lg-3">
         <label class="form-label"
-               data-bs-toggle="tooltip"
-               title="Source reputation summaries not seen in this many days are purged">Source Summaries
+               data-bs-toggle="tooltip" title="Source reputation summaries not seen in this many days are purged">
+            Source Summaries
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
-        <div class="input-group input-group">
+        <div class="input-group">
             <input type="number"
                    class="form-control"
                    min="7"
@@ -60,11 +71,17 @@
     </div>
 </div>
 
-<h3 class="card-title">Cleanup Behavior</h3>
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Cleanup Behavior</h3>
 <div class="row g-3 mb-4">
-    <div class="col-12 col-lg-4">
-        <label class="form-label">Cleanup Interval</label>
-        <div class="input-group input-group" style="max-width: 10rem;">
+    <div class="col-6 col-lg-3">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="How often the automatic database cleanup routine runs">
+            Cleanup Interval
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <div class="input-group">
             <input type="number"
                    class="form-control"
                    min="1"
@@ -74,20 +91,22 @@
             <span class="input-group-text">hrs</span>
         </div>
     </div>
-    <div class="col-12 col-lg-4">
-        <label class="form-check form-switch mt-lg-4">
+    <div class="col-6 col-lg-3">
+        <label class="form-label d-block"
+               data-bs-toggle="tooltip"
+               title="Run SQLite VACUUM after cleanup to reclaim disk space — may briefly lock the database">
+            Post-Cleanup
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <label class="form-check form-switch mt-2">
             <input class="form-check-input" type="checkbox" @bind="_vacuumAfter" @bind:after="MarkDirty"/>
-            <span class="form-check-label"
-                  data-bs-toggle="tooltip"
-                  title="Run SQLite VACUUM after cleanup to reclaim disk space — may briefly lock the database">Vacuum
-                after cleanup
-                <i class="ti ti-info-circle ms-1 opacity-50"></i>
-            </span>
+            <span class="form-check-label">Vacuum after cleanup</span>
         </label>
     </div>
 </div>
 
-<h3 class="card-title">Manual Actions</h3>
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Manual Actions</h3>
 <div class="d-flex align-items-center gap-3 mb-4">
     <button class="btn btn-app-ghost" disabled="@_runningCleanup" @onclick="RunCleanupNow">
         @if (_runningCleanup)
@@ -203,5 +222,4 @@
             _runningCleanup = false;
         }
     }
-
 }

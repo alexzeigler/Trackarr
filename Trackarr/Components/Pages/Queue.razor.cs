@@ -57,8 +57,8 @@ public partial class Queue : ComponentBase
     private readonly HashSet<string> _collapsedGroups = [];
     private bool _expandGroupsByDefault;
 
-    private readonly CancellationTokenSource _refreshCancellation = new();
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
+    private bool _hasServers = true;
     private bool _chartsInitialized;
     private bool _chartsPending;
 
@@ -84,6 +84,7 @@ public partial class Queue : ComponentBase
     private string? _statusFilter;
     private Dictionary<string, MediaHealthSummary> _summaries = [];
     private string? _typeFilter;
+    private HashSet<int> _disabledServerIds = [];
 
     private int _page = 1;
 
@@ -91,13 +92,22 @@ public partial class Queue : ComponentBase
     private List<QueueGroup> PagedGroups => Groups.Skip((_page - 1) * PageSize).Take(PageSize).ToList();
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(Groups.Count / (double)PageSize));
 
+    private string Density => Settings.GetString("Display", "TableDensity", "normal");
+
     private string TableDensityClass =>
-        Settings.GetString("Display", "TableDensity", "normal") switch
+        Density switch
         {
             "compact" => "table-density-compact",
             "comfortable" => "table-density-comfortable",
             _ => ""
         };
+
+    private bool IsCompact => Density == "compact";
+    private bool IsComfortable => Density == "comfortable";
+    private bool ShowPosters => !IsCompact && Settings.GetBool("Display", "ShowPosterImages", true);
+    private bool ShowServerIcons => !IsCompact;
+    private bool ShowMediaTypeBadges => !IsCompact;
+    private bool ShowHealthBadges => !IsCompact;
 
     public bool IsRefreshing { get; set; }
 
@@ -176,11 +186,9 @@ public partial class Queue : ComponentBase
 
         _expandGroupsByDefault = Settings.GetBool("Display", "ExpandQueueGroupsByDefault", true);
 
-        AppState.OnRefreshRequested += RefreshAsync;
+        AppState.OnRefreshRequested += OnAutoRefreshAsync;
         await RefreshAsync();
         await RefreshChartsAsync();
-        _ = RefreshLoopAsync();
-        _ = ChartRefreshLoopAsync();
     }
 
     protected override void OnParametersSet()
@@ -214,9 +222,7 @@ public partial class Queue : ComponentBase
 
     public async ValueTask DisposeAsync()
     {
-        AppState.OnRefreshRequested -= RefreshAsync;
-        await _refreshCancellation.CancelAsync();
-        _refreshCancellation.Dispose();
+        AppState.OnRefreshRequested -= OnAutoRefreshAsync;
         _refreshLock.Dispose();
 
         try
@@ -396,30 +402,10 @@ public partial class Queue : ComponentBase
 
     #region Data Loading
 
-    private async Task RefreshLoopAsync()
+    private async Task OnAutoRefreshAsync()
     {
-        try
-        {
-            using PeriodicTimer timer = new(TimeSpan.FromSeconds(30));
-
-            while (await timer.WaitForNextTickAsync(_refreshCancellation.Token)) await RefreshAsync();
-        }
-        catch (OperationCanceledException)
-        {
-        }
-    }
-
-    private async Task ChartRefreshLoopAsync()
-    {
-        try
-        {
-            using PeriodicTimer timer = new(TimeSpan.FromSeconds(30));
-
-            while (await timer.WaitForNextTickAsync(_refreshCancellation.Token)) await RefreshChartsAsync();
-        }
-        catch (OperationCanceledException)
-        {
-        }
+        await RefreshAsync();
+        await RefreshChartsAsync();
     }
 
     private async Task RefreshChartsAsync()
@@ -444,8 +430,12 @@ public partial class Queue : ComponentBase
             await InvokeAsync(StateHasChanged);
 
             var allServers = await MediaServerService.GetAllServersAsync();
+            _hasServers = allServers.Count > 0;
+            if (!_hasServers) return;
+
             var disabledBehavior = Settings.GetString("General", "DisabledServerBehavior", "hidden");
             var servers = disabledBehavior == "hidden" ? allServers.Where(s => s.IsEnabled).ToList() : allServers;
+            var disabledIds = new HashSet<int>(allServers.Where(s => !s.IsEnabled).Select(s => s.Id));
             var serverMap = servers.ToDictionary(server => server.Id);
             var downloads = new List<DownloadItem>();
             var episodes = new Dictionary<int, Episode>();
@@ -496,6 +486,7 @@ public partial class Queue : ComponentBase
 
             _servers = servers;
             _serverMap = serverMap;
+            _disabledServerIds = disabledIds;
             _episodes = episodes;
             _movies = movies;
             _seriesMap = seriesMap;
@@ -550,7 +541,7 @@ public partial class Queue : ComponentBase
                 string.Equals(GetMediaType(item), _typeFilter, StringComparison.OrdinalIgnoreCase));
         }
 
-        var grouping = Settings.GetString("Display", "DefaultQueueGrouping", "none");
+        var grouping = Settings.GetString("Display", "DefaultQueueGrouping", "mediaTitle");
         var groups = filtered.GroupBy(GetGroupKey).Select(group =>
         {
             var items = group.ToList();
@@ -561,15 +552,17 @@ public partial class Queue : ComponentBase
                 "server" => server?.Name ?? $"Server {first.ServerId}",
                 "status" => GetStatusBucket(GetStatusText(first)),
                 "mediaType" => GetMediaType(first),
-                _ => GetDisplayTitle(first)
+                "mediaTitle" => GetDisplayTitle(first),
+                _ => first.Title ?? "—"
             };
+            var isMediaGrouped = grouping is "mediaTitle";
             return new QueueGroup
             {
                 Key = group.Key,
                 Title = title,
-                PosterUrl = grouping is "none" or "" or null ? GetGroupPosterUrl(first) : null,
+                PosterUrl = isMediaGrouped ? GetGroupPosterUrl(first) : null,
                 MediaType = GetMediaType(first),
-                Quality = grouping is "none" or "" or null ? GetQualityName(first) : null,
+                Quality = isMediaGrouped ? GetQualityName(first) : null,
                 ServerName = server?.Name,
                 ServerType = server?.ServiceType,
                 Items = items,
@@ -599,13 +592,14 @@ public partial class Queue : ComponentBase
 
     private string GetGroupKey(DownloadItem item)
     {
-        var grouping = Settings.GetString("Display", "DefaultQueueGrouping", "none");
+        var grouping = Settings.GetString("Display", "DefaultQueueGrouping", "mediaTitle");
         return grouping switch
         {
             "server" => $"server_{item.ServerId}",
             "status" => $"status_{GetStatusBucket(GetStatusText(item))}",
             "mediaType" => $"type_{GetMediaType(item)}",
-            _ => GetMediaGroupKey(item)
+            "mediaTitle" => GetMediaGroupKey(item),
+            _ => $"{item.ServerId}_{item.RemoteId}"
         };
     }
 
@@ -785,6 +779,8 @@ public partial class Queue : ComponentBase
         return _healthEvents.GetValueOrDefault(GetItemKey(item));
     }
 
+    private bool IsServerDisabled(int serverId) => _disabledServerIds.Contains(serverId);
+
     private string? GetServerName(DownloadItem item)
     {
         return _serverMap?.GetValueOrDefault(item.ServerId)?.Name;
@@ -839,6 +835,35 @@ public partial class Queue : ComponentBase
     {
         return group.Items.Select(i => GetHealthEvent(i)?.OccurredAt).Where(d => d.HasValue).OrderBy(d => d)
             .FirstOrDefault();
+    }
+
+    private static string GetGroupDownloadClient(QueueGroup group)
+    {
+        var clients = group.Items.Select(i => i.DownloadClient).Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return clients.Count switch
+        {
+            0 => "",
+            1 => clients[0]!,
+            _ => $"{clients[0]} +{clients.Count - 1}"
+        };
+    }
+
+    private static string GetGroupIndexer(QueueGroup group)
+    {
+        var indexers = group.Items.Select(i => i.Indexer).Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return indexers.Count switch
+        {
+            0 => "",
+            1 => indexers[0]!,
+            _ => $"{indexers[0]} +{indexers.Count - 1}"
+        };
+    }
+
+    private static long GetGroupTotalSize(QueueGroup group)
+    {
+        return group.Items.Sum(i => i.Size);
     }
 
     private static string FormatNumber(int value)

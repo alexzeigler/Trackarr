@@ -55,7 +55,7 @@ public partial class Missing : ComponentBase, IAsyncDisposable
 
     #region State
 
-    private readonly CancellationTokenSource _disposeCancellation = new();
+    private bool _hasServers = true;
     private bool _chartsInitialized;
     private bool _chartsPending;
 
@@ -71,6 +71,7 @@ public partial class Missing : ComponentBase, IAsyncDisposable
     private Dictionary<string, Series> _series = [];
     private string? _serverFilter;
     private Dictionary<int, MediaServer> _servers = [];
+    private HashSet<int> _disabledServerIds = [];
     private string _sortColumn = "firstSeen";
     private bool _sortDescending = true;
     private string? _stateFilter;
@@ -82,13 +83,17 @@ public partial class Missing : ComponentBase, IAsyncDisposable
     private List<MissingMediaRow> PagedRows => FilteredRows.Skip((_page - 1) * PageSize).Take(PageSize).ToList();
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredRows.Count / (double)PageSize));
 
+    private string Density => Settings.GetString("Display", "TableDensity", "normal");
+
     private string TableDensityClass =>
-        Settings.GetString("Display", "TableDensity", "normal") switch
+        Density switch
         {
             "compact" => "table-density-compact",
             "comfortable" => "table-density-comfortable",
             _ => ""
         };
+
+    private bool ShowMediaTypeBadges => Density != "compact";
 
     private bool IsRefreshing { get; set; }
 
@@ -133,17 +138,17 @@ public partial class Missing : ComponentBase, IAsyncDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        AppState.OnRefreshRequested += RefreshAsync;
+        _hasServers = (await MediaServerService.GetAllServersAsync()).Count > 0;
+        if (!_hasServers) return;
+
+        AppState.OnRefreshRequested += OnAutoRefreshAsync;
         await RefreshAsync();
         await RefreshChartsAsync();
-        _ = ChartRefreshLoopAsync();
     }
 
     public async ValueTask DisposeAsync()
     {
-        AppState.OnRefreshRequested -= RefreshAsync;
-        await _disposeCancellation.CancelAsync();
-        _disposeCancellation.Dispose();
+        AppState.OnRefreshRequested -= OnAutoRefreshAsync;
 
         try
         {
@@ -245,17 +250,10 @@ public partial class Missing : ComponentBase, IAsyncDisposable
 
     #region Data Loading
 
-    private async Task ChartRefreshLoopAsync()
+    private async Task OnAutoRefreshAsync()
     {
-        try
-        {
-            using PeriodicTimer timer = new(TimeSpan.FromSeconds(30));
-            while (await timer.WaitForNextTickAsync(_disposeCancellation.Token))
-                await RefreshChartsAsync();
-        }
-        catch (OperationCanceledException)
-        {
-        }
+        await RefreshAsync();
+        await RefreshChartsAsync();
     }
 
     private async Task RefreshChartsAsync()
@@ -282,17 +280,13 @@ public partial class Missing : ComponentBase, IAsyncDisposable
             var serverIds = _missingItems.Select(x => x.ServerId).Distinct().ToList();
             var remoteIds = _missingItems.Select(x => x.RemoteId).Distinct().ToList();
 
-            var missingEpisodeIds = _missingItems.Where(x => x.EpisodeId != null).Select(x => x.EpisodeId!.Value)
-                .Distinct().ToList();
-
-            var missingSeriesRemoteIds = _missingItems.Where(x => x.EpisodeId != null).Select(x => x.RemoteId)
-                .Distinct().ToList();
-
             var disabledBehavior = Settings.GetString("General", "DisabledServerBehavior", "hidden");
-            var serverQuery = db.MediaServers.AsNoTracking().Where(x => serverIds.Contains(x.Id));
+            var allServers = await db.MediaServers.AsNoTracking().Where(x => serverIds.Contains(x.Id)).ToListAsync();
+            var disabledIds = new HashSet<int>(allServers.Where(s => !s.IsEnabled).Select(s => s.Id));
+            var servers = disabledBehavior == "hidden" ? allServers.Where(s => s.IsEnabled).ToList() : allServers;
+
             if (disabledBehavior == "hidden")
-                serverQuery = serverQuery.Where(x => x.IsEnabled);
-            var servers = await serverQuery.ToListAsync();
+                _missingItems = _missingItems.Where(x => !disabledIds.Contains(x.ServerId)).ToList();
 
             var movies = await db.Movies.AsNoTracking().Where(x =>
                     x.ServerId.HasValue && serverIds.Contains(x.ServerId.Value) && remoteIds.Contains(x.RemoteId))
@@ -302,14 +296,16 @@ public partial class Missing : ComponentBase, IAsyncDisposable
                     x.ServerId.HasValue && serverIds.Contains(x.ServerId.Value) && remoteIds.Contains(x.RemoteId))
                 .ToListAsync();
 
-            var episodes = missingEpisodeIds.Count == 0
+            var seriesRemoteIds = series.Select(s => s.RemoteId).Distinct().ToList();
+
+            var episodes = seriesRemoteIds.Count == 0
                 ? []
                 : await db.Episodes.AsNoTracking().Where(x =>
-                        x.ServerId.HasValue && serverIds.Contains(x.ServerId.Value) &&
-                        (missingEpisodeIds.Contains(x.RemoteId) || missingSeriesRemoteIds.Contains(x.RemoteSeriesId)))
-                    .ToListAsync();
+                    x.ServerId.HasValue && serverIds.Contains(x.ServerId.Value) &&
+                    seriesRemoteIds.Contains(x.RemoteSeriesId)).ToListAsync();
 
             _servers = servers.ToDictionary(x => x.Id);
+            _disabledServerIds = disabledIds;
             _movies = BuildLookup(movies, x => MediaKey(x.ServerId, x.RemoteId));
             _series = BuildLookup(series, x => MediaKey(x.ServerId, x.RemoteId));
             _episodes = BuildLookup(episodes, x => EpisodeKey(x.ServerId, x.RemoteSeriesId, x.RemoteId));
@@ -393,6 +389,8 @@ public partial class Missing : ComponentBase, IAsyncDisposable
                GetStateDisplay(row).Contains(search, StringComparison.OrdinalIgnoreCase) ||
                GetEpisodeSummary(row).Contains(search, StringComparison.OrdinalIgnoreCase);
     }
+
+    private bool IsServerDisabled(int serverId) => _disabledServerIds.Contains(serverId);
 
     private MediaServer? GetServer(MissingMediaRow row)
     {

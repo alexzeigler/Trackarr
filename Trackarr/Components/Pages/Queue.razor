@@ -7,6 +7,12 @@
 @using static Utils
 @implements IAsyncDisposable
 
+@if (!_hasServers)
+{
+    <NoServersPlaceholder/>
+    return;
+}
+
 <div class="d-flex flex-column gap-3">
     <MediaDetailsModal @ref="_detailsModal"/>
     <SetScoreModal @ref="_setScoreModal" OnSaved="RefreshAsync"/>
@@ -177,17 +183,17 @@
                             @if (_pageData.ScoreDistribution.Count == 0)
                             {
                                 <div class="empty">
-                                <div class="empty-icon">
-                                    <i class="ti ti-heartbeat"></i>
-        </div>
+                                    <div class="empty-icon">
+                                        <i class="ti ti-heartbeat"></i>
+                                    </div>
                                     <p class="empty-title">No health data</p>
                                 </div>
                             }
-    </div>
-    </div>
-    </div>
-    </div>
-    </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     }
 
     <div class="card app-card">
@@ -316,7 +322,7 @@
                 }
                 else
                 {
-                @foreach (var group in PagedGroups)
+                    @foreach (var group in PagedGroups)
                     {
                         var expanded = IsExpanded(group.Key);
                         var itemCount = group.Items.Count;
@@ -327,7 +333,7 @@
                         var firstSeries = GetSeries(firstItem);
 
                         <tr @key="group.Key"
-                            class="queue-group-row"
+                            class="queue-group-row @(IsServerDisabled(firstItem.ServerId) ? "server-disabled" : "")"
                             style="cursor: pointer;"
                             @onclick="() => ToggleGroup(group.Key)">
                             <td>
@@ -345,20 +351,26 @@
                                          style="transition: transform .15s; transform: rotate(@(expanded ? "90" : "0")deg);">
                                         <path d="M9 6l6 6l-6 6"/>
                                     </svg>
-                                    @if (Settings.GetBool("Display", "ShowServerIconsInQueue", true) && group.ServerType != null)
+                                    @if (ShowServerIcons && group.ServerType != null)
                                     {
                                         <img src="img/@(group.ServerType).svg"
                                              alt="@group.ServerType"
-                                             title="@group.ServerName"/>
+                                             title="@group.ServerName"
+                                             width="22"
+                                             height="22"
+                                             style="object-fit: contain;"/>
                                     }
-                                    @if (group.PosterUrl != null)
+                                    @if (ShowPosters && group.PosterUrl != null)
                                     {
                                         <img src="@group.PosterUrl" class="media-poster media-poster-md" alt=""/>
                                     }
                                     <div>
                                         <div class="item-title fw-semibold">@group.Title</div>
                                         <div class="item-meta">
-                                            <span class="@MediaTypeBadgeClass(group.MediaType)">@group.MediaType</span>
+                                            @if (ShowMediaTypeBadges)
+                                            {
+                                                <span class="@MediaTypeBadgeClass(group.MediaType)">@group.MediaType</span>
+                                            }
                                             @if (!string.IsNullOrWhiteSpace(group.Quality))
                                             {
                                                 <span class="text-secondary ms-2">@group.Quality</span>
@@ -368,6 +380,29 @@
                                                 <span class="text-secondary ms-2">@GetEpisodeSummary(group.Items)</span>
                                             }
                                         </div>
+                                        @if (IsComfortable)
+                                        {
+                                            <div class="item-meta">
+                                                @{ var client = GetGroupDownloadClient(group); }
+                                                @{ var indexer = GetGroupIndexer(group); }
+                                                @{ var totalSize = GetGroupTotalSize(group); }
+                                                @if (!string.IsNullOrEmpty(client))
+                                                {
+                                                    <span class="text-secondary">
+                                                        <i class="ti ti-download me-1"></i>@client</span>
+                                                }
+                                                @if (!string.IsNullOrEmpty(indexer))
+                                                {
+                                                    <span class="text-secondary ms-2">
+                                                        <i class="ti ti-world me-1"></i>@indexer</span>
+                                                }
+                                                @if (totalSize > 0)
+                                                {
+                                                    <span class="text-secondary ms-2">
+                                                        <i class="ti ti-file me-1"></i>@FormatBytes(totalSize)</span>
+                                                }
+                                            </div>
+                                        }
                                     </div>
                                 </div>
                             </td>
@@ -449,14 +484,39 @@
                                 var movie = GetMovie(item);
                                 var series = GetSeries(item);
 
-                                <tr @key="childKey" class="queue-child-row">
+                                <tr @key="childKey"
+                                    class="queue-child-row @(IsServerDisabled(item.ServerId) ? "server-disabled" : "")">
                                     <td>
                                         <div class="d-flex align-items-center" style="padding-left: 36px; gap: 10px;">
-                                            @if (Settings.GetBool("Display", "ShowHealthScoreBadges", true))
+                                            @if (ShowHealthBadges)
                                             {
                                                 <span class="@GetScoreBadgeClass(snapshot?.VisibleScore)">@(snapshot?.VisibleScore ?? 0)</span>
                                             }
-                                            <span class="item-title">@GetChildLabel(item)</span>
+                                            <div>
+                                                <span class="item-title">@GetChildLabel(item)</span>
+                                                @if (IsComfortable)
+                                                {
+                                                    <div class="item-meta">
+                                                        @if (!string.IsNullOrWhiteSpace(item.DownloadClient))
+                                                        {
+                                                            <span class="text-secondary">
+                                                                <i class="ti ti-download me-1"></i>@item.DownloadClient
+                                                            </span>
+                                                        }
+                                                        @if (item.Size > 0)
+                                                        {
+                                                            <span class="text-secondary ms-2">
+                                                                <i class="ti ti-file me-1"></i>@FormatBytes(item.Size)
+                                                            </span>
+                                                        }
+                                                        @if (!string.IsNullOrWhiteSpace(item.TimeLeft))
+                                                        {
+                                                            <span class="text-secondary ms-2">
+                                                                <i class="ti ti-clock me-1"></i>@item.TimeLeft</span>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
                                         </div>
                                     </td>
 

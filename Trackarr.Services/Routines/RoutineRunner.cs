@@ -7,7 +7,8 @@ namespace Trackarr.Services.Routines;
 public sealed class RoutineRunner(
     IEnumerable<IRoutine> handlers,
     RoutineService routineService,
-    EventService eventService)
+    EventService eventService,
+    ILogger<RoutineRunner> logger)
 {
     #region Execution
 
@@ -68,8 +69,24 @@ public sealed class RoutineRunner(
         finally
         {
             routine.IsRunning = false;
-            await routineService.SaveRunAsync(run);
-            await routineService.UpdateDefinitionAsync(routine);
+
+            try
+            {
+                await routineService.SaveRunAsync(run);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to save run record for routine '{Key}'", routine.Key);
+            }
+
+            try
+            {
+                await routineService.UpdateDefinitionAsync(routine);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to update definition for routine '{Key}'", routine.Key);
+            }
         }
     }
 

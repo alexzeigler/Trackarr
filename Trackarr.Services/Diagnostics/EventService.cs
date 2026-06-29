@@ -2,10 +2,14 @@
 using Microsoft.Extensions.Logging;
 using Trackarr.Core.Event;
 using Trackarr.Data;
+using Trackarr.Services.UI;
 
 namespace Trackarr.Services.Diagnostics;
 
-public sealed class EventService(IDbContextFactory<AppDbContext> dbFactory, ILogger<EventService> logger)
+public sealed class EventService(
+    IDbContextFactory<AppDbContext> dbFactory,
+    ILogger<EventService> logger,
+    DataChangeBus changeBus)
 {
     private readonly LogFileWriter _fileWriter = new();
 
@@ -64,6 +68,7 @@ public sealed class EventService(IDbContextFactory<AppDbContext> dbFactory, ILog
             return;
         db.LogEvents.Remove(logEvent);
         await db.SaveChangesAsync(cancellationToken);
+        changeBus.NotifyChanged();
     }
 
     public async Task ClearAllAsync(CancellationToken cancellationToken = default)
@@ -71,5 +76,6 @@ public sealed class EventService(IDbContextFactory<AppDbContext> dbFactory, ILog
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         await db.Database.ExecuteSqlRawAsync("DELETE FROM LogEvents", cancellationToken);
         logger.LogInformation("Cleared all log events.");
+        changeBus.NotifyChanged();
     }
 }

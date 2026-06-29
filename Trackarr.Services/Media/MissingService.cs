@@ -7,13 +7,15 @@ using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Data;
 using Trackarr.Services.Settings;
+using Trackarr.Services.UI;
 
 namespace Trackarr.Services.Media;
 
 public sealed class MissingService(
     IDbContextFactory<AppDbContext> contextFactory,
     MediaServerService media,
-    SettingsService settings)
+    SettingsService settings,
+    DataChangeBus changeBus)
 {
     private MissingPolicy Policy => settings.GetMissingPolicy();
 
@@ -42,9 +44,16 @@ public sealed class MissingService(
         {
             var missing = await media.GetMissingEpisodesAsync(server, true);
             count = missing.Count;
+
+            var allSeriesIds = records.Select(r => r.RemoteId).Concat(missing.Select(e => e.RemoteSeriesId))
+                .Where(id => id != 0).Distinct().ToList();
+
             await ReconcileSonarrAsync(server, db, records, missing, queue);
             await ProcessSonarrAsync(server, db, records, missing, queue, active, now);
             await ApplySonarrFallbackAsync(server, db, records, missing, now);
+
+            foreach (var seriesId in allSeriesIds)
+                await media.SyncSeriesEpisodesAsync(server, seriesId);
         }
 
         await media.UpdateServerStatsAsync(server.Id, s =>
@@ -56,6 +65,7 @@ public sealed class MissingService(
         await SyncMediaSummariesAsync(db, server, records, now, ct);
 
         await db.SaveChangesAsync(ct);
+        changeBus.NotifyChanged();
         return count;
     }
 
@@ -266,6 +276,9 @@ public sealed class MissingService(
     {
         if (server.FallBackProfileId is not { } fallbackId) return;
 
+        var profile = await db.QualityProfiles.FindAsync(fallbackId);
+        if (profile is null) return;
+
         var missingIds = missing.Select(m => m.RemoteId).ToHashSet();
 
         var targets = records.Where(r => r.EpisodeId == null && !r.LoweredToFallback &&
@@ -274,7 +287,7 @@ public sealed class MissingService(
 
         foreach (var rec in targets)
         {
-            await media.SetQualityProfileAsync(server, rec.RemoteId, fallbackId);
+            await media.SetQualityProfileAsync(server, rec.RemoteId, profile.RemoteId);
             rec.LoweredToFallback = true;
             rec.FailedSearchCount = 0;
             rec.LastSearchPushedAt = null;
@@ -306,6 +319,9 @@ public sealed class MissingService(
 
         if (server.FallBackProfileId is not { } fallbackId) return;
 
+        var profile = await db.QualityProfiles.FindAsync(fallbackId);
+        if (profile is null) return;
+
         var missingEpIds = missing.Select(e => e.RemoteId).ToHashSet();
 
         var bySeries = records.Where(r => r.EpisodeId != null && missingEpIds.Contains(r.EpisodeId.Value))
@@ -317,7 +333,7 @@ public sealed class MissingService(
             if (recs.Count == 0 || recs.Any(r => r.LoweredToFallback)) continue;
             if (!recs.All(r => r.FailedSearchCount >= Policy.MaxFailedSearches)) continue;
 
-            await media.SetQualityProfileAsync(server, grp.Key, fallbackId);
+            await media.SetQualityProfileAsync(server, grp.Key, profile.RemoteId);
 
             foreach (var r in recs)
             {

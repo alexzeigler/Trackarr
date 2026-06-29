@@ -1,11 +1,15 @@
-﻿using Trackarr.Core.Routine;
+﻿using Microsoft.Extensions.Logging;
+using Trackarr.Core.Routine;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
 using Trackarr.Services.Settings;
 
 namespace Trackarr.Routines;
 
-public sealed class QueueRefreshRoutine(MediaServerService mediaServerService, SettingsService settings) : Routine
+public sealed class QueueRefreshRoutine(
+    MediaServerService mediaServerService,
+    SettingsService settings,
+    ILogger<QueueRefreshRoutine> logger) : Routine
 {
     public override string Key { get; set; } = "queue_refresh";
     public override string Name { get; set; } = "Queue Refresh";
@@ -18,6 +22,13 @@ public sealed class QueueRefreshRoutine(MediaServerService mediaServerService, S
     {
         var servers = (await mediaServerService.GetAllServersAsync())
             .Where(s => s.IsEnabled && settings.ShouldMonitorQueue(s)).OrderBy(s => s.Priority).ToList();
+
+        if (servers.Count == 0)
+        {
+            logger.LogDebug("No servers configured — skipping queue refresh");
+            return "No servers configured.";
+        }
+
         var count = 0;
 
         foreach (var server in servers)

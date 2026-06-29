@@ -29,6 +29,7 @@
     {
         Nav.LocationChanged += OnLocationChanged;
         AppState.UpdateRoute(Nav.Uri);
+        AppState.StartAutoRefresh();
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)

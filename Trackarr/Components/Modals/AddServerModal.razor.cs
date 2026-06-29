@@ -42,7 +42,7 @@ public partial class AddServerModal : ComponentBase
         !string.IsNullOrWhiteSpace(Model.Name) && !string.IsNullOrWhiteSpace(Model.Host) && Model.Port > 0 &&
         !string.IsNullOrWhiteSpace(Model.ApiKey);
 
-    private bool CanSave => IsValid && TestResult is { Item1: true } && !IsBusy;
+    private bool CanSave => IsValid && !IsBusy;
     private List<QualityProfile>? Profiles { get; set; } = [];
 
     private (bool, long ElapsedMilliseconds, string? ReasonPhrase)? TestResult { get; set; }

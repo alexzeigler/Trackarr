@@ -22,7 +22,7 @@
 
 #components-reconnect-modal {
     animation: components-reconnect-modal-fadeOutOpacity 0.5s both;
-    background-color: white;
+    background-color: var(--tblr-bg-surface);
     border: 0;
     border-radius: 0.5rem;
     box-shadow: 0 3px 6px 2px rgba(0, 0, 0, 0.3);

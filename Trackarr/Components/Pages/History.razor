@@ -1,7 +1,15 @@
 ﻿@page "/history"
 @using Trackarr.Core.Queue
 @using Trackarr.Core.UI
+@using Trackarr.Services.Media
 @using static Utils
+@inject MediaServerService MediaServerService
+
+@if (!_hasServers)
+{
+    <NoServersPlaceholder/>
+    return;
+}
 
 <div class="card app-card mb-3">
     <div class="card-body">

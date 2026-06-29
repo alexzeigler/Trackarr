@@ -16,6 +16,8 @@ using _Imports = Trackarr.Client._Imports;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration.AddInMemoryCollection();
+
 var dataProtectionPath = builder.Configuration["DataProtection:KeysPath"] ?? "/config/keys";
 
 Directory.CreateDirectory(dataProtectionPath);
@@ -39,6 +41,7 @@ builder.Services.AddSingleton<IRoutine, QueueRefreshRoutine>();
 builder.Services.AddSingleton<IRoutine, QueueEvaluationRoutine>();
 builder.Services.AddSingleton<IRoutine, MissingMediaFetchRoutine>();
 builder.Services.AddSingleton<IRoutine, DatabaseCleanupRoutine>();
+builder.Services.AddSingleton<IRoutine, HealthCheckRoutine>();
 
 builder.Services.AddSingleton<EventService>();
 builder.Services.AddSingleton<RoutineRunner>();
@@ -53,6 +56,7 @@ builder.Services.AddSingleton<SystemStatusService>();
 builder.Services.AddSingleton<GitHubReleaseService>();
 builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<BlacklistService>();
+builder.Services.AddSingleton<DataChangeBus>();
 
 builder.Services.AddScoped<AppStateService>();
 
@@ -105,6 +109,9 @@ await settingsService.InitializeAsync();
 Utils.Configure(settingsService);
 settingsService.OnSettingsChanged += () => Utils.Configure(settingsService);
 
+ApplyConsoleLogLevel(app.Configuration, settingsService);
+settingsService.OnSettingsChanged += () => ApplyConsoleLogLevel(app.Configuration, settingsService);
+
 if (app.Environment.IsDevelopment()) app.UseHttpsRedirection();
 
 app.UseAntiforgery();
@@ -119,6 +126,13 @@ if (CrashReporter.LastError is not null)
 
 app.Run();
 return;
+
+static void ApplyConsoleLogLevel(IConfiguration configuration, SettingsService settings)
+{
+    var level = settings.GetString("General", "ConsoleLogLevel", "Information");
+    configuration["Logging:LogLevel:Default"] = level;
+    (configuration as IConfigurationRoot)?.Reload();
+}
 
 static string ResolveConnectionString(WebApplicationBuilder builder)
 {

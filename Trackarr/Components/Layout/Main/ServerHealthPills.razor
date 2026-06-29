@@ -1,4 +1,5 @@
 @inject MediaServerService MediaServerService
+@inject AppStateService AppState
 @using Trackarr.Core.Server
 @using Trackarr.Services.Media
 @implements IAsyncDisposable
@@ -19,29 +20,18 @@
 </div>
 
 @code {
-    private readonly CancellationTokenSource _cts = new();
     private List<MediaServer> _servers = [];
 
     protected override async Task OnInitializedAsync()
     {
+        AppState.OnRefreshRequested += RefreshAsync;
         await LoadServersAsync();
-        _ = RefreshLoopAsync();
     }
 
-    private async Task RefreshLoopAsync()
+    private async Task RefreshAsync()
     {
-        try
-        {
-            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
-            while (await timer.WaitForNextTickAsync(_cts.Token))
-            {
-                await LoadServersAsync();
-                await InvokeAsync(StateHasChanged);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
+        await LoadServersAsync();
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task LoadServersAsync()
@@ -64,10 +54,10 @@
         return ("success", $"{server.Name} — {ping}");
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        await _cts.CancelAsync();
-        _cts.Dispose();
+        AppState.OnRefreshRequested -= RefreshAsync;
+        return ValueTask.CompletedTask;
     }
 
 }

@@ -15,7 +15,7 @@
 </div>
 <p class="text-muted mb-4">Configure how download health is scored and when items are eligible for removal.</p>
 
-<h3 class="card-title">Score Bounds</h3>
+<h3 class="settings-section-title">Score Bounds</h3>
 <div class="row g-3 mb-4">
     <div class="col-4 col-lg-2">
         <label class="form-label" data-bs-toggle="tooltip" title="Score assigned to newly added downloads">
@@ -42,7 +42,8 @@
     </div>
 </div>
 
-<h3 class="card-title">Removal Thresholds</h3>
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Removal Thresholds</h3>
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg-2">
         <label class="form-label"
@@ -121,7 +122,8 @@
     </div>
 </div>
 
-<h3 class="card-title">Streak Multipliers</h3>
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Streak Multipliers</h3>
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">
         <label class="form-label"
@@ -130,12 +132,14 @@
             Penalty Escalation
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
-        <input type="number"
-               step="0.1"
-               class="form-control"
-               style="max-width: 6rem;"
-               @bind="_policy.PenaltyStreakEscalation"
-               @bind:after="MarkDirty"/>
+        <div class="input-group">
+            <input type="number"
+                   step="0.1"
+                   class="form-control"
+                   @bind="_policy.PenaltyStreakEscalation"
+                   @bind:after="MarkDirty"/>
+            <span class="input-group-text">x</span>
+        </div>
     </div>
     <div class="col-6 col-lg-3">
         <label class="form-label"
@@ -144,12 +148,14 @@
             Penalty Cap
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
-        <input type="number"
-               step="0.1"
-               class="form-control"
-               style="max-width: 6rem;"
-               @bind="_policy.PenaltyStreakCap"
-               @bind:after="MarkDirty"/>
+        <div class="input-group">
+            <input type="number"
+                   step="0.1"
+                   class="form-control"
+                   @bind="_policy.PenaltyStreakCap"
+                   @bind:after="MarkDirty"/>
+            <span class="input-group-text">x</span>
+        </div>
     </div>
     <div class="col-6 col-lg-3">
         <label class="form-label"
@@ -158,12 +164,14 @@
             Reward Escalation
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
-        <input type="number"
-               step="0.1"
-               class="form-control"
-               style="max-width: 6rem;"
-               @bind="_policy.RewardStreakEscalation"
-               @bind:after="MarkDirty"/>
+        <div class="input-group">
+            <input type="number"
+                   step="0.1"
+                   class="form-control"
+                   @bind="_policy.RewardStreakEscalation"
+                   @bind:after="MarkDirty"/>
+            <span class="input-group-text">x</span>
+        </div>
     </div>
     <div class="col-6 col-lg-3">
         <label class="form-label"
@@ -172,16 +180,19 @@
             Reward Cap
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
-        <input type="number"
-               step="0.1"
-               class="form-control"
-               style="max-width: 6rem;"
-               @bind="_policy.RewardStreakCap"
-               @bind:after="MarkDirty"/>
+        <div class="input-group">
+            <input type="number"
+                   step="0.1"
+                   class="form-control"
+                   @bind="_policy.RewardStreakCap"
+                   @bind:after="MarkDirty"/>
+            <span class="input-group-text">x</span>
+        </div>
     </div>
 </div>
 
-<h3 class="card-title">State Thresholds</h3>
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">State Thresholds</h3>
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">
         <label class="form-label" data-bs-toggle="tooltip" title="Score at or above this value is considered healthy">
@@ -190,7 +201,6 @@
         </label>
         <input type="number"
                class="form-control"
-               style="max-width: 5rem;"
                @bind="_policy.HealthyThreshold"
                @bind:after="MarkDirty"/>
     </div>
@@ -201,7 +211,6 @@
         </label>
         <input type="number"
                class="form-control"
-               style="max-width: 5rem;"
                @bind="_policy.StableThreshold"
                @bind:after="MarkDirty"/>
     </div>
@@ -214,7 +223,6 @@
         </label>
         <input type="number"
                class="form-control"
-               style="max-width: 5rem;"
                @bind="_policy.WatchingThreshold"
                @bind:after="MarkDirty"/>
     </div>
@@ -227,13 +235,13 @@
         </label>
         <input type="number"
                class="form-control"
-               style="max-width: 5rem;"
                @bind="_policy.DegradingThreshold"
                @bind:after="MarkDirty"/>
     </div>
 </div>
 
-<h3 class="card-title">Rewards</h3>
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Rewards</h3>
 <p class="text-muted mb-2">Points added when positive events are observed.</p>
 <div class="row g-2 mb-4">
     @foreach (var r in _rewards)
@@ -251,7 +259,8 @@
     }
 </div>
 
-<h3 class="card-title">Penalties</h3>
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Penalties</h3>
 <p class="text-muted mb-2">Points deducted when negative events are observed. Use negative values.</p>
 <div class="row g-2 mb-4">
     @foreach (var p in _penalties)

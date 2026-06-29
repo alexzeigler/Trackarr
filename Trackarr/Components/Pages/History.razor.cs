@@ -54,6 +54,7 @@ public partial class History : ComponentBase
 
     #region State
 
+    private bool _hasServers = true;
     private HistoryTab _activeTab = HistoryTab.DownloadEvents;
     private bool _chartsPending;
 
@@ -144,6 +145,9 @@ public partial class History : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        _hasServers = (await MediaServerService.GetAllServersAsync()).Count > 0;
+        if (!_hasServers) return;
+
         await LoadAsync();
     }
 

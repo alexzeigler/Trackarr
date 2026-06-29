@@ -1,37 +1,58 @@
 @page "/settings/general"
+@using global::System.Diagnostics
+@using Trackarr.Components.Modals
 @using Trackarr.Core.UI
 @using Trackarr.Services.Settings
 @layout SettingsLayout
 @inject SettingsService SettingsService
+@inject IHostApplicationLifetime Lifetime
+@inject IJSRuntime Js
+
+<ConfirmationDialog Id="confirmResetData"
+                    Header="Wipe Database"
+                    Text="This will permanently delete EVERYTHING — all servers, tracked data, queue history, health scores, media records, logs, and settings. Only default settings will be re-seeded. This cannot be undone."
+                    ConfirmText="Wipe Everything"
+                    OnConfirm="@(ExecuteResetDataAsync)"/>
+
+<ConfirmationDialog Id="confirmResetSettings"
+                    Header="Reset All Settings"
+                    Text="This will restore every setting across all pages to its factory default. Server configurations and application data will not be affected. This cannot be undone."
+                    ConfirmText="Reset Settings"
+                    OnConfirm="@(ExecuteResetSettingsAsync)"/>
+
+<ConfirmationDialog Id="confirmRestart"
+                    Header="Restart Application"
+                    Text="This will stop the Trackarr service. In Docker, the container restart policy will bring it back automatically. You will briefly lose connection."
+                    ConfirmText="Restart Now"
+                    OnConfirm="@(ExecuteRestartAsync)"/>
 
 <h2 class="mb-1">General</h2>
 <p class="text-muted mb-4">Core application settings and behavior.</p>
 
-<h3 class="card-title">Application</h3>
+<h3 class="settings-section-title">Application</h3>
 <div class="row g-3 mb-4">
-    <div class="col-12 col-lg-6">
-        <div class="form-floating">
-            <input type="text"
-                   class="form-control"
-                   id="appName"
-                   placeholder="Trackarr"
-                   @bind="_appName"
-                   @bind:event="oninput"
-                   @bind:after="MarkDirty"/>
-            <label for="appName">Application Name</label>
-        </div>
-        <div class="form-text">Shown in the sidebar and browser tab.</div>
+    <div class="col-12 col-lg-4">
+        <label class="form-label" data-bs-toggle="tooltip" title="Shown in the sidebar and browser tab">
+            Application Name
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <input type="text"
+               class="form-control"
+               placeholder="Trackarr"
+               @bind="_appName"
+               @bind:event="oninput"
+               @bind:after="MarkDirty"/>
     </div>
-    <div class="col-12 col-lg-6">
-        <label class="form-label d-block mb-3">Startup</label>
-        <label class="form-check">
+    <div class="col-12 col-lg-4">
+        <label class="form-label d-block"
+               data-bs-toggle="tooltip"
+               title="Automatically start all background routines (queue monitoring, missing media search, etc.) when the application starts">
+            Startup
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <label class="form-check form-switch mt-2">
             <input class="form-check-input" type="checkbox" @bind="_autoStartRoutines" @bind:after="MarkDirty"/>
-            <span class="form-check-label"
-                  data-bs-toggle="tooltip"
-                  title="Automatically start all background routines (queue monitoring, missing media search, etc.) when the application starts">
-                Auto-start routines on launch
-                <i class="ti ti-info-circle ms-1 opacity-50"></i>
-            </span>
+            <span class="form-check-label">Auto-start routines on launch</span>
         </label>
     </div>
     <div class="col-12">
@@ -73,7 +94,8 @@
     </div>
 </div>
 
-<h3 class="card-title mt-4">Behavior</h3>
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Behavior</h3>
 <div class="row g-3 mb-4">
     <div class="col-12 col-lg-6">
         <label class="form-label"
@@ -105,8 +127,114 @@
             </label>
         </div>
     </div>
-
 </div>
+
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Logging</h3>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-4">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Controls the minimum severity level for console log output. Does not affect events stored in the database.">
+            Console Log Level
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <select class="form-select" @bind="_consoleLogLevel" @bind:after="MarkDirty">
+            <option value="Trace">Trace (most verbose)</option>
+            <option value="Debug">Debug</option>
+            <option value="Information">Information (default)</option>
+            <option value="Warning">Warning</option>
+            <option value="Error">Error</option>
+            <option value="Critical">Critical (least verbose)</option>
+        </select>
+    </div>
+</div>
+
+<hr class="settings-divider"/>
+<h3 class="settings-section-title text-danger">
+    <i class="ti ti-alert-triangle me-2"></i>
+    Danger Zone
+</h3>
+<div class="danger-zone mb-4">
+    <div class="danger-zone-header">
+        <span class="text-danger fw-semibold">Irreversible actions</span>
+    </div>
+
+    <div class="danger-zone-item">
+        <div>
+            <strong>Wipe database</strong>
+            <p class="text-muted small mb-0">
+                Permanently deletes everything — all servers, history, health scores, media records, logs, and settings.
+                Default settings are re-seeded. </p>
+        </div>
+        <div class="flex-shrink-0" style="min-width: 160px;">
+            <button class="btn btn-app-danger w-100" disabled="@_resettingData" @onclick="ShowResetDataModal">
+                @if (_resettingData)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                }
+                else
+                {
+                    <i class="ti ti-trash me-1"></i>
+                }
+                Wipe Database
+            </button>
+        </div>
+    </div>
+
+    <div class="danger-zone-item">
+        <div>
+            <strong>Reset all settings</strong>
+            <p class="text-muted small mb-0">
+                Restores every setting across all pages to its factory default. Server configurations and application
+                data are not affected. </p>
+        </div>
+        <div class="flex-shrink-0" style="min-width: 160px;">
+            <button class="btn btn-app-danger w-100" disabled="@_resettingSettings" @onclick="ShowResetSettingsModal">
+                @if (_resettingSettings)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                }
+                else
+                {
+                    <i class="ti ti-settings me-1"></i>
+                }
+                Reset Settings
+            </button>
+        </div>
+    </div>
+
+    <div class="danger-zone-item">
+        <div>
+            <strong>Restart application</strong>
+            <p class="text-muted small mb-0">
+                Stops and restarts the Trackarr service. In Docker, the container restart policy will bring it back
+                automatically. You will briefly lose connection. </p>
+        </div>
+        <div class="flex-shrink-0" style="min-width: 160px;">
+            <button class="btn btn-app-danger w-100" disabled="@_restarting" @onclick="ShowRestartModal">
+                @if (_restarting)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                }
+                else
+                {
+                    <i class="ti ti-refresh me-1"></i>
+                }
+                Restart
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(_dangerMessage))
+{
+    <div class="alert @(_dangerSuccess ? "alert-success" : "alert-danger") alert-dismissible mb-4">
+        <i class="ti @(_dangerSuccess ? "ti-check" : "ti-alert-circle") me-1"></i>
+        @_dangerMessage
+        <button type="button" class="btn-close" @onclick="() => _dangerMessage = null"></button>
+    </div>
+}
 
 @code {
     [CascadingParameter] private SettingsPageContext Context { get; set; } = null!;
@@ -115,11 +243,19 @@
     private string _disabledBehavior = "hidden";
     private bool _autoStartRoutines = true;
     private string _defaultServerType = "Radarr";
+    private string _consoleLogLevel = "Information";
 
     private string _origAppName = "";
     private string _origDisabledBehavior = "hidden";
     private bool _origAutoStartRoutines = true;
     private string _origDefaultServerType = "Radarr";
+    private string _origConsoleLogLevel = "Information";
+
+    private bool _resettingData;
+    private bool _resettingSettings;
+    private bool _restarting;
+    private string? _dangerMessage;
+    private bool _dangerSuccess;
 
     protected override void OnInitialized()
     {
@@ -134,11 +270,13 @@
         _disabledBehavior = SettingsService.GetString("General", "DisabledServerBehavior", "hidden");
         _autoStartRoutines = SettingsService.GetBool("General", "AutoStartRoutines", true);
         _defaultServerType = SettingsService.GetString("General", "DefaultServerType", "Radarr");
+        _consoleLogLevel = SettingsService.GetString("General", "ConsoleLogLevel", "Information");
 
         _origAppName = _appName;
         _origDisabledBehavior = _disabledBehavior;
         _origAutoStartRoutines = _autoStartRoutines;
         _origDefaultServerType = _defaultServerType;
+        _origConsoleLogLevel = _consoleLogLevel;
     }
 
     private void SetServerType(string type)
@@ -155,17 +293,25 @@
 
     private void MarkDirty()
     {
-        Context.HasChanges = _appName != _origAppName || _disabledBehavior != _origDisabledBehavior || _autoStartRoutines != _origAutoStartRoutines || _defaultServerType != _origDefaultServerType;
+        Context.HasChanges = _appName != _origAppName || _disabledBehavior != _origDisabledBehavior || _autoStartRoutines != _origAutoStartRoutines || _defaultServerType != _origDefaultServerType || _consoleLogLevel != _origConsoleLogLevel;
         Context.NotifyChanged();
     }
 
     private async Task SaveAsync()
     {
-        await SettingsService.SaveCategoryAsync("General", new Dictionary<string, string> { ["AppName"] = _appName, ["DisabledServerBehavior"] = _disabledBehavior, ["AutoStartRoutines"] = _autoStartRoutines.ToString(), ["DefaultServerType"] = _defaultServerType });
+        await SettingsService.SaveCategoryAsync("General", new Dictionary<string, string>
+        {
+            ["AppName"] = _appName,
+            ["DisabledServerBehavior"] = _disabledBehavior,
+            ["AutoStartRoutines"] = _autoStartRoutines.ToString(),
+            ["DefaultServerType"] = _defaultServerType,
+            ["ConsoleLogLevel"] = _consoleLogLevel
+        });
         _origAppName = _appName;
         _origDisabledBehavior = _disabledBehavior;
         _origAutoStartRoutines = _autoStartRoutines;
         _origDefaultServerType = _defaultServerType;
+        _origConsoleLogLevel = _consoleLogLevel;
     }
 
     private Task DiscardAsync()
@@ -174,8 +320,124 @@
         _disabledBehavior = _origDisabledBehavior;
         _autoStartRoutines = _origAutoStartRoutines;
         _defaultServerType = _origDefaultServerType;
+        _consoleLogLevel = _origConsoleLogLevel;
         StateHasChanged();
         return Task.CompletedTask;
     }
 
+    private async Task ShowResetDataModal()
+    {
+        await Js.InvokeVoidAsync("modalHelper.show", "confirmResetData");
+    }
+
+    private async Task ShowResetSettingsModal()
+    {
+        await Js.InvokeVoidAsync("modalHelper.show", "confirmResetSettings");
+    }
+
+    private async Task ShowRestartModal()
+    {
+        await Js.InvokeVoidAsync("modalHelper.show", "confirmRestart");
+    }
+
+    private async void ExecuteResetDataAsync()
+    {
+        _resettingData = true;
+        StateHasChanged();
+
+        try
+        {
+            await SettingsService.ResetDatabaseAsync();
+            _dangerMessage = "Database wiped. All data has been deleted and default settings re-seeded.";
+            _dangerSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            _dangerMessage = $"Reset failed: {ex.Message}";
+            _dangerSuccess = false;
+        }
+        finally
+        {
+            _resettingData = false;
+            await InvokeAsync(StateHasChanged);
+        }
+
+        await Js.InvokeVoidAsync("modalHelper.hide", "confirmResetData");
+    }
+
+    private async void ExecuteResetSettingsAsync()
+    {
+        _resettingSettings = true;
+        StateHasChanged();
+
+        try
+        {
+            await SettingsService.ResetSettingsAsync();
+            LoadValues();
+            Context.HasChanges = false;
+            Context.NotifyChanged();
+            _dangerMessage = "All settings have been restored to their defaults.";
+            _dangerSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            _dangerMessage = $"Reset failed: {ex.Message}";
+            _dangerSuccess = false;
+        }
+        finally
+        {
+            _resettingSettings = false;
+            await InvokeAsync(StateHasChanged);
+        }
+
+        await Js.InvokeVoidAsync("modalHelper.hide", "confirmResetSettings");
+    }
+
+    private async void ExecuteRestartAsync()
+    {
+        _restarting = true;
+        StateHasChanged();
+
+        await Task.Delay(500);
+
+        var exe = Environment.ProcessPath;
+        if (exe is not null)
+        {
+            var pid = Environment.ProcessId;
+            var args = string.Join(" ", Environment.GetCommandLineArgs().Skip(1));
+
+            if (OperatingSystem.IsWindows())
+            {
+                var script = $"@echo off\n:wait\ntasklist /FI \"PID eq {pid}\" 2>NUL | find \"{pid}\" >NUL\nif not errorlevel 1 (timeout /t 1 /nobreak >NUL & goto wait)\nstart \"\" \"{exe}\" {args}";
+                var scriptPath = Path.Combine(Path.GetTempPath(), "trackarr-restart.cmd");
+                await File.WriteAllTextAsync(scriptPath, script);
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/c \"{scriptPath}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = Environment.CurrentDirectory
+                });
+            }
+            else
+            {
+                var script = $"#!/bin/sh\nwhile kill -0 {pid} 2>/dev/null; do sleep 1; done\nexec \"{exe}\" {args}";
+                var scriptPath = Path.Combine(Path.GetTempPath(), "trackarr-restart.sh");
+                await File.WriteAllTextAsync(scriptPath, script);
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "/bin/sh",
+                    Arguments = scriptPath,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = Environment.CurrentDirectory
+                });
+            }
+        }
+
+        Lifetime.StopApplication();
+    }
 }

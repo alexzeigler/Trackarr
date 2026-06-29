@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Trackarr.Core.Health;
@@ -6,10 +7,14 @@ using Trackarr.Core.Media.Missing;
 using Trackarr.Core.Server;
 using Trackarr.Core.Settings;
 using Trackarr.Data;
+using Trackarr.Services.UI;
 
 namespace Trackarr.Services.Settings;
 
-public class SettingsService(IDbContextFactory<AppDbContext> dbFactory, ILogger<SettingsService> logger)
+public class SettingsService(
+    IDbContextFactory<AppDbContext> dbFactory,
+    ILogger<SettingsService> logger,
+    DataChangeBus changeBus)
 {
     #region Defaults Registry
 
@@ -20,6 +25,8 @@ public class SettingsService(IDbContextFactory<AppDbContext> dbFactory, ILogger<
         [("General", "DisabledServerBehavior")] = ("hidden", "string"),
         [("General", "AutoStartRoutines")] = ("true", "bool"),
         [("General", "DefaultServerType")] = ("Radarr", "string"),
+        [("General", "PassiveMode")] = ("false", "bool"),
+        [("General", "ConsoleLogLevel")] = ("Information", "string"),
 
         // Servers (global defaults)
         [("Servers", "MonitorQueue")] = ("true", "bool"),
@@ -37,11 +44,11 @@ public class SettingsService(IDbContextFactory<AppDbContext> dbFactory, ILogger<
         [("Display", "EventsPageSize")] = ("50", "int"),
         [("Display", "ShowQueueCharts")] = ("true", "bool"),
         [("Display", "ShowMissingCharts")] = ("true", "bool"),
-        [("Display", "ShowHealthScoreBadges")] = ("true", "bool"),
-        [("Display", "ShowServerIconsInQueue")] = ("true", "bool"),
-        [("Display", "DefaultQueueGrouping")] = ("none", "string"),
+        [("Display", "ShowPosterImages")] = ("true", "bool"),
+        [("Display", "DefaultQueueGrouping")] = ("mediaTitle", "string"),
         [("Display", "ExpandQueueGroupsByDefault")] = ("true", "bool"),
         [("Display", "TableDensity")] = ("normal", "string"),
+        [("Display", "QueueRefreshIntervalSeconds")] = ("10", "int"),
 
         // Health Policy
         [("HealthPolicy", "StartingScore")] = ("70", "int"),
@@ -170,7 +177,14 @@ public class SettingsService(IDbContextFactory<AppDbContext> dbFactory, ILogger<
         }
 
         OnSettingsChanged?.Invoke();
+        changeBus.NotifyChanged();
     }
+
+    #region General Behavior
+
+    public bool IsPassiveMode() => GetBool("General", "PassiveMode", false);
+
+    #endregion
 
     #region Typed Accessors
 
@@ -222,6 +236,114 @@ public class SettingsService(IDbContextFactory<AppDbContext> dbFactory, ILogger<
     public int GetRequestTimeout(MediaServer server)
     {
         return server.RequestTimeoutSeconds ?? GetInt("Servers", "RequestTimeoutSeconds", 30);
+    }
+
+    #endregion
+
+    #region Database Reset
+
+    public async Task ResetDatabaseAsync()
+    {
+        await _writeLock.WaitAsync();
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync();
+
+            // Disable FK checks so we can delete in any order
+            await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF");
+
+            foreach (var table in await GetAllTableNamesAsync(db))
+                await db.Database.ExecuteSqlRawAsync($"DELETE FROM \"{table}\"");
+
+            await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON");
+
+            // Re-seed default settings
+            _cache.Clear();
+            foreach (var (key, def) in Defaults)
+            {
+                var entity = new AppSetting
+                {
+                    Category = key.Category, Key = key.Key, Value = def.Value, Type = def.Type
+                };
+                db.AppSettings.Add(entity);
+                _cache[$"{key.Category}:{key.Key}"] = entity;
+            }
+
+            await db.SaveChangesAsync();
+
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync("VACUUM");
+            }
+            catch
+            {
+                /* VACUUM may fail inside a transaction in some SQLite modes */
+            }
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+
+        OnSettingsChanged?.Invoke();
+        changeBus.NotifyChanged();
+        logger.LogWarning("Database reset: all data has been wiped and defaults re-seeded.");
+    }
+
+    private static async Task<List<string>> GetAllTableNamesAsync(AppDbContext db)
+    {
+        var tables = new List<string>();
+        var conn = db.Database.GetDbConnection();
+        var wasOpen = conn.State == ConnectionState.Open;
+        if (!wasOpen) await conn.OpenAsync();
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText =
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '__EF%'";
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                tables.Add(reader.GetString(0));
+        }
+        finally
+        {
+            if (!wasOpen) await conn.CloseAsync();
+        }
+
+        return tables;
+    }
+
+    public async Task ResetSettingsAsync()
+    {
+        await _writeLock.WaitAsync();
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync();
+
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM AppSettings");
+
+            _cache.Clear();
+
+            foreach (var (key, def) in Defaults)
+            {
+                var entity = new AppSetting
+                {
+                    Category = key.Category, Key = key.Key, Value = def.Value, Type = def.Type
+                };
+                db.AppSettings.Add(entity);
+                _cache[$"{key.Category}:{key.Key}"] = entity;
+            }
+
+            await db.SaveChangesAsync();
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+
+        OnSettingsChanged?.Invoke();
+        changeBus.NotifyChanged();
+        logger.LogWarning("Settings reset: all settings restored to defaults.");
     }
 
     #endregion

@@ -5,6 +5,7 @@ using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
 using Trackarr.Services.Settings;
+using Trackarr.Services.UI;
 
 namespace Trackarr.Tests;
 
@@ -25,7 +26,9 @@ public class HealthServiceLifecycleTests
 
     private static HealthService CreateService(SqliteInMemoryFactory factory)
     {
-        return new HealthService(factory, new SettingsService(factory, NullLogger<SettingsService>.Instance));
+        return new HealthService(factory,
+            new SettingsService(factory, NullLogger<SettingsService>.Instance, new DataChangeBus()),
+            new DataChangeBus());
     }
 
     private static DownloadItem MovieItem(int serverId, string downloadId = "dl-1", long sizeLeft = 1000)

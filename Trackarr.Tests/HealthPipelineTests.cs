@@ -5,6 +5,7 @@ using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
 using Trackarr.Services.Settings;
+using Trackarr.Services.UI;
 
 namespace Trackarr.Tests;
 
@@ -94,7 +95,9 @@ public class HealthPipelineTests
     {
         using var factory = new SqliteInMemoryFactory();
         var serverId = await SeedServerAsync(factory);
-        var service = new HealthService(factory, new SettingsService(factory, NullLogger<SettingsService>.Instance));
+        var service = new HealthService(factory,
+            new SettingsService(factory, NullLogger<SettingsService>.Instance, new DataChangeBus()),
+            new DataChangeBus());
 
         var decision = await service.EvaluateAsync(MovieDownload(serverId));
 
@@ -117,7 +120,9 @@ public class HealthPipelineTests
     {
         using var factory = new SqliteInMemoryFactory();
         var serverId = await SeedServerAsync(factory);
-        var service = new HealthService(factory, new SettingsService(factory, NullLogger<SettingsService>.Instance));
+        var service = new HealthService(factory,
+            new SettingsService(factory, NullLogger<SettingsService>.Instance, new DataChangeBus()),
+            new DataChangeBus());
 
         await service.EvaluateAsync(MovieDownload(serverId));
         await service.EvaluateAsync(MovieDownload(serverId));
@@ -132,7 +137,9 @@ public class HealthPipelineTests
     {
         using var factory = new SqliteInMemoryFactory();
         var serverId = await SeedServerAsync(factory);
-        var service = new HealthService(factory, new SettingsService(factory, NullLogger<SettingsService>.Instance));
+        var service = new HealthService(factory,
+            new SettingsService(factory, NullLogger<SettingsService>.Instance, new DataChangeBus()),
+            new DataChangeBus());
         var policy = new HealthPolicy();
 
         await service.EvaluateAsync(MovieDownload(serverId, 1000)); // first seen: score stays at start

@@ -8,7 +8,7 @@
 
 <div class="d-flex align-items-center justify-content-between mb-1">
     <h2 class="mb-0">Blacklist</h2>
-    <button class="btn btn-sm btn-app-primary" @onclick="OpenAdd">
+    <button class="btn btn-app-primary" @onclick="OpenAdd">
         <i class="ti ti-plus me-1"></i>
         Add Entry
     </button>
@@ -20,20 +20,19 @@
     <div class="mb-3">
         <span class="text-muted me-2">Filtered by:</span>
         <span class="badge bg-indigo-lt text-indigo me-1">@_filterType</span>
-        <button class="btn btn-sm btn-app-ghost" @onclick="ClearFilter">Clear</button>
+        <button class="btn btn-app-ghost" @onclick="ClearFilter">Clear</button>
     </div>
 }
 
 <div class="btn-group mb-3" role="group">
-    <button class="btn btn-sm @(_filterType is null ? "btn-app-primary" : "btn-app-ghost")" @onclick="ClearFilter">All
-    </button>
-    <button class="btn btn-sm @(_filterType == BlacklistType.Indexer ? "btn-app-primary" : "btn-app-ghost")"
+    <button class="btn @(_filterType is null ? "btn-app-primary" : "btn-app-ghost")" @onclick="ClearFilter">All</button>
+    <button class="btn @(_filterType == BlacklistType.Indexer ? "btn-app-primary" : "btn-app-ghost")"
             @onclick="() => SetFilter(BlacklistType.Indexer)">Indexers
     </button>
-    <button class="btn btn-sm @(_filterType == BlacklistType.ReleaseGroup ? "btn-app-primary" : "btn-app-ghost")"
+    <button class="btn @(_filterType == BlacklistType.ReleaseGroup ? "btn-app-primary" : "btn-app-ghost")"
             @onclick="() => SetFilter(BlacklistType.ReleaseGroup)">Release Groups
     </button>
-    <button class="btn btn-sm @(_filterType == BlacklistType.Keyword ? "btn-app-primary" : "btn-app-ghost")"
+    <button class="btn @(_filterType == BlacklistType.Keyword ? "btn-app-primary" : "btn-app-ghost")"
             @onclick="() => SetFilter(BlacklistType.Keyword)">Keywords
     </button>
 </div>
@@ -50,7 +49,7 @@
 else
 {
     <div class="table-responsive">
-        <table class="table table-vcenter table-sm">
+        <table class="table table-vcenter">
             <thead>
             <tr>
                 <th>Pattern</th>
@@ -73,7 +72,7 @@ else
                     <td class="text-muted">@(entry.Note ?? "—")</td>
                     <td class="text-muted">@entry.CreatedAt.ToString("MMM d, yyyy")</td>
                     <td>
-                        <button class="btn btn-sm btn-app-ghost text-danger" @onclick="() => RemoveEntry(entry.Id)">
+                        <button class="btn btn-app-ghost text-danger" @onclick="() => RemoveEntry(entry.Id)">
                             <i class="ti ti-trash"></i>
                         </button>
                     </td>
@@ -94,11 +93,21 @@ else
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label">Pattern</label>
+                    <label class="form-label"
+                           data-bs-toggle="tooltip"
+                           title="The text or regex pattern to match against downloads">
+                        Pattern
+                        <i class="ti ti-info-circle ms-1 opacity-50"></i>
+                    </label>
                     <input class="form-control" placeholder="e.g. YIFY, rarbg, *.cam.*" @bind="_newPattern"/>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Type</label>
+                    <label class="form-label"
+                           data-bs-toggle="tooltip"
+                           title="What field to match the pattern against — indexer name, release group, or title keywords">
+                        Type
+                        <i class="ti ti-info-circle ms-1 opacity-50"></i>
+                    </label>
                     <select class="form-select" @bind="_newType">
                         <option value="@BlacklistType.Indexer">Indexer</option>
                         <option value="@BlacklistType.ReleaseGroup">Release Group</option>
@@ -106,14 +115,23 @@ else
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-check form-switch">
+                    <label class="form-label d-block"
+                           data-bs-toggle="tooltip"
+                           title="Treat the pattern as a regular expression instead of a plain text match">
+                        Matching
+                        <i class="ti ti-info-circle ms-1 opacity-50"></i>
+                    </label>
+                    <label class="form-check form-switch mt-2">
                         <input class="form-check-input" type="checkbox" @bind="_newIsRegex"/>
                         <span class="form-check-label">Use Regular Expression</span>
                     </label>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Note
-                        <span class="text-muted">(optional)</span>
+                    <label class="form-label"
+                           data-bs-toggle="tooltip"
+                           title="Optional reminder for why this entry was added">
+                        Note
+                        <i class="ti ti-info-circle ms-1 opacity-50"></i>
                     </label>
                     <input class="form-control" placeholder="Why is this blocked?" @bind="_newNote"/>
                 </div>
@@ -195,5 +213,4 @@ else
             _ => "bg-secondary-lt text-secondary"
         };
     }
-
 }

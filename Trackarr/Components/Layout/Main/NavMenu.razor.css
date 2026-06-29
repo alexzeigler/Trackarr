@@ -1,15 +1,6 @@
 .nav-item {
     font-size: 0.9rem;
-    padding-bottom: 0.5rem;
     padding-inline: 0.75rem;
-}
-
-.nav-item:first-of-type {
-    padding-top: 1rem;
-}
-
-.nav-item:last-of-type {
-    padding-bottom: 1rem;
 }
 
 .inactive-group:hover {
@@ -24,7 +15,6 @@
     display: flex;
     font-weight: 700;
     gap: 0.5rem;
-    height: 3rem;
     padding-inline: 0.75rem;
     width: 100%;
 }

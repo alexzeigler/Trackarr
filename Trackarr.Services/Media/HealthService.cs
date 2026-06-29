@@ -3,10 +3,14 @@ using Trackarr.Core.Health;
 using Trackarr.Core.Queue;
 using Trackarr.Data;
 using Trackarr.Services.Settings;
+using Trackarr.Services.UI;
 
 namespace Trackarr.Services.Media;
 
-public sealed class HealthService(IDbContextFactory<AppDbContext> dbFactory, SettingsService settings)
+public sealed class HealthService(
+    IDbContextFactory<AppDbContext> dbFactory,
+    SettingsService settings,
+    DataChangeBus changeBus)
 {
     #region Evaluation
 
@@ -79,6 +83,7 @@ public sealed class HealthService(IDbContextFactory<AppDbContext> dbFactory, Set
             await _repository.UpdateSourceSummaryAsync(db, attempt, snapshot, healthEvent, now, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
+        changeBus.NotifyChanged();
 
         decision.DownloadAttemptId = attempt.Id;
 
@@ -378,6 +383,7 @@ public sealed class HealthService(IDbContextFactory<AppDbContext> dbFactory, Set
 
         await _repository.UpdateMediaSummaryAsync(db, attempt, null, now, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
+        changeBus.NotifyChanged();
     }
 
     #endregion

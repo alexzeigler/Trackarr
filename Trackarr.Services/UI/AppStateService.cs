@@ -1,8 +1,10 @@
+using Trackarr.Services.Settings;
+
 namespace Trackarr.Services.UI;
 
 public record BreadcrumbSegment(string Label, string? Href);
 
-public sealed class AppStateService
+public sealed class AppStateService : IAsyncDisposable
 {
     private static readonly List<RouteEntry> Routes =
     [
@@ -24,11 +26,37 @@ public sealed class AppStateService
         new("/settings/maintenance", "Maintenance", [new BreadcrumbSegment("Settings", "/settings/maintenance")])
     ];
 
+    private readonly DataChangeBus _bus;
+    private readonly SettingsService _settings;
+    private readonly CancellationTokenSource _timerCts = new();
+    private Task? _timerTask;
+
+    public AppStateService(SettingsService settings, DataChangeBus bus)
+    {
+        _settings = settings;
+        _bus = bus;
+        _bus.OnChanged += OnBusChanged;
+    }
+
     public string PageTitle { get; private set; } = "";
     public List<BreadcrumbSegment> Breadcrumbs { get; private set; } = [];
 
+    public async ValueTask DisposeAsync()
+    {
+        _bus.OnChanged -= OnBusChanged;
+        await _timerCts.CancelAsync();
+        _timerCts.Dispose();
+        if (_timerTask != null)
+            await _timerTask;
+    }
+
     public event Action? OnStateChanged;
     public event Func<Task>? OnRefreshRequested;
+
+    public void StartAutoRefresh()
+    {
+        _timerTask ??= RunAutoRefreshAsync(_timerCts.Token);
+    }
 
     public void UpdateRoute(string uri)
     {
@@ -58,8 +86,42 @@ public sealed class AppStateService
 
     public async Task RequestRefreshAsync()
     {
-        if (OnRefreshRequested is { } handler)
-            await handler.Invoke();
+        await FireRefreshAsync();
+    }
+
+    private void OnBusChanged()
+    {
+        _ = FireRefreshAsync();
+    }
+
+    private async Task RunAutoRefreshAsync(CancellationToken ct)
+    {
+        try
+        {
+            var interval = _settings.GetInt("Display", "QueueRefreshIntervalSeconds", 10);
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Clamp(interval, 5, 300)));
+            while (await timer.WaitForNextTickAsync(ct))
+                await FireRefreshAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task FireRefreshAsync()
+    {
+        if (OnRefreshRequested is not { } handler) return;
+
+        foreach (var d in handler.GetInvocationList().Cast<Func<Task>>())
+        {
+            try
+            {
+                await d();
+            }
+            catch
+            {
+            }
+        }
     }
 
     private record RouteEntry(string Path, string Title, List<BreadcrumbSegment> ParentCrumbs);
