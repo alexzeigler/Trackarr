@@ -246,6 +246,24 @@ public partial class Missing : ComponentBase, IAsyncDisposable
         if (series != null) await _detailsModal.Open(series);
     }
 
+    private async Task SearchMedia(MissingMediaRow row)
+    {
+        // await, not .Result: blocking on an async call can freeze or deadlock a Blazor Server page.
+        var server = await MediaServerService.GetServerByIdAsync(row.ServerId);
+        if (server is null) return;
+
+        var movie = GetMovie(row);
+        if (movie != null)
+        {
+            await MediaServerService.TriggerMovieSearchAsync(server, movie.RemoteId);
+            return;
+        }
+
+        var series = GetSeries(row);
+        if (series != null)
+            await MediaServerService.TriggerSeriesSearchAsync(server, series.RemoteId);
+    }
+
     #endregion
 
     #region Data Loading
