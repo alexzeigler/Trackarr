@@ -4,7 +4,7 @@ public abstract class Routine : IRoutine
 {
     #region Methods
 
-    public abstract Task<string> ExecuteAsync(CancellationToken cancellationToken);
+    public abstract Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken);
 
     #endregion
 
@@ -26,7 +26,6 @@ public abstract class Routine : IRoutine
 
     public bool IsRunning { get; set; }
     public bool IsPaused { get; set; }
-    public bool LastRunSuccess { get; set; }
     public IEnumerable<RoutineRun>? Runs { get; set; }
 
     #endregion

@@ -250,6 +250,7 @@ public class HealthServiceLifecycleTests
         var item = MovieItem(serverId);
         await service.EvaluateAsync(item);
 
+        await service.ResolveMissingAttemptsAsync(serverId, []); // first miss: still active
         var missing = await service.ResolveMissingAttemptsAsync(serverId, []);
 
         Assert.Single(missing);
@@ -279,6 +280,7 @@ public class HealthServiceLifecycleTests
         var item = MovieItem(serverId);
         await service.EvaluateAsync(item);
 
+        await service.ResolveMissingAttemptsAsync(serverId, ["", " ", null!]); // first miss: still active
         var missing = await service.ResolveMissingAttemptsAsync(serverId, ["", " ", null!]);
 
         Assert.Single(missing);

@@ -412,6 +412,7 @@ public partial class MediaDetailsModal : ComponentBase
 
         if (_series is { ServerId: not null })
         {
+            await MediaServerService.SyncSeriesEpisodesAsync(_server, _series.RemoteId);
             _episodes = await MediaServerService.GetEpisodesBySeriesIdAsync(_series.ServerId.Value, _series.RemoteId);
             _episodes = _episodes.OrderBy(x => x.SeasonNumber).ThenBy(x => x.EpisodeNumber).ToList();
         }
@@ -422,7 +423,9 @@ public partial class MediaDetailsModal : ComponentBase
         _activeContexts = [];
         _activeContextIndex = 0;
 
-        var groups = _queueItems.Where(q => !string.IsNullOrEmpty(q.DownloadId)).GroupBy(q => q.DownloadId).ToList();
+        // Group by the same key attempts are stored under, so items with no download ID (pending releases)
+        // still show up and still match their health attempt.
+        var groups = _queueItems.GroupBy(Trackarr.Services.Media.HealthService.GetDownloadId).ToList();
 
         foreach (var group in groups)
         {

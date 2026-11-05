@@ -30,5 +30,11 @@ public class MissingMediaRecord
 
     public bool LoweredToFallback { get; set; }
 
+    /// <summary>
+    ///     Remote quality profile ID the movie/series had before Trackarr lowered it to the fallback, so it can be
+    ///     put back once the item imports. Null if it was never lowered, or was lowered before this was tracked.
+    /// </summary>
+    public int? OriginalQualityProfileId { get; set; }
+
     #endregion
 }

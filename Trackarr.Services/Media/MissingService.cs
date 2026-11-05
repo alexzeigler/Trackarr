@@ -30,6 +30,12 @@ public sealed class MissingService(
         var active = await media.GetActiveSearchesAsync(server);
         var now = DateTime.UtcNow;
 
+        // Passive Mode: keep tracking what's missing, but push nothing to Radarr/Sonarr (no searches, no
+        // profile changes). A zero-capacity batch leaves every due item in the Waiting state.
+        var passive = settings.IsPassiveMode();
+        var batch = new MissingSearchBatch(passive ? 0 : Policy.MaxSearchesPerRun);
+        var abandonedAt = await GetAbandonedAtAsync(db, server.Id, ct);
+
         int count;
 
         if (server.ServiceType == ServiceType.Radarr)
@@ -37,24 +43,20 @@ public sealed class MissingService(
             var missing = await media.GetMissingMoviesAsync(server, true);
             count = missing.Count;
             await ReconcileRadarrAsync(server, db, records, missing, queue);
-            await ProcessRadarrAsync(server, db, records, missing, queue, active, now);
-            await ApplyRadarrFallbackAsync(server, db, records, missing);
+            ProcessRadarr(server, db, records, missing, queue, active, batch, abandonedAt, now);
+            if (!passive) await ApplyRadarrFallbackAsync(server, db, records, missing);
         }
         else
         {
             var missing = await media.GetMissingEpisodesAsync(server, true);
             count = missing.Count;
 
-            var allSeriesIds = records.Select(r => r.RemoteId).Concat(missing.Select(e => e.RemoteSeriesId))
-                .Where(id => id != 0).Distinct().ToList();
-
             await ReconcileSonarrAsync(server, db, records, missing, queue);
-            await ProcessSonarrAsync(server, db, records, missing, queue, active, now);
-            await ApplySonarrFallbackAsync(server, db, records, missing, now);
-
-            foreach (var seriesId in allSeriesIds)
-                await media.SyncSeriesEpisodesAsync(server, seriesId);
+            await ProcessSonarrAsync(server, db, records, missing, queue, active, batch, abandonedAt, now);
+            if (!passive) await ApplySonarrFallbackAsync(server, db, records, missing, now);
         }
+
+        await SendSearchesAsync(server, batch);
 
         await media.UpdateServerStatsAsync(server.Id, s =>
         {
@@ -69,13 +71,27 @@ public sealed class MissingService(
         return count;
     }
 
-    private async Task RunSearchFlowAsync(MediaServer server, AppDbContext db, MissingMediaRecord record, bool inQueue,
-        bool isSearching, bool isAvailable, DateTime now)
+    private void RunSearchFlow(MediaServer server, AppDbContext db, MissingMediaRecord record, bool inQueue,
+        bool isSearching, bool isAvailable, MissingSearchBatch batch,
+        Dictionary<(int RemoteId, int? EpisodeId), DateTime> abandonedAt, DateTime now)
     {
+        var policy = Policy;
         record.LastEvaluatedAt = now;
 
         if (record.SearchState == MissingSearchState.Abandoned)
-            return;
+        {
+            // Abandoned isn't forever: releases show up on indexers later. A missing Abandoned event (never
+            // recorded, or pruned by cleanup) means it was abandoned long ago, so it's due for a retry too.
+            var retryDue = policy.RetryAbandonedAfter > TimeSpan.Zero &&
+                           (!abandonedAt.TryGetValue((record.RemoteId, record.EpisodeId), out var at) ||
+                            now - at >= policy.RetryAbandonedAfter);
+            if (!retryDue) return;
+
+            record.FailedSearchCount = 0;
+            record.LastSearchPushedAt = null;
+            record.SearchState = MissingSearchState.New;
+            AddEvent(db, record, MissingEventType.Retried);
+        }
 
         if (!isAvailable)
         {
@@ -93,7 +109,8 @@ public sealed class MissingService(
 
         if (record.LastSearchPushedAt is { } pushedAt)
         {
-            if (now - pushedAt < Policy.SearchCooldown)
+            // Backoff: 6h, 12h, 24h... by default, so a hard-to-find item isn't re-searched every run.
+            if (now - pushedAt < policy.GetCooldown(record.FailedSearchCount))
             {
                 record.SearchState = MissingSearchState.SkippedCooldown;
                 return;
@@ -104,14 +121,14 @@ public sealed class MissingService(
             AddEvent(db, record, MissingEventType.SearchFailed);
         }
 
-        if (record.FailedSearchCount >= Policy.AbandonAfter)
+        if (record.FailedSearchCount >= policy.AbandonAfter)
         {
             record.SearchState = MissingSearchState.Abandoned;
             AddEvent(db, record, MissingEventType.Abandoned);
             return;
         }
 
-        if (record.LoweredToFallback && record.FailedSearchCount >= Policy.MaxFailedSearches)
+        if (record.LoweredToFallback && record.FailedSearchCount >= policy.MaxFailedSearches)
         {
             record.SearchState = MissingSearchState.Abandoned;
             AddEvent(db, record, MissingEventType.Abandoned);
@@ -124,14 +141,21 @@ public sealed class MissingService(
             return;
         }
 
-        await PushSearchAsync(server, record);
+        // Over this run's cap (or Passive Mode): wait for a later run. Nothing was pushed, so it isn't a failure.
+        if (!batch.TryAdd(server.ServiceType == ServiceType.Radarr, record))
+        {
+            record.SearchState = MissingSearchState.Waiting;
+            return;
+        }
+
         record.SearchState = MissingSearchState.SearchPushed;
         record.LastSearchPushedAt = now;
         AddEvent(db, record, MissingEventType.SearchPushed);
     }
 
-    private async Task ProcessRadarrAsync(MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
-        List<Movie> missing, List<DownloadItem> queue, ActiveSearches active, DateTime now)
+    private void ProcessRadarr(MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
+        List<Movie> missing, List<DownloadItem> queue, ActiveSearches active, MissingSearchBatch batch,
+        Dictionary<(int RemoteId, int? EpisodeId), DateTime> abandonedAt, DateTime now)
     {
         foreach (var item in missing)
         {
@@ -140,12 +164,13 @@ public sealed class MissingService(
 
             var inQueue = queue.Any(q => q.MovieId == item.RemoteId);
             var isSearching = active.MovieIds.Contains(item.RemoteId);
-            await RunSearchFlowAsync(server, db, rec, inQueue, isSearching, item.IsAvailable, now);
+            RunSearchFlow(server, db, rec, inQueue, isSearching, item.IsAvailable, batch, abandonedAt, now);
         }
     }
 
     private async Task ProcessSonarrAsync(MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
-        List<Episode> missing, List<DownloadItem> queue, ActiveSearches active, DateTime now)
+        List<Episode> missing, List<DownloadItem> queue, ActiveSearches active, MissingSearchBatch batch,
+        Dictionary<(int RemoteId, int? EpisodeId), DateTime> abandonedAt, DateTime now)
     {
         foreach (var group in missing.GroupBy(e => e.RemoteSeriesId))
         {
@@ -162,7 +187,7 @@ public sealed class MissingService(
 
                     var inQueue = queue.Any(q => q.EpisodeId == ep.RemoteId);
                     var isSearching = active.EpisodeIds.Contains(ep.RemoteId);
-                    await RunSearchFlowAsync(server, db, rec, inQueue, isSearching, epAvailable, now);
+                    RunSearchFlow(server, db, rec, inQueue, isSearching, epAvailable, batch, abandonedAt, now);
                 }
 
                 continue;
@@ -173,9 +198,9 @@ public sealed class MissingService(
 
             var sInQueue = queue.Any(q => q.SeriesId == seriesId);
             var sSearching = active.SeriesIds.Contains(seriesId);
-            var series = await media.GetSeriesByIdAsync(server, seriesId);
+            var series = await db.Series.FirstOrDefaultAsync(s => s.ServerId == server.Id && s.RemoteId == seriesId);
             var sAvailable = series?.IsAvailable(now) ?? false;
-            await RunSearchFlowAsync(server, db, seriesRec, sInQueue, sSearching, sAvailable, now);
+            RunSearchFlow(server, db, seriesRec, sInQueue, sSearching, sAvailable, batch, abandonedAt, now);
         }
     }
 
@@ -197,12 +222,12 @@ public sealed class MissingService(
 
             if (movie.HasFile)
             {
-                AddEvent(db, rec, MissingEventType.Resolved);
-                RemoveRecord(db, records, rec);
+                if (await RestoreProfileAndRemoveAsync(server, db, records, rec))
+                    AddEvent(db, rec, MissingEventType.Resolved);
             }
             else if (!movie.Monitored)
             {
-                RemoveRecord(db, records, rec);
+                await RestoreProfileAndRemoveAsync(server, db, records, rec);
             }
         }
     }
@@ -235,20 +260,27 @@ public sealed class MissingService(
             {
                 if (queue.Any(q => q.EpisodeId == rec.EpisodeId)) continue;
 
-                if (map is null || !map.TryGetValue(rec.EpisodeId.Value, out var st))
+                if (map is null)
                 {
+                    // The series itself is gone, so there's no profile to put back.
                     RemoveRecord(db, records, rec);
+                    continue;
+                }
+
+                if (!map.TryGetValue(rec.EpisodeId.Value, out var st))
+                {
+                    await RestoreProfileAndRemoveAsync(server, db, records, rec);
                     continue;
                 }
 
                 if (st.HasFile)
                 {
-                    AddEvent(db, rec, MissingEventType.Resolved);
-                    RemoveRecord(db, records, rec);
+                    if (await RestoreProfileAndRemoveAsync(server, db, records, rec))
+                        AddEvent(db, rec, MissingEventType.Resolved);
                 }
                 else if (!st.Monitored)
                 {
-                    RemoveRecord(db, records, rec);
+                    await RestoreProfileAndRemoveAsync(server, db, records, rec);
                 }
             }
             else
@@ -264,8 +296,8 @@ public sealed class MissingService(
 
                 if (monitored.Count > 0 && monitored.All(v => v.HasFile))
                 {
-                    AddEvent(db, rec, MissingEventType.Resolved);
-                    RemoveRecord(db, records, rec);
+                    if (await RestoreProfileAndRemoveAsync(server, db, records, rec))
+                        AddEvent(db, rec, MissingEventType.Resolved);
                 }
             }
         }
@@ -287,7 +319,7 @@ public sealed class MissingService(
 
         foreach (var rec in targets)
         {
-            await media.SetQualityProfileAsync(server, rec.RemoteId, profile.RemoteId);
+            rec.OriginalQualityProfileId = await media.SetQualityProfileAsync(server, rec.RemoteId, profile.RemoteId);
             rec.LoweredToFallback = true;
             rec.FailedSearchCount = 0;
             rec.LastSearchPushedAt = null;
@@ -306,6 +338,9 @@ public sealed class MissingService(
         foreach (var seriesRec in cascadeTargets)
         {
             var eps = missing.Where(e => e.RemoteSeriesId == seriesRec.RemoteId).ToList();
+
+            // A big gap is cheaper as one SeriesSearch than as dozens of per-episode searches.
+            if (eps.Count > Policy.MaxEpisodeCascade) continue;
 
             foreach (var ep in eps)
             {
@@ -333,11 +368,12 @@ public sealed class MissingService(
             if (recs.Count == 0 || recs.Any(r => r.LoweredToFallback)) continue;
             if (!recs.All(r => r.FailedSearchCount >= Policy.MaxFailedSearches)) continue;
 
-            await media.SetQualityProfileAsync(server, grp.Key, profile.RemoteId);
+            var original = await media.SetQualityProfileAsync(server, grp.Key, profile.RemoteId);
 
             foreach (var r in recs)
             {
                 r.LoweredToFallback = true;
+                r.OriginalQualityProfileId = original;
                 r.FailedSearchCount = 0;
                 r.LastSearchPushedAt = null;
                 r.SearchState = MissingSearchState.New;
@@ -346,13 +382,61 @@ public sealed class MissingService(
         }
     }
 
-    private Task PushSearchAsync(MediaServer server, MissingMediaRecord record)
+    /// <summary>
+    ///     Removes a record that's no longer missing. If Trackarr lowered its quality profile, the original goes
+    ///     back first: for Sonarr, once no other lowered record of the same series is left, since the profile is
+    ///     per series. The revert only applies while the item still has the fallback profile, so a profile someone
+    ///     changed by hand is left alone. Returns false and keeps the record when the revert call fails, so the
+    ///     next run tries again.
+    /// </summary>
+    private async Task<bool> RestoreProfileAndRemoveAsync(MediaServer server, AppDbContext db,
+        List<MissingMediaRecord> records, MissingMediaRecord rec)
     {
-        if (server.ServiceType == ServiceType.Radarr)
-            return media.TriggerMovieSearchAsync(server, record.RemoteId);
-        if (record.Tier == MissingSearchTier.Series)
-            return media.TriggerSeriesSearchAsync(server, record.RemoteId);
-        return media.TriggerEpisodeSearchAsync(server, record.EpisodeId!.Value);
+        var needsRestore = rec.LoweredToFallback && rec.OriginalQualityProfileId is not null &&
+                           !records.Any(r => r != rec && r.RemoteId == rec.RemoteId && r.LoweredToFallback);
+
+        var fallback = needsRestore && server.FallBackProfileId is { } fallbackId
+            ? await db.QualityProfiles.FindAsync(fallbackId)
+            : null;
+
+        if (fallback is not null && rec.OriginalQualityProfileId is { } original && original != fallback.RemoteId)
+        {
+            try
+            {
+                var before = await media.SetQualityProfileAsync(server, rec.RemoteId, original, fallback.RemoteId);
+                if (before == fallback.RemoteId) AddEvent(db, rec, MissingEventType.ProfileRestored);
+            }
+            catch (Trackarr.Core.Exception.MediaServerException)
+            {
+                return false;
+            }
+        }
+
+        RemoveRecord(db, records, rec);
+        return true;
+    }
+
+    private async Task SendSearchesAsync(MediaServer server, MissingSearchBatch batch)
+    {
+        if (batch.MovieIds.Count > 0) await media.TriggerMoviesSearchAsync(server, batch.MovieIds.ToList());
+        if (batch.EpisodeIds.Count > 0) await media.TriggerEpisodesSearchAsync(server, batch.EpisodeIds.ToList());
+
+        // SeriesSearch takes a single seriesId.
+        foreach (var seriesId in batch.SeriesIds)
+            await media.TriggerSeriesSearchAsync(server, seriesId);
+    }
+
+    /// <summary>When each currently-abandoned item on this server was last abandoned, from its search events.</summary>
+    private static async Task<Dictionary<(int RemoteId, int? EpisodeId), DateTime>> GetAbandonedAtAsync(
+        AppDbContext db, int serverId, CancellationToken ct)
+    {
+        var rows = await db.SearchEvents.AsNoTracking()
+            .Where(e => e.ServerId == serverId && e.EventType == MissingEventType.Abandoned)
+            .GroupBy(e => new { e.RemoteId, e.EpisodeId })
+            .Select(g => new { g.Key.RemoteId, g.Key.EpisodeId, At = g.Max(e => e.OccurredAt) })
+            .ToListAsync(ct);
+
+        return rows.ToDictionary(r => (r.RemoteId, r.EpisodeId), r => r.At);
     }
 
     private async Task SyncMediaSummariesAsync(AppDbContext db, MediaServer server, List<MissingMediaRecord> records,

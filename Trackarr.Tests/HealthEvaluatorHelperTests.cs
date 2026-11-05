@@ -345,7 +345,8 @@ public class ApplyEvaluationTests
     public void BadScansInLastTen_DecayedOnGoodObservation()
     {
         var snapshot = new HealthSnapshot { BadScansInLastTen = 0 };
-        var evaluation = new HealthEvaluation { IsGoodObservation = true, BadScansInWindow = 7 };
+        // Evaluate always counts the current good scan in the window, so GoodScansInWindow is at least 1 here.
+        var evaluation = new HealthEvaluation { IsGoodObservation = true, BadScansInWindow = 7, GoodScansInWindow = 1 };
         var now = DateTime.UtcNow;
 
         _evaluator.ApplyEvaluation(snapshot, evaluation, now);

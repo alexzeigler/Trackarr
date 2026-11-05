@@ -34,17 +34,18 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
 
         var mediaType = GetMediaType(item);
 
+        // Remote IDs restart at 1 on every Radarr/Sonarr instance, so they are only unique per server.
         var localMovieId = item.MovieId is > 0
-            ? await db.Movies.AsNoTracking().Where(e => e.RemoteId == item.MovieId).Select(e => (int?)e.Id)
-                .FirstOrDefaultAsync(cancellationToken)
+            ? await db.Movies.AsNoTracking().Where(e => e.ServerId == item.ServerId && e.RemoteId == item.MovieId)
+                .Select(e => (int?)e.Id).FirstOrDefaultAsync(cancellationToken)
             : null;
         var localSeriesId = item.SeriesId is > 0
-            ? await db.Series.AsNoTracking().Where(e => e.RemoteId == item.SeriesId).Select(e => (int?)e.Id)
-                .FirstOrDefaultAsync(cancellationToken)
+            ? await db.Series.AsNoTracking().Where(e => e.ServerId == item.ServerId && e.RemoteId == item.SeriesId)
+                .Select(e => (int?)e.Id).FirstOrDefaultAsync(cancellationToken)
             : null;
         var localEpisodeId = item.EpisodeId is > 0
-            ? await db.Episodes.AsNoTracking().Where(e => e.RemoteId == item.EpisodeId).Select(e => (int?)e.Id)
-                .FirstOrDefaultAsync(cancellationToken)
+            ? await db.Episodes.AsNoTracking().Where(e => e.ServerId == item.ServerId && e.RemoteId == item.EpisodeId)
+                .Select(e => (int?)e.Id).FirstOrDefaultAsync(cancellationToken)
             : null;
 
         var replacementAttemptNumber = await GetReplacementAttemptNumberAsync(db, mediaType, localMovieId,

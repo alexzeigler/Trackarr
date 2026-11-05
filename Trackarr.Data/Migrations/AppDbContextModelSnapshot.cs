@@ -103,6 +103,9 @@ namespace Trackarr.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("MissedScans")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("MovieId")
                         .HasColumnType("INTEGER");
 
@@ -697,6 +700,9 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("LoweredToFallback")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("OriginalQualityProfileId")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("RemoteId")
@@ -1392,6 +1398,9 @@ namespace Trackarr.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("DisabledByHeartbeat")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("DownloadsProcessed")
                         .HasColumnType("INTEGER");
 
@@ -1467,6 +1476,11 @@ namespace Trackarr.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
+                    b.Property<double>("UptimePercent")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("REAL")
+                        .HasDefaultValue(100.0);
+
                     b.Property<bool>("UseHttps")
                         .HasColumnType("INTEGER");
 
@@ -1498,6 +1512,43 @@ namespace Trackarr.Data.Migrations
                     b.HasIndex("ServerId");
 
                     b.ToTable("QualityProfiles");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Server.ServerHealthEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ServerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Source")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventType");
+
+                    b.HasIndex("OccurredAt");
+
+                    b.HasIndex("ServerId");
+
+                    b.ToTable("ServerHealthEvents");
                 });
 
             modelBuilder.Entity("Trackarr.Core.Server.ServerMetadata", b =>
@@ -1636,6 +1687,33 @@ namespace Trackarr.Data.Migrations
                     b.HasKey("ServerId");
 
                     b.ToTable("ServerMetadata");
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Server.ServerStatusSample", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("PingMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("SampledAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ServerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SampledAt");
+
+                    b.HasIndex("ServerId");
+
+                    b.ToTable("ServerStatusSamples");
                 });
 
             modelBuilder.Entity("Trackarr.Core.Settings.AppSetting", b =>
@@ -1875,11 +1953,29 @@ namespace Trackarr.Data.Migrations
                     b.Navigation("ParentServer");
                 });
 
+            modelBuilder.Entity("Trackarr.Core.Server.ServerHealthEvent", b =>
+                {
+                    b.HasOne("Trackarr.Core.Server.MediaServer", null)
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Trackarr.Core.Server.ServerMetadata", b =>
                 {
                     b.HasOne("Trackarr.Core.Server.MediaServer", null)
                         .WithOne("Metadata")
                         .HasForeignKey("Trackarr.Core.Server.ServerMetadata", "ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Trackarr.Core.Server.ServerStatusSample", b =>
+                {
+                    b.HasOne("Trackarr.Core.Server.MediaServer", null)
+                        .WithMany()
+                        .HasForeignKey("ServerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

@@ -42,6 +42,8 @@ public class MediaServer
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public bool IsEnabled { get; set; } = true;
+    public bool DisabledByHeartbeat { get; set; }
+    public double UptimePercent { get; set; } = 100;
     public int DownloadsProcessed { get; set; }
 
     public bool? MonitorQueue { get; set; }

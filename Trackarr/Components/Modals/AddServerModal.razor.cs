@@ -179,6 +179,7 @@ public partial class AddServerModal : ComponentBase
     {
         SyncBehaviorToModel();
         IsSaving = true;
+        var isNew = !IsEditing;
         if (IsEditing)
             await ServerService.UpdateServerAsync(Model);
         else
@@ -190,6 +191,9 @@ public partial class AddServerModal : ComponentBase
         IsSaving = false;
         await OnSaved.InvokeAsync();
         await InvokeAsync(StateHasChanged);
+
+        if (isNew)
+            _ = ServerService.SyncServerAsync(Model);
     }
 
     private async Task Close()
@@ -212,7 +216,7 @@ public partial class AddServerModal : ComponentBase
         {
             await Js.InvokeVoidAsync("disposeTooltip", "#fallbackTooltip");
             await Js.InvokeVoidAsync("tomSelectHelper.init", "fallbackProfileSelect",
-                _ref ??= DotNetObjectReference.Create(this));
+                _ref ??= DotNetObjectReference.Create(this), nameof(OnFallbackChanged));
         }
 
         await Js.InvokeVoidAsync("initTooltips");

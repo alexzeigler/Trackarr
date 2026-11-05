@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -14,6 +15,7 @@ using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Data;
+using Trackarr.Services.Settings;
 using Trackarr.Services.UI;
 
 namespace Trackarr.Services.Media;
@@ -22,7 +24,9 @@ public class MediaServerService(
     IDbContextFactory<AppDbContext> dbFactory,
     IHttpClientFactory httpClientFactory,
     ILogger<MediaServerService> logger,
-    DataChangeBus changeBus)
+    DataChangeBus changeBus,
+    HealthService healthService,
+    SettingsService? settings = null)
 {
     private static readonly TimeSpan QueueCacheTtl = TimeSpan.FromSeconds(30);
 
@@ -89,14 +93,21 @@ public class MediaServerService(
         });
     }
 
-    public async Task SetQualityProfileAsync(MediaServer server, int remoteId, int profileId)
+    /// <summary>
+    ///     Sets the movie's or series' quality profile and returns the profile it had before (null if the
+    ///     response had none). With <paramref name="onlyIfCurrent" />, nothing changes unless the current
+    ///     profile is that one, so a revert never overwrites a profile someone changed by hand.
+    /// </summary>
+    public async Task<int?> SetQualityProfileAsync(MediaServer server, int remoteId, int profileId,
+        int? onlyIfCurrent = null)
     {
         if (string.IsNullOrWhiteSpace(server.ApiKey))
             throw new MediaServerException($"{server.Name}: API key is required.");
 
         var resource = server.ServiceType == ServiceType.Radarr ? "movie" : "series";
 
-        await ExecuteApiAsync(server, $"Error setting profile on {resource} {remoteId}.", async () =>
+        var error = $"Error setting profile on {resource} {remoteId}.";
+        var previous = await ExecuteApiAsync<int?>(server, error, async () =>
         {
             var client = CreateClient(server, 15);
             var getUrl = $"{server.BaseUrl}/api/v3/{resource}/{remoteId}";
@@ -107,6 +118,16 @@ public class MediaServerService(
 
             var json = await getResponse.Content.ReadAsStringAsync();
             var node = JsonNode.Parse(json) ?? throw new MediaServerException($"{server.Name}: Empty {resource} body.");
+
+            var current = node["qualityProfileId"]?.GetValue<int>();
+            if (current == profileId) return current;
+            if (onlyIfCurrent is { } expected && current != expected)
+            {
+                logger.LogInformation(
+                    "Left profile {current} on {resource} {id} for {name}; expected {expected}, so it was changed outside Trackarr",
+                    current, resource, remoteId, server.Name, expected);
+                return current;
+            }
 
             node["qualityProfileId"] = profileId;
 
@@ -119,8 +140,10 @@ public class MediaServerService(
 
             logger.LogInformation("Set profile {profile} on {resource} {id} for {name}", profileId, resource, remoteId,
                 server.Name);
+            return current;
         });
         changeBus.NotifyChanged();
+        return previous;
     }
 
     public async Task<HashSet<string>> GetImportedDownloadIdsAsync(MediaServer server, IEnumerable<string> downloadIds)
@@ -436,8 +459,11 @@ public class MediaServerService(
 
             await db.SaveChangesAsync();
 
-            foreach (var seriesId in items.Select(e => e.RemoteSeriesId).Where(id => id != 0).Distinct())
-                await GetSeriesByIdAsync(server, seriesId);
+            var series = await UpsertSeriesFromMissingEpisodesAsync(db, server.Id, items);
+            await db.SaveChangesAsync();
+
+            await EnsureMediaHealthSummariesAsync(db, series, DateTime.UtcNow);
+            await db.SaveChangesAsync();
 
             logger.LogInformation("Fetched {count} missing episodes for {name}", items.Count, server.Name);
             return items;
@@ -549,6 +575,42 @@ public class MediaServerService(
 
             return saved;
         });
+    }
+
+    /// <summary>
+    ///     Upserts series data already embedded in a wanted/missing response (via includeSeries=true)
+    ///     instead of issuing a follow-up GET /api/v3/series/{id} per series.
+    /// </summary>
+    private async Task<List<Series>> UpsertSeriesFromMissingEpisodesAsync(AppDbContext db, int serverId,
+        IEnumerable<Episode> episodes)
+    {
+        List<Series> saved = [];
+
+        foreach (var group in episodes.Where(e => e.RemoteSeriesId != 0 && !string.IsNullOrWhiteSpace(e.SeriesJson))
+                     .GroupBy(e => e.RemoteSeriesId))
+        {
+            var record = JsonSerializer.Deserialize<SeriesRecord>(group.First().SeriesJson!, _jsonOptions);
+            if (record is null) continue;
+
+            var series = record.ToEntity(serverId);
+
+            var existing =
+                await db.Series.FirstOrDefaultAsync(s => s.ServerId == serverId && s.RemoteId == series.RemoteId);
+
+            if (existing is null)
+            {
+                db.Series.Add(series);
+                saved.Add(series);
+            }
+            else
+            {
+                series.Id = existing.Id;
+                db.Entry(existing).CurrentValues.SetValues(series);
+                saved.Add(existing);
+            }
+        }
+
+        return saved;
     }
 
     public async Task<List<Episode>> GetEpisodesBySeriesIdAsync(int seriesServerId, int seriesRemoteId)
@@ -733,7 +795,15 @@ public class MediaServerService(
             }
         }
 
-        server.Metadata = await GetSystemStatusAsync(server);
+        try
+        {
+            server.Metadata = await GetSystemStatusAsync(server);
+        }
+        catch (MediaServerException ex)
+        {
+            logger.LogWarning("Could not fetch metadata for new server {name}: {message}", server.Name, ex.Message);
+        }
+
         changeBus.NotifyChanged();
     }
 
@@ -750,11 +820,38 @@ public class MediaServerService(
         db.Entry(tracked).CurrentValues.SetValues(server);
         await db.SaveChangesAsync();
 
-        await GetSystemStatusAsync(tracked);
-        server.Metadata = await GetSystemStatusAsync(server);
+        // The config save above already succeeded — a server being unreachable shouldn't fail the
+        // whole update (e.g. disabling a dead server must work even though it can't be reached).
+        try
+        {
+            server.Metadata = await GetSystemStatusAsync(server);
+        }
+        catch (MediaServerException ex)
+        {
+            logger.LogWarning("Could not refresh metadata for {name} after update: {message}", server.Name,
+                ex.Message);
+        }
 
         logger.LogInformation("Updated server: {name}", server.Name);
         changeBus.NotifyChanged();
+    }
+
+    /// <summary>
+    ///     Full per-server sync: metadata, queue, health evaluation of every queued item, and missing media.
+    ///     Shared by the "Sync Now" UI action and the heartbeat's recovery path.
+    /// </summary>
+    public async Task SyncServerAsync(MediaServer server)
+    {
+        await UpdateServerAsync(server);
+
+        var items = await GetQueueAsync(server, true);
+        foreach (var item in items)
+            await healthService.EvaluateAsync(item);
+
+        if (server.ServiceType == ServiceType.Sonarr)
+            await GetMissingEpisodesAsync(server, true);
+        else
+            await GetMissingMoviesAsync(server, true);
     }
 
     public async Task DeleteServerAsync(int id)
@@ -827,6 +924,32 @@ public class MediaServerService(
                 {
                     s.IsOnline = server.IsOnline;
                     s.LastPingedAt = server.LastPingedAt;
+                    s.LastErrorAt = server.LastErrorAt;
+                    s.LastError = server.LastError;
+                });
+            }
+
+            throw;
+        }
+        catch (ApiException ex) when (ex.IsAuthFailure)
+        {
+            // Reachable, but the API key was rejected: record that so the UI stops showing it as authenticated.
+            sw.Stop();
+            server.IsOnline = true;
+            server.LastPingedAt = DateTime.UtcNow;
+            server.LastPingMs = sw.ElapsedMilliseconds;
+            server.IsAuthenticated = false;
+            server.LastErrorAt = DateTime.UtcNow;
+            server.LastError = ex.Message;
+
+            if (server.Id != 0)
+            {
+                await UpdateServerStatsAsync(server.Id, s =>
+                {
+                    s.IsOnline = server.IsOnline;
+                    s.LastPingedAt = server.LastPingedAt;
+                    s.LastPingMs = server.LastPingMs;
+                    s.IsAuthenticated = server.IsAuthenticated;
                     s.LastErrorAt = server.LastErrorAt;
                     s.LastError = server.LastError;
                 });
@@ -936,6 +1059,86 @@ public class MediaServerService(
 
     #endregion
 
+    #region Health
+
+    public async Task<List<RemoteHealthMessage>> GetRemoteHealthAsync(MediaServer server)
+    {
+        if (string.IsNullOrWhiteSpace(server.ApiKey))
+            return [];
+
+        try
+        {
+            var client = CreateClient(server, 10);
+            var url = $"{server.BaseUrl}/api/v3/health";
+
+            using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+            if (!response.IsSuccessStatusCode)
+                return [];
+
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            return await JsonSerializer.DeserializeAsync<List<RemoteHealthMessage>>(stream, _jsonOptions) ?? [];
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to fetch remote health for {name}", server.Name);
+            return [];
+        }
+    }
+
+    public async Task LogHealthEventAsync(int serverId, ServerHealthEventType type, string message,
+        string? source = null)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        db.ServerHealthEvents.Add(new ServerHealthEvent
+        {
+            ServerId = serverId,
+            EventType = type,
+            Message = message,
+            Source = source
+        });
+
+        await db.SaveChangesAsync();
+        changeBus.NotifyChanged();
+    }
+
+    public async Task<List<ServerHealthEvent>> GetRecentHealthEventsAsync(int serverId, int take = 50)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        return await db.ServerHealthEvents.Where(e => e.ServerId == serverId).OrderByDescending(e => e.OccurredAt)
+            .Take(take).ToListAsync();
+    }
+
+    /// <summary>
+    ///     Records a heartbeat sample and recomputes the server's all-time uptime percentage from the
+    ///     full sample history (rather than an incremented/decremented heuristic score).
+    /// </summary>
+    public async Task<double> RecordStatusSampleAsync(int serverId, long? pingMs, bool success)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        db.ServerStatusSamples.Add(new ServerStatusSample { ServerId = serverId, PingMs = pingMs, Success = success });
+
+        await db.SaveChangesAsync();
+
+        var total = await db.ServerStatusSamples.CountAsync(s => s.ServerId == serverId);
+        var successes = await db.ServerStatusSamples.CountAsync(s => s.ServerId == serverId && s.Success);
+        var uptimePercent = total == 0 ? 100 : Math.Round(successes / (double)total * 100, 1);
+
+        await UpdateServerStatsAsync(serverId, s => s.UptimePercent = uptimePercent);
+
+        return uptimePercent;
+    }
+
+    public async Task<List<ServerStatusSample>> GetStatusSamplesAsync(int serverId, DateTime since)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        return await db.ServerStatusSamples.Where(s => s.ServerId == serverId && s.SampledAt >= since)
+            .OrderBy(s => s.SampledAt).ToListAsync();
+    }
+
+    #endregion
+
     #region Queue
 
     public async Task<List<DownloadItem>> GetQueueAsync(MediaServer server, bool forceRefresh = false)
@@ -950,6 +1153,24 @@ public class MediaServerService(
             return cached;
         }
 
+        // One rewrite per server at a time: two overlapping refreshes (routine + UI) would both delete and then
+        // both insert, leaving duplicate rows.
+        var queueLock = QueueLocks.GetOrAdd(server.Id, _ => new SemaphoreSlim(1, 1));
+        await queueLock.WaitAsync();
+        try
+        {
+            return await FetchAndStoreQueueAsync(server, forceRefresh);
+        }
+        finally
+        {
+            queueLock.Release();
+        }
+    }
+
+    private static readonly ConcurrentDictionary<int, SemaphoreSlim> QueueLocks = new();
+
+    private async Task<List<DownloadItem>> FetchAndStoreQueueAsync(MediaServer server, bool forceRefresh)
+    {
         return await ExecuteApiAsync(server, "Unexpected error fetching queue.", async () =>
         {
             await using var db = await dbFactory.CreateDbContextAsync();
@@ -970,17 +1191,19 @@ public class MediaServerService(
             }
 
             List<DownloadItem> items = [];
+            List<QueueRecord> records = [];
             var page = 1;
             const int pageSize = 100;
 
             while (true)
             {
-                var (batch, total) = await FetchQueuePageAsync(server, page, pageSize);
+                var (batch, total, batchRecords) = await FetchQueuePageAsync(server, page, pageSize);
 
                 foreach (var item in batch)
                     item.ServerId = server.Id;
 
                 items.AddRange(batch);
+                records.AddRange(batchRecords);
 
                 if (items.Count >= total || batch.Count < pageSize)
                     break;
@@ -988,12 +1211,35 @@ public class MediaServerService(
                 page++;
             }
 
-            await db.Database.ExecuteSqlRawAsync("DELETE FROM DownloadQueue WHERE ServerId = {0}", server.Id);
+            // Delete + insert as one transaction: a reader in between (e.g. the evaluation routine) sees the old
+            // rows until commit instead of an empty queue, which would mark every active download Disappeared.
+            await using (var tx = await db.Database.BeginTransactionAsync())
+            {
+                await db.Database.ExecuteSqlRawAsync("DELETE FROM DownloadQueue WHERE ServerId = {0}", server.Id);
 
-            if (items.Count != 0)
-                db.DownloadQueue.UpdateRange(items);
+                if (items.Count != 0)
+                    db.DownloadQueue.UpdateRange(items);
 
-            await db.SaveChangesAsync();
+                await db.SaveChangesAsync();
+                await tx.CommitAsync();
+            }
+
+            // The queue response already embeds the parent movie/series/episode (includeMovie/includeSeries/
+            // includeEpisode), so hydrate local entities from that instead of re-fetching each one by id.
+            switch (server.ServiceType)
+            {
+                case ServiceType.Radarr:
+                    await UpsertEmbeddedMoviesAsync(db, server.Id, records);
+                    break;
+
+                case ServiceType.Sonarr:
+                    await UpsertEmbeddedSeriesAsync(db, server.Id, records);
+                    await UpsertEmbeddedEpisodesAsync(db, server.Id, records);
+                    break;
+
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
 
             await EnsureQueueParentMediaSummariesAsync(db, server.Id, items, DateTime.UtcNow);
             await db.SaveChangesAsync();
@@ -1006,37 +1252,12 @@ public class MediaServerService(
 
             logger.LogInformation("Fetched {count} queue items for {name}", items.Count, server.Name);
 
-            switch (server.ServiceType)
-            {
-                case ServiceType.Radarr:
-                {
-                    foreach (var movieId in items.Select(i => i.MovieId).Where(id => id != 0).Distinct())
-                        await GetMovieByIdAsync(server, movieId);
-
-                    break;
-                }
-
-                case ServiceType.Sonarr:
-                {
-                    foreach (var seriesId in items.Select(i => i.SeriesId).Where(id => id != 0).Distinct())
-                        await GetSeriesByIdAsync(server, seriesId);
-
-                    foreach (var episodeId in items.Select(i => i.EpisodeId).Where(id => id != 0).Distinct())
-                        await GetEpisodeByIdAsync(server, episodeId);
-
-                    break;
-                }
-
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-
             return items;
         });
     }
 
-    private async Task<(List<DownloadItem> Items, int TotalRecords)> FetchQueuePageAsync(MediaServer server, int page,
-        int pageSize)
+    private async Task<(List<DownloadItem> Items, int TotalRecords, List<QueueRecord> Records)> FetchQueuePageAsync(
+        MediaServer server, int page, int pageSize)
     {
         if (string.IsNullOrWhiteSpace(server.ApiKey))
             throw new MediaServerException($"{server.Name}: API key is required.");
@@ -1045,7 +1266,7 @@ public class MediaServerService(
         {
             var client = CreateClient(server, 15);
             var url =
-                $"{server.BaseUrl}/api/v3/queue?page={page}&pageSize={pageSize}&includeUnknownMovieItems=true&includeMovie=true&includeSeries=true";
+                $"{server.BaseUrl}/api/v3/queue?page={page}&pageSize={pageSize}&includeUnknownMovieItems=true&includeMovie=true&includeSeries=true&includeEpisode=true";
 
             using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
 
@@ -1054,9 +1275,9 @@ public class MediaServerService(
 
             await using var stream = await response.Content.ReadAsStreamAsync();
             var queue = await JsonSerializer.DeserializeAsync<QueueResponse>(stream, _jsonOptions);
+            var records = queue?.Records ?? [];
 
-
-            var items = queue?.Records.Select(x => new DownloadItem
+            var items = records.Select(x => new DownloadItem
             {
                 RemoteId = x.Id,
                 Title = x.Title,
@@ -1084,9 +1305,9 @@ public class MediaServerService(
                 QualityJson = SerializeJsonElement(x.Quality, "null"),
                 CustomFormatsJson = SerializeJsonElement(x.CustomFormats, "[]"),
                 StatusMessagesJson = SerializeJsonElement(x.StatusMessages, "[]")
-            }).ToList() ?? [];
+            }).ToList();
 
-            return (items, queue?.TotalRecords ?? 0);
+            return (items, queue?.TotalRecords ?? 0, records);
         }
         catch (MediaServerException)
         {
@@ -1096,6 +1317,115 @@ public class MediaServerService(
         {
             throw new MediaServerException($"{server.Name}: Error fetching queue page {page}.", ex);
         }
+    }
+
+    private static async Task UpsertEmbeddedMoviesAsync(AppDbContext db, int serverId, IEnumerable<QueueRecord> records)
+    {
+        var movieRecords = records
+            .Where(r => r.Movie is { ValueKind: JsonValueKind.Object })
+            .Select(r => JsonSerializer.Deserialize<MovieRecord>(r.Movie!.Value.GetRawText(), _jsonOptions))
+            .Where(m => m is not null)
+            .Select(m => m!)
+            .DistinctBy(m => m.Id)
+            .ToList();
+
+        if (movieRecords.Count == 0) return;
+
+        var remoteIds = movieRecords.Select(m => m.Id).ToList();
+        var existingByRemote = await db.Movies.Where(m => m.ServerId == serverId && remoteIds.Contains(m.RemoteId))
+            .ToDictionaryAsync(m => m.RemoteId);
+
+        foreach (var record in movieRecords)
+        {
+            var movie = record.ToEntity(serverId);
+
+            if (existingByRemote.TryGetValue(record.Id, out var current))
+            {
+                movie.Id = current.Id;
+                db.Entry(current).CurrentValues.SetValues(movie);
+            }
+            else
+            {
+                db.Movies.Add(movie);
+            }
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task UpsertEmbeddedSeriesAsync(AppDbContext db, int serverId, IEnumerable<QueueRecord> records)
+    {
+        var seriesRecords = records
+            .Where(r => r.Series is { ValueKind: JsonValueKind.Object })
+            .Select(r => JsonSerializer.Deserialize<SeriesRecord>(r.Series!.Value.GetRawText(), _jsonOptions))
+            .Where(s => s is not null)
+            .Select(s => s!)
+            .DistinctBy(s => s.Id)
+            .ToList();
+
+        if (seriesRecords.Count == 0) return;
+
+        var remoteIds = seriesRecords.Select(s => s.Id).ToList();
+        var existingByRemote = await db.Series.Where(s => s.ServerId == serverId && remoteIds.Contains(s.RemoteId))
+            .ToDictionaryAsync(s => s.RemoteId);
+
+        foreach (var record in seriesRecords)
+        {
+            var series = record.ToEntity(serverId);
+
+            if (existingByRemote.TryGetValue(record.Id, out var current))
+            {
+                series.Id = current.Id;
+                db.Entry(current).CurrentValues.SetValues(series);
+            }
+            else
+            {
+                db.Series.Add(series);
+            }
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task UpsertEmbeddedEpisodesAsync(AppDbContext db, int serverId, IEnumerable<QueueRecord> records)
+    {
+        var episodeRecords = records
+            .Where(r => r.Episode is { ValueKind: JsonValueKind.Object })
+            .Select(r => JsonSerializer.Deserialize<EpisodeRecord>(r.Episode!.Value.GetRawText(), _jsonOptions))
+            .Where(e => e is not null)
+            .Select(e => e!)
+            .DistinctBy(e => e.Id)
+            .ToList();
+
+        if (episodeRecords.Count == 0) return;
+
+        var remoteIds = episodeRecords.Select(e => e.Id).ToList();
+        var existingByRemote = await db.Episodes.Where(e => e.ServerId == serverId && remoteIds.Contains(e.RemoteId))
+            .ToDictionaryAsync(e => e.RemoteId);
+
+        var seriesIds = episodeRecords.Select(e => e.SeriesId).Distinct().ToList();
+        var seriesByRemote = await db.Series.Where(s => s.ServerId == serverId && seriesIds.Contains(s.RemoteId))
+            .ToDictionaryAsync(s => s.RemoteId);
+
+        foreach (var record in episodeRecords)
+        {
+            var episode = record.ToEntity(serverId);
+
+            if (seriesByRemote.TryGetValue(record.SeriesId, out var series))
+                episode.SeriesDbId = series.Id;
+
+            if (existingByRemote.TryGetValue(record.Id, out var current))
+            {
+                episode.Id = current.Id;
+                db.Entry(current).CurrentValues.SetValues(episode);
+            }
+            else
+            {
+                db.Episodes.Add(episode);
+            }
+        }
+
+        await db.SaveChangesAsync();
     }
 
     public async Task RemoveFromQueueAsync(MediaServer server, int queueId, bool blocklist = true,
@@ -1146,7 +1476,19 @@ public class MediaServerService(
 
     public Task TriggerMovieSearchAsync(MediaServer server, int movieId)
     {
-        return TriggerSearchAsync(server, "MoviesSearch", "movieIds", new[] { movieId });
+        return TriggerMoviesSearchAsync(server, [movieId]);
+    }
+
+    /// <summary>One MoviesSearch command for several movies, instead of one command each.</summary>
+    public Task TriggerMoviesSearchAsync(MediaServer server, IReadOnlyCollection<int> movieIds)
+    {
+        return TriggerSearchAsync(server, "MoviesSearch", "movieIds", movieIds.ToArray());
+    }
+
+    /// <summary>One EpisodeSearch command for several episodes, instead of one command each.</summary>
+    public Task TriggerEpisodesSearchAsync(MediaServer server, IReadOnlyCollection<int> episodeIds)
+    {
+        return TriggerSearchAsync(server, "EpisodeSearch", "episodeIds", episodeIds.ToArray());
     }
 
     public Task TriggerSeriesSearchAsync(MediaServer server, int seriesId)
@@ -1156,7 +1498,7 @@ public class MediaServerService(
 
     public Task TriggerEpisodeSearchAsync(MediaServer server, int episodeId)
     {
-        return TriggerSearchAsync(server, "EpisodeSearch", "episodeIds", new[] { episodeId });
+        return TriggerEpisodesSearchAsync(server, [episodeId]);
     }
 
     public async Task<ActiveSearches> GetActiveSearchesAsync(MediaServer server)
@@ -1215,8 +1557,12 @@ public class MediaServerService(
             : JsonSerializer.Serialize(value, _compactJsonOptions);
     }
 
-    private HttpClient CreateClient(MediaServer server, int timeoutSeconds)
+    /// <param name="fallbackSeconds">Used only when no settings are available (tests).</param>
+    private HttpClient CreateClient(MediaServer server, int fallbackSeconds)
     {
+        // The server's own Request Timeout wins, then the global one (Settings > Servers).
+        var timeoutSeconds = Math.Max(1, settings?.GetRequestTimeout(server) ?? fallbackSeconds);
+
         var client = httpClientFactory.CreateClient("MediaServerTest");
         client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 

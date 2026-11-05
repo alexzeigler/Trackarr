@@ -89,7 +89,9 @@ public class SettingsService(
         [("HealthPolicy", "GoodObservationBadScanDecay")] = ("2", "int"),
 
         // Missing Policy
-        [("MissingPolicy", "SearchCooldownMinutes")] = ("10", "int"),
+        [("MissingPolicy", "SearchCooldownHours")] = ("6", "int"),
+        [("MissingPolicy", "MaxSearchesPerRun")] = ("10", "int"),
+        [("MissingPolicy", "RetryAbandonedAfterDays")] = ("30", "int"),
         [("MissingPolicy", "MaxFailedSearches")] = ("3", "int"),
         [("MissingPolicy", "MaxEpisodeCascade")] = ("3", "int"),
         [("MissingPolicy", "AbandonAfter")] = ("5", "int"),
@@ -249,35 +251,49 @@ public class SettingsService(
         {
             await using var db = await dbFactory.CreateDbContextAsync();
 
-            // Disable FK checks so we can delete in any order
-            await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF");
-
-            foreach (var table in await GetAllTableNamesAsync(db))
-                await db.Database.ExecuteSqlRawAsync($"DELETE FROM \"{table}\"");
-
-            await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON");
-
-            // Re-seed default settings
-            _cache.Clear();
-            foreach (var (key, def) in Defaults)
-            {
-                var entity = new AppSetting
-                {
-                    Category = key.Category, Key = key.Key, Value = def.Value, Type = def.Type
-                };
-                db.AppSettings.Add(entity);
-                _cache[$"{key.Category}:{key.Key}"] = entity;
-            }
-
-            await db.SaveChangesAsync();
-
+            // PRAGMA foreign_keys is per-connection, and the connection string enables
+            // "Foreign Keys=True" — Microsoft.Data.Sqlite re-applies that on every connection
+            // open, including the implicit open/close ExecuteSqlRawAsync does around each
+            // statement by default. Without holding the connection open ourselves, the OFF
+            // pragma below only lasts for that one statement, so later deletes run with FK
+            // enforcement back on and can fail (or be skipped) depending on table order.
+            await db.Database.OpenConnectionAsync();
             try
             {
-                await db.Database.ExecuteSqlRawAsync("VACUUM");
+                // Disable FK checks so we can delete in any order
+                await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF");
+
+                foreach (var table in await GetAllTableNamesAsync(db))
+                    await db.Database.ExecuteSqlRawAsync($"DELETE FROM \"{table}\"");
+
+                await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON");
+
+                // Re-seed default settings
+                _cache.Clear();
+                foreach (var (key, def) in Defaults)
+                {
+                    var entity = new AppSetting
+                    {
+                        Category = key.Category, Key = key.Key, Value = def.Value, Type = def.Type
+                    };
+                    db.AppSettings.Add(entity);
+                    _cache[$"{key.Category}:{key.Key}"] = entity;
+                }
+
+                await db.SaveChangesAsync();
+
+                try
+                {
+                    await db.Database.ExecuteSqlRawAsync("VACUUM");
+                }
+                catch
+                {
+                    /* VACUUM may fail inside a transaction in some SQLite modes */
+                }
             }
-            catch
+            finally
             {
-                /* VACUUM may fail inside a transaction in some SQLite modes */
+                await db.Database.CloseConnectionAsync();
             }
         }
         finally
@@ -398,10 +414,12 @@ public class SettingsService(
     {
         return new MissingPolicy
         {
-            SearchCooldown = TimeSpan.FromMinutes(GetInt("MissingPolicy", "SearchCooldownMinutes", 10)),
+            SearchCooldown = TimeSpan.FromHours(Math.Max(1, GetInt("MissingPolicy", "SearchCooldownHours", 6))),
             MaxFailedSearches = GetInt("MissingPolicy", "MaxFailedSearches", 3),
             MaxEpisodeCascade = GetInt("MissingPolicy", "MaxEpisodeCascade", 3),
-            AbandonAfter = GetInt("MissingPolicy", "AbandonAfter", 5)
+            AbandonAfter = GetInt("MissingPolicy", "AbandonAfter", 5),
+            MaxSearchesPerRun = Math.Max(1, GetInt("MissingPolicy", "MaxSearchesPerRun", 10)),
+            RetryAbandonedAfter = TimeSpan.FromDays(Math.Max(0, GetInt("MissingPolicy", "RetryAbandonedAfterDays", 30)))
         };
     }
 

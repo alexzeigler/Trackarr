@@ -13,7 +13,6 @@ public interface IRoutine
     DateTimeOffset NextRun { get; set; }
     bool IsRunning { get; set; }
     bool IsPaused { get; set; }
-    bool LastRunSuccess { get; set; }
     IEnumerable<RoutineRun>? Runs { get; set; }
-    Task<string> ExecuteAsync(CancellationToken cancellationToken);
+    Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken);
 }

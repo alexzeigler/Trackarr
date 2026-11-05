@@ -549,7 +549,7 @@ public class HealthCheckRoutineTests
         using var factory = new SqliteInMemoryFactory();
         var routine = CreateRoutine(factory);
 
-        var result = await routine.ExecuteAsync(CancellationToken.None);
+        var result = (await routine.ExecuteAsync(CancellationToken.None)).Message;
 
         Assert.Equal("All systems healthy", result);
     }
@@ -574,7 +574,7 @@ public class HealthCheckRoutineTests
 
         var routine = CreateRoutine(factory, httpFactory: new FailingHttpClientFactory());
 
-        var result = await routine.ExecuteAsync(CancellationToken.None);
+        var result = (await routine.ExecuteAsync(CancellationToken.None)).Message;
 
         Assert.Contains("issue(s) found", result);
     }

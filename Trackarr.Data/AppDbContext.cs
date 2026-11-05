@@ -34,6 +34,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             entity.HasOne(e => e.FallbackProfile).WithMany().HasForeignKey(e => e.FallBackProfileId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.Property(e => e.UptimePercent).HasDefaultValue(100d);
         });
 
         modelBuilder.Entity<ServerMetadata>(entity =>
@@ -418,6 +420,30 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(e => e.Note).HasMaxLength(1000);
             entity.HasIndex(e => e.Type);
         });
+
+        modelBuilder.Entity<ServerHealthEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.EventType).HasConversion<string>().HasMaxLength(50);
+            entity.Property(e => e.Message).IsRequired().HasMaxLength(2000);
+            entity.Property(e => e.Source).HasMaxLength(100);
+
+            entity.HasIndex(e => e.ServerId);
+            entity.HasIndex(e => e.OccurredAt);
+            entity.HasIndex(e => e.EventType);
+
+            entity.HasOne<MediaServer>().WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ServerStatusSample>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.HasIndex(e => e.ServerId);
+            entity.HasIndex(e => e.SampledAt);
+
+            entity.HasOne<MediaServer>().WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     #endregion
@@ -444,6 +470,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<MissingSearchEvent> SearchEvents { get; set; }
     public DbSet<AppSetting> AppSettings { get; set; }
     public DbSet<BlacklistEntry> Blacklist { get; set; }
+    public DbSet<ServerHealthEvent> ServerHealthEvents { get; set; }
+    public DbSet<ServerStatusSample> ServerStatusSamples { get; set; }
 
     #endregion
 }

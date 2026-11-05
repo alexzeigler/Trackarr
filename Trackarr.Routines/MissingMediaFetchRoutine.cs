@@ -22,7 +22,7 @@ public sealed class MissingMediaFetchRoutine(
     public override int IntervalSeconds { get; set; } = 900;
     public override DateTimeOffset NextRun { get; set; } = DateTimeOffset.UtcNow;
 
-    public override async Task<string> ExecuteAsync(CancellationToken cancellationToken)
+    public override async Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken)
     {
         var servers = (await mediaServerService.GetAllServersAsync())
             .Where(s => s.IsEnabled && settings.ShouldSearchMissing(s)).OrderBy(s => s.Priority).ToList();
@@ -53,8 +53,7 @@ public sealed class MissingMediaFetchRoutine(
             }
         }
 
-        LastRunSuccess = failed == 0;
-        return $"{movieCount} missing movies, {episodeCount} missing episodes" +
-               (failed > 0 ? $", {failed} server(s) failed." : ".");
+        return new RoutineResult($"{movieCount} missing movies, {episodeCount} missing episodes" +
+            (failed > 0 ? $", {failed} server(s) failed." : "."), failed == 0);
     }
 }

@@ -175,6 +175,8 @@ public sealed class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
             MissingEventType.CascadedToEpisode => ("Cascaded to Episode", "Cascaded", HistoryTab.Changes),
             MissingEventType.Resolved => ("Resolved", "Completed", HistoryTab.DownloadEvents),
             MissingEventType.Abandoned => ("Abandoned", "Failed", HistoryTab.Changes),
+            MissingEventType.Retried => ("Retried After Abandon", "Pending", HistoryTab.Changes),
+            MissingEventType.ProfileRestored => ("Quality Profile Restored", "Completed", HistoryTab.Changes),
             _ => (type.ToString(), "Unknown", HistoryTab.Events)
         };
     }

@@ -120,6 +120,7 @@ public sealed class MissingStatsService(IDbContextFactory<AppDbContext> dbFactor
             MissingSearchState.NotAvailable => "Not Available",
             MissingSearchState.Stuck => "Stuck",
             MissingSearchState.Abandoned => "Abandoned",
+            MissingSearchState.Waiting => "Waiting",
             _ => state.ToString()
         };
     }

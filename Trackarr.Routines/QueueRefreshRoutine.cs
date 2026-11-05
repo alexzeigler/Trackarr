@@ -8,6 +8,7 @@ namespace Trackarr.Routines;
 
 public sealed class QueueRefreshRoutine(
     MediaServerService mediaServerService,
+    HealthService healthService,
     SettingsService settings,
     ILogger<QueueRefreshRoutine> logger) : Routine
 {
@@ -18,7 +19,7 @@ public sealed class QueueRefreshRoutine(
     public override int IntervalSeconds { get; set; } = 60;
     public override DateTimeOffset NextRun { get; set; } = DateTimeOffset.UtcNow;
 
-    public override async Task<string> ExecuteAsync(CancellationToken cancellationToken)
+    public override async Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken)
     {
         var servers = (await mediaServerService.GetAllServersAsync())
             .Where(s => s.IsEnabled && settings.ShouldMonitorQueue(s)).OrderBy(s => s.Priority).ToList();
@@ -30,19 +31,41 @@ public sealed class QueueRefreshRoutine(
         }
 
         var count = 0;
+        var evaluated = 0;
+        var failed = 0;
 
         foreach (var server in servers)
         {
-            var items = server.ServiceType switch
+            // One unreachable server must not stop the others from refreshing.
+            try
             {
-                ServiceType.Radarr or ServiceType.Sonarr => await mediaServerService.GetQueueAsync(server, true),
-                _ => []
-            };
+                var existingIds = (await healthService.GetActiveDownloadIdsAsync(server.Id, cancellationToken))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            count += items.Count;
+                var items = server.ServiceType switch
+                {
+                    ServiceType.Radarr or ServiceType.Sonarr => await mediaServerService.GetQueueAsync(server, true),
+                    _ => []
+                };
+
+                count += items.Count;
+
+                foreach (var item in items.Where(i => !existingIds.Contains(HealthService.GetDownloadId(i))))
+                {
+                    await healthService.EvaluateAsync(item, cancellationToken);
+                    evaluated++;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                failed++;
+                logger.LogError(ex, "Queue refresh failed for {name}", server.Name);
+            }
         }
 
-        LastRunSuccess = true;
-        return $"{count} queue items found.";
+        var summary = evaluated > 0
+            ? $"{count} queue items found, {evaluated} new item(s) evaluated"
+            : $"{count} queue items found";
+        return new RoutineResult(summary + (failed > 0 ? $", {failed} server(s) failed." : "."), failed == 0);
     }
 }

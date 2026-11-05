@@ -10,6 +10,11 @@
 <ConfirmationDialog @ref="_confirmModal" Text="@_confirmText" OnConfirm="@(() => SendDeleteToDb(_selectedServerId))"/>
 
 <div class="d-flex flex-column gap-3">
+    @if (_actionError != null)
+    {
+        <div class="alert alert-danger mb-0">@_actionError</div>
+    }
+
     <div class="subheader mt-2 mb-2">Server Overview</div>
     <div class="row row-cards mb-3">
         <div class="col-sm-6 col-xl-2">
@@ -142,7 +147,7 @@
                         Add Server
                     </button>
 
-                    <button class="btn btn-app-ghost" @onclick="SyncAll" disabled="@IsRefreshing">
+                    <button class="btn btn-app-ghost" @onclick="RefreshAsync" disabled="@IsRefreshing">
                         <svg xmlns="http://www.w3.org/2000/svg"
                              width="20"
                              height="20"
@@ -199,6 +204,11 @@
                     <th style="width: 80px">
                         <button class="@SortClass("status")" @onclick='() => SortBy("status")'>Status</button>
                     </th>
+                    <th style="width: 90px">
+                        <button class="@SortClass("uptime")" @onclick='() => SortBy("uptime")'>
+                            Uptime
+                        </button>
+                    </th>
                     <th style="width: 75px" class="text-end">
                         <button class="@SortClass("queue")" @onclick='() => SortBy("queue")'>Queue</button>
                     </th>
@@ -214,14 +224,14 @@
                     <th style="width: 90px">
                         <button class="@SortClass("version")" @onclick='() => SortBy("version")'>Version</button>
                     </th>
-                    <th style="width: 130px" class="text-end"></th>
+                    <th style="width: 150px" class="text-end"></th>
                 </tr>
                 </thead>
                 <tbody class="table-tbody">
                 @if (FilteredServers.Count == 0)
                 {
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-4">No servers found</td>
+                        <td colspan="10" class="text-center text-muted py-4">No servers found</td>
                     </tr>
                 }
                 else
@@ -255,7 +265,15 @@
                             </td>
 
                             <td>
-                                <span class="@GetServerStatusBadge(row)">@GetServerStatusText(row)</span>
+                                <span class="@GetServerStatusBadge(row)"
+                                      data-bs-toggle="@(GetLatestEventTooltip(row) != null ? "tooltip" : null)"
+                                      title="@GetLatestEventTooltip(row)">
+                                    @GetServerStatusText(row)
+                                </span>
+                            </td>
+
+                            <td class="fw-semibold @UptimeClass(row.UptimePercent)">
+                                @row.UptimePercent.ToString("0.0")%
                             </td>
 
                             <td class="text-end fw-semibold">
@@ -280,15 +298,19 @@
 
                             <td class="text-end">
                                 <div class="btn-group" @onclick:stopPropagation="true">
-                                    <button class="btn btn-app-ghost btn-sm" @onclick="() => EditServer(row)">
-                                        Edit
-                                    </button>
+                                    <a class="btn btn-app-ghost" href="@($"/servers/uptime?serverId={row.Id}")">
+                                        <i class="ti ti-activity me-1"></i>
+                                        Uptime
+                                    </a>
                                     <button data-bs-toggle="dropdown"
                                             data-bs-strategy="fixed"
                                             type="button"
-                                            class="btn btn-app-ghost btn-sm dropdown-toggle dropdown-toggle-split"
+                                            class="btn btn-app-ghost dropdown-toggle dropdown-toggle-split"
                                             aria-expanded="false"></button>
                                     <div class="dropdown-menu dropdown-menu-end">
+                                        <button class="dropdown-item" type="button" @onclick="() => EditServer(row)">
+                                            Edit
+                                        </button>
                                         <button class="dropdown-item" type="button" @onclick="() => ToggleEnabled(row)">
                                             @(row.IsEnabled ? "Disable" : "Enable")
                                         </button>

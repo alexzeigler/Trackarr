@@ -6,10 +6,7 @@ public static class CrashReporter
 {
     #region Properties
 
-    private static string CrashDir =>
-        Path.Combine(
-            Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Parent?.Parent?.Parent?.FullName ??
-            AppContext.BaseDirectory, "crashes");
+    private static string CrashDir => AppPaths.CrashDirectory;
 
     public static string? LastError { get; private set; }
 

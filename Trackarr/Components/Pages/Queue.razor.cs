@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Trackarr.Components.Modals;
+using Trackarr.Core.Exception;
 using Trackarr.Core.Health;
 using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Media.Shows;
@@ -61,6 +62,8 @@ public partial class Queue : ComponentBase
     private bool _hasServers = true;
     private bool _chartsInitialized;
     private bool _chartsPending;
+    private bool _disposed;
+    private string? _loadError;
 
     private MediaDetailsModal _detailsModal = null!;
     private List<DownloadItem> _downloads = [];
@@ -222,6 +225,7 @@ public partial class Queue : ComponentBase
 
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
         AppState.OnRefreshRequested -= OnAutoRefreshAsync;
         _refreshLock.Dispose();
 
@@ -422,6 +426,7 @@ public partial class Queue : ComponentBase
 
     private async Task RefreshAsync()
     {
+        if (_disposed) return;
         if (!await _refreshLock.WaitAsync(0)) return;
 
         try
@@ -429,6 +434,7 @@ public partial class Queue : ComponentBase
             IsRefreshing = true;
             await InvokeAsync(StateHasChanged);
 
+            _loadError = null;
             var allServers = await MediaServerService.GetAllServersAsync();
             _hasServers = allServers.Count > 0;
             if (!_hasServers) return;
@@ -460,7 +466,10 @@ public partial class Queue : ComponentBase
                     episodes[kvp.Key] = kvp.Value;
             }
 
-            downloads = downloads.DistinctBy(download => $"{download.ServerId}_{download.DownloadId}").ToList();
+            // Same key the evaluation routine uses. Items with no download ID (pending releases, for example)
+            // fall back to queue ID + title instead of all collapsing into one "{server}_" row.
+            downloads = downloads.DistinctBy(download => $"{download.ServerId}_{HealthService.GetDownloadId(download)}")
+                .ToList();
 
             var profiles = new Dictionary<string, QualityProfile>();
 
@@ -504,11 +513,19 @@ public partial class Queue : ComponentBase
             if (!_chartsInitialized)
                 _chartsPending = true;
         }
+        catch (MediaServerException ex)
+        {
+            _loadError = ex.Message;
+        }
         finally
         {
             IsRefreshing = false;
-            _refreshLock.Release();
-            await InvokeAsync(StateHasChanged);
+
+            if (!_disposed)
+            {
+                _refreshLock.Release();
+                await InvokeAsync(StateHasChanged);
+            }
         }
     }
 

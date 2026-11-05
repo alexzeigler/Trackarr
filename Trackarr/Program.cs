@@ -29,6 +29,18 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 var connectionString = ResolveConnectionString(builder);
 
+// Logs and crash reports live next to the database (/config in Docker) so they survive image updates.
+AppPaths.DataDirectory = ResolveDataDirectory(connectionString, builder.Environment.ContentRootPath);
+
+static string ResolveDataDirectory(string connectionString, string contentRootPath)
+{
+    var dataSource = new SqliteConnectionStringBuilder(connectionString).DataSource;
+    var directory = string.IsNullOrWhiteSpace(dataSource) || dataSource == ":memory:"
+        ? null
+        : Path.GetDirectoryName(dataSource);
+    return directory ?? Path.Combine(contentRootPath, "data");
+}
+
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
 {
     options.UseSqlite(connectionString, sqlite => { sqlite.CommandTimeout(30); });

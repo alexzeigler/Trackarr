@@ -1,7 +1,6 @@
 @inject NavigationManager Nav
 @inject SystemStatusService StatusService
 @inject MediaServerService MediaServerService
-@inject MissingService MissingService
 @using Trackarr.Core.SystemInfo
 @using Trackarr.Services.Media
 @using Trackarr.Services.SystemInfo
@@ -126,7 +125,10 @@
     [
         new("Queue", "", "/", "ti ti-stack-2", []),
         new("Missing", "/missing", "/missing", "ti ti-stack-2", []),
-        new("Servers", "/servers", "/servers", "ti ti-server", []),
+        new("Servers", "/servers", "/servers", "ti ti-server", [
+            new NavChild("All Servers", "/servers"),
+            new NavChild("Uptime", "/servers/uptime")
+        ]),
         new("History", "/history", "/history", "ti ti-history", []),
         new("System", "/system/status", "/system", "bi bi-laptop", [
             new NavChild("Status", "/system/status"),
@@ -204,12 +206,19 @@
         {
             var servers = await MediaServerService.GetAllServersAsync();
 
-            var queues = await Task.WhenAll(servers.Select(s => MediaServerService.GetQueueAsync(s)));
-            var queueCount = queues.Sum(q => q.Count);
+            var disabledCount = servers.Count(s => !s.IsEnabled);
+            var serversBadge = disabledCount > 0 ? new BadgeState(disabledCount, "bg-danger") : (BadgeState?)null;
+            GetItem("/servers").Badge = serversBadge;
+            GetChild("/servers", "/servers").Badge = serversBadge;
+
+            // Badges read counts the routines already stored. Never call Radarr/Sonarr from the UI here:
+            // GetQueueAsync rewrites the queue table and EvaluateServerAsync pushes searches and profile changes.
+            var enabledServers = servers.Where(s => s.IsEnabled).ToList();
+
+            var queueCount = enabledServers.Sum(s => s.LastQueueCount ?? 0);
             GetItem("/").Badge = queueCount > 0 ? new BadgeState(queueCount, "bg-info") : null;
 
-            var missingCounts = await Task.WhenAll(servers.Select(s => MissingService.EvaluateServerAsync(s)));
-            var missingCount = missingCounts.Sum();
+            var missingCount = enabledServers.Sum(s => s.LastMissingCount ?? 0);
             GetItem("/missing").Badge = missingCount > 0 ? new BadgeState(missingCount, "bg-warning text-dark") : null;
 
             var messages = await StatusService.GetStatusMessagesAsync();

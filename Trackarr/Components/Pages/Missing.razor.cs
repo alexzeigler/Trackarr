@@ -465,7 +465,13 @@ public partial class Missing : ComponentBase, IAsyncDisposable
 
     private int GetTotalEpisodeCount(MissingMediaRow row)
     {
-        return _episodes.Values.Count(x => x.ServerId == row.ServerId && x.RemoteSeriesId == row.RemoteId);
+        return MissingEpisodeCounts.GetTotalEpisodeCount(_episodes.Values, row.ServerId, row.RemoteId);
+    }
+
+    private int GetMissingEpisodeCount(MissingMediaRow row)
+    {
+        return MissingEpisodeCounts.GetMissingEpisodeCount(_episodes.Values, row.ServerId, row.RemoteId,
+            row.IsEpisodeGroup, row.MissingCount, DateTime.UtcNow);
     }
 
     private static string GetStateDisplay(MissingMediaRow row)
@@ -482,6 +488,7 @@ public partial class Missing : ComponentBase, IAsyncDisposable
             MissingSearchState.NotAvailable => "Not Available",
             MissingSearchState.Stuck => "Stuck",
             MissingSearchState.Abandoned => "Abandoned",
+            MissingSearchState.Waiting => "Waiting",
             _ => states[0].ToString()
         };
     }

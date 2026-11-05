@@ -8,7 +8,7 @@
 
 <div class="d-flex align-items-center justify-content-between mb-1">
     <h2 class="mb-0">Health Scoring</h2>
-    <button class="btn btn-sm btn-app-ghost" @onclick="ResetToDefaults">
+    <button class="btn btn-app-ghost" @onclick="ResetToDefaults">
         <i class="bi bi-arrow-counterclockwise me-1"></i>
         Reset Defaults
     </button>
@@ -99,7 +99,7 @@
     <div class="col-6 col-lg-2">
         <label class="form-label"
                data-bs-toggle="tooltip"
-               title="Number of recent good scans that protect a download from removal after recovery">
+               title="Number of scans after a download recovers during which it can't be removed">
             Recovery Prot.
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
@@ -200,7 +200,7 @@
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
         <input type="number"
-               class="form-control"
+               class="form-control border-success"
                @bind="_policy.HealthyThreshold"
                @bind:after="MarkDirty"/>
     </div>
@@ -210,7 +210,7 @@
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
         <input type="number"
-               class="form-control"
+               class="form-control border-primary"
                @bind="_policy.StableThreshold"
                @bind:after="MarkDirty"/>
     </div>
@@ -222,7 +222,7 @@
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
         <input type="number"
-               class="form-control"
+               class="form-control border-warning"
                @bind="_policy.WatchingThreshold"
                @bind:after="MarkDirty"/>
     </div>
@@ -234,7 +234,7 @@
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
         <input type="number"
-               class="form-control"
+               class="form-control border-danger"
                @bind="_policy.DegradingThreshold"
                @bind:after="MarkDirty"/>
     </div>
@@ -319,6 +319,7 @@
         BuildFieldDefs();
         Context.SaveAsync = SaveAsync;
         Context.DiscardAsync = DiscardAsync;
+        Context.NotifyChanged();
     }
 
     private void BuildFieldDefs()
@@ -327,8 +328,6 @@
         [
                 new FieldDef("Progress", "Points awarded when download progress percentage increases", () => _policy.ProgressIncreaseReward, v => _policy.ProgressIncreaseReward = v),
                 new FieldDef("Size Left", "Points awarded when remaining download size decreases", () => _policy.SizeLeftDecreaseReward, v => _policy.SizeLeftDecreaseReward = v),
-                new FieldDef("Speed", "Points awarded when download speed is positive and active", () => _policy.SpeedPositiveReward, v => _policy.SpeedPositiveReward = v),
-                new FieldDef("ETA", "Points awarded when estimated completion time improves", () => _policy.EtaImprovedReward, v => _policy.EtaImprovedReward = v),
                 new FieldDef("Error Clear", "Points awarded when a previous error state is cleared", () => _policy.ErrorClearedReward, v => _policy.ErrorClearedReward = v),
                 new FieldDef("Recovery", "Points awarded when a download recovers from a degraded state", () => _policy.RecoveryReward, v => _policy.RecoveryReward = v),
                 new FieldDef("Sustained", "Points awarded for maintaining consistent download progress", () => _policy.SustainedProgressReward, v => _policy.SustainedProgressReward = v)
@@ -345,7 +344,7 @@
                 new FieldDef("Downgraded", "Penalty when quality was already downgraded but download is still failing", () => _policy.QualityDowngradedStillFailingPenalty, v => _policy.QualityDowngradedStillFailingPenalty = v),
                 new FieldDef("Fetching", "Penalty applied while the download client is still fetching metadata", () => 0, _ => { }, () => _policy.FetchingMetadataPenalty, v => _policy.FetchingMetadataPenalty = v),
                 new FieldDef("Byte Prot.", "Minutes of byte-level progress that protect a download from no-progress penalties", () => _policy.ByteProgressProtectionMinutes, v => _policy.ByteProgressProtectionMinutes = v, Suffix: "min"),
-                new FieldDef("Bad Decay", "How many bad scan counts are removed per good observation", () => _policy.GoodObservationBadScanDecay, v => _policy.GoodObservationBadScanDecay = v)
+                new FieldDef("Bad Decay", "How many bad scans each good scan in the rolling window cancels out", () => _policy.GoodObservationBadScanDecay, v => _policy.GoodObservationBadScanDecay = v)
         ];
     }
 

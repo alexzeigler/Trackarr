@@ -323,7 +323,7 @@
                                 else if (series != null)
                                 {
                                     var total = GetTotalEpisodeCount(row);
-                                    <span>@row.MissingCount of @total</span>
+                                    <span>@GetMissingEpisodeCount(row) of @total</span>
                                 }
                             </td>
 

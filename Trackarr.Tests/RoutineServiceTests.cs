@@ -19,10 +19,10 @@ internal sealed class StubRoutine : IRoutine
     public DateTimeOffset NextRun { get; set; }
     public bool IsRunning { get; set; }
     public bool IsPaused { get; set; }
-    public bool LastRunSuccess { get; set; }
     public IEnumerable<RoutineRun>? Runs { get; set; }
 
-    public Task<string> ExecuteAsync(CancellationToken cancellationToken) => Task.FromResult("done");
+    public Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<RoutineResult>("done");
 }
 
 public class RoutineServiceTests
@@ -204,8 +204,37 @@ public class RoutineServiceTests
         var saved = all[0];
         Assert.Equal("Updated", saved.Name);
         Assert.Equal("Second version", saved.Description);
-        Assert.True(saved.Enabled);
-        Assert.Equal(120, saved.IntervalSeconds);
+
+        // Regression guard for H1: Enabled and Interval are the user's once the row exists, so code
+        // defaults on re-registration (every startup) must not overwrite them.
+        Assert.False(saved.Enabled);
+        Assert.Equal(30, saved.IntervalSeconds);
+    }
+
+    [Fact]
+    public async Task RegisterRoutineInDbAsync_KeepsUserChangesAcrossRestart()
+    {
+        using var factory = new SqliteInMemoryFactory();
+        var service = CreateService(factory);
+        var stub = new StubRoutine
+        {
+            Key = "restart-key", Name = "Routine", Description = "", Enabled = true, IntervalSeconds = 60,
+            NextRun = DateTimeOffset.UtcNow
+        };
+        await service.RegisterRoutineInDbAsync(stub);
+
+        // The user disables it and changes the interval on the Routines page.
+        var definition = (await service.GetByKeyAsync("restart-key"))!;
+        definition.Enabled = false;
+        definition.IntervalSeconds = 3600;
+        await service.UpdateDefinitionAsync(definition);
+
+        // Restart: the same code defaults are registered again.
+        await service.RegisterRoutineInDbAsync(stub);
+
+        var after = (await service.GetByKeyAsync("restart-key"))!;
+        Assert.False(after.Enabled);
+        Assert.Equal(3600, after.IntervalSeconds);
     }
 
     #endregion

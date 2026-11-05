@@ -36,6 +36,9 @@ public class DownloadAttempt
     public DateTime FirstSeenAt { get; set; }
     public DateTime LastSeenAt { get; set; }
 
+    /// <summary>Consecutive scans this active attempt was missing from the queue. Reset whenever it's seen.</summary>
+    public int MissedScans { get; set; }
+
     public DateTime? CompletedAt { get; set; }
     public DateTime? RemovedAt { get; set; }
     public DateTime? FailedAt { get; set; }

@@ -27,6 +27,10 @@ public sealed class HealthService(
 
         var attempt = await _repository.GetOrCreateAttemptAsync(db, item, server, now, cancellationToken);
         var snapshot = await _repository.GetOrCreateSnapshotAsync(db, attempt, now, cancellationToken);
+        var exemption = HealthEvaluator.GetScoringExemption(item);
+        if (exemption != null)
+            return await RecordExemptAsync(db, item, attempt, snapshot, exemption, now, cancellationToken);
+
         var mediaSummary = await _repository.GetMediaSummaryAsync(db, attempt, cancellationToken);
 
         var observation = HealthEvaluator.BuildObservation(item, attempt, snapshot, now);
@@ -45,6 +49,7 @@ public sealed class HealthService(
         evaluator.ApplyEvaluation(snapshot, evaluation, now);
 
         attempt.LastSeenAt = now;
+        attempt.MissedScans = 0;
         attempt.Title = item.Title ?? attempt.Title;
         attempt.NormalizedTitle = HealthEvaluator.NormalizeTitle(item.Title ?? attempt.Title);
         attempt.DownloadClient = item.DownloadClient;
@@ -70,7 +75,14 @@ public sealed class HealthService(
             db.HealthEvents.Add(healthEvent);
         }
 
-        var decision = evaluator.BuildDecision(attempt, snapshot, evaluation, now);
+        // Scans since the last meaningful recovery: this one (unless it is the recovery) plus the earlier events
+        // after it. Identical no-change scans are merged into one event, so this can undercount, which only
+        // makes the protection last longer.
+        int? scansSinceRecovery = snapshot.LastMeaningfulRecoveryAt is { } recoveredAt
+            ? recentWindow.Count(e => e.OccurredAt > recoveredAt) + (recoveredAt < now ? 1 : 0)
+            : null;
+
+        var decision = evaluator.BuildDecision(attempt, snapshot, evaluation, now, scansSinceRecovery);
 
         snapshot.IsEligibleForRemoval = decision.ShouldRemove;
         snapshot.IsRemovalRestricted = decision.Restrictions.Count > 0;
@@ -88,6 +100,40 @@ public sealed class HealthService(
         decision.DownloadAttemptId = attempt.Id;
 
         return decision;
+    }
+
+    /// <summary>
+    ///     Items waiting on something outside the download (queued, paused, delay profile, import) are not
+    ///     scored: the score and streaks stay frozen and the item is never eligible for removal while waiting.
+    /// </summary>
+    private async Task<HealthDecision> RecordExemptAsync(AppDbContext db, DownloadItem item, DownloadAttempt attempt,
+        HealthSnapshot snapshot, string reason, DateTime now, CancellationToken cancellationToken)
+    {
+        attempt.LastSeenAt = now;
+        attempt.MissedScans = 0;
+        attempt.Title = item.Title ?? attempt.Title;
+        attempt.RemoteId = item.RemoteId;
+
+        snapshot.IsEligibleForRemoval = false;
+        snapshot.IsRemovalRestricted = true;
+        snapshot.RemovalRestrictionReason = reason;
+        snapshot.UpdatedAt = now;
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        return new HealthDecision
+        {
+            DownloadAttemptId = attempt.Id,
+            ShouldRemove = false,
+            State = snapshot.State,
+            RawScore = snapshot.RawScore,
+            VisibleScore = snapshot.VisibleScore,
+            Confidence = snapshot.Confidence,
+            RecoveryCredit = snapshot.RecoveryCredit,
+            ReasonKey = "waiting",
+            Message = reason,
+            Restrictions = [reason]
+        };
     }
 
     #endregion
@@ -214,6 +260,11 @@ public sealed class HealthService(
             }
             else
             {
+                // One missed scan can be a glitch (a partial API response, a refresh caught mid-rewrite). Only
+                // call it Disappeared once it's been missing twice in a row; that status counts as a failure.
+                attempt.MissedScans++;
+                if (attempt.MissedScans < MissedScansBeforeDisappeared) continue;
+
                 attempt.Status = AttemptStatus.Disappeared;
                 attempt.FailedAt = now;
                 attempt.FinalReasonKey = "queue-missing";
@@ -252,8 +303,11 @@ public sealed class HealthService(
 
         await db.SaveChangesAsync(cancellationToken);
 
-        return missing;
+        // Only the attempts actually resolved this scan; ones on their first miss are still Active.
+        return missing.Where(e => e.Status != AttemptStatus.Active).ToList();
     }
+
+    private const int MissedScansBeforeDisappeared = 2;
 
     private async Task MarkTerminalAsync(int attemptId, AttemptStatus status, HealthEventType eventType,
         Severity severity, string reasonKey, string message, bool success, CancellationToken cancellationToken)

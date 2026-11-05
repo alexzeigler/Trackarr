@@ -25,7 +25,7 @@ public sealed class HealthCheckRoutine(
     public override int IntervalSeconds { get; set; } = 600;
     public override DateTimeOffset NextRun { get; set; } = DateTimeOffset.UtcNow.AddSeconds(30);
 
-    public override async Task<string> ExecuteAsync(CancellationToken cancellationToken)
+    public override async Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken)
     {
         var messages = new List<SystemStatusMessage>();
 

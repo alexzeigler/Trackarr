@@ -96,4 +96,17 @@ public class HealthEvaluatorTests
 
         Assert.Equal(5 - Policy.GoodObservationBadScanDecay, snapshot.BadScansInLastTen);
     }
+
+    [Fact]
+    public void BadScanDecay_HoldsWhileTheGoodScanIsInTheWindow()
+    {
+        // Regression guard for H6: the decay used to apply only on the good scan itself and was undone by the
+        // next scan's recount. Now every good scan still in the window keeps forgiving bad ones.
+        var snapshot = new HealthSnapshot();
+        var nextBadScan = new HealthEvaluation { IsBadObservation = true, BadScansInWindow = 6, GoodScansInWindow = 2 };
+
+        _evaluator.ApplyEvaluation(snapshot, nextBadScan, DateTime.UtcNow);
+
+        Assert.Equal(6 - 2 * Policy.GoodObservationBadScanDecay, snapshot.BadScansInLastTen);
+    }
 }

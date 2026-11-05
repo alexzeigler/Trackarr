@@ -30,6 +30,8 @@ public class HealthPolicy
 
     public int ProgressIncreaseReward { get; set; } = 3;
     public int SizeLeftDecreaseReward { get; set; } = 3;
+    // Not scored: "positive speed" is the same signal as progress (already rewarded), and the ETA isn't tracked
+    // between scans. Kept so stored settings still load; hidden from the Health Policy page.
     public int SpeedPositiveReward { get; set; } = 2;
     public int EtaImprovedReward { get; set; } = 1;
     public int ErrorClearedReward { get; set; } = 8;

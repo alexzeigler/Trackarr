@@ -21,15 +21,15 @@ public sealed class RoutineHostedService(
         var definitions = await routineService.GetAllAsync(stoppingToken);
         runner.Load(definitions);
 
-        if (!settings.GetBool("General", "AutoStartRoutines", true))
-            return;
-
+        // The loop always runs so manual runs (Run buttons, queue refresh, "run cleanup now") work. Auto Start only
+        // gates scheduled runs, and is read every tick so changing it applies without a restart.
         using PeriodicTimer timer = new(TimeSpan.FromMilliseconds(500));
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
             try
             {
-                await runner.TickAsync(stoppingToken);
+                var runScheduled = settings.GetBool("General", "AutoStartRoutines", true);
+                await runner.TickAsync(stoppingToken, runScheduled);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

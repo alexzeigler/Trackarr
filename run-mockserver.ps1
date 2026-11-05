@@ -1,7 +1,16 @@
 $ErrorActionPreference = 'Stop'
-$project = Join-Path (Join-Path $PSScriptRoot 'Trackarr.MockServer') 'Trackarr.MockServer.csproj'
+$mockServerDir = Join-Path $PSScriptRoot 'Trackarr.MockServer'
+$project = Join-Path $mockServerDir 'Trackarr.MockServer.csproj'
 $restartDelay = 3
 $shutdownRequested = $false
+$firstStart = $true
+
+$dashboardPort = 9877
+try {
+    $settings = Get-Content (Join-Path $mockServerDir 'appsettings.json') -Raw | ConvertFrom-Json
+    if ($settings.MockServer.RadarrPort) { $dashboardPort = $settings.MockServer.RadarrPort }
+} catch {}
+$dashboardUrl = "http://127.0.0.1:$dashboardPort/"
 
 $null = Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
     $script:shutdownRequested = $true
@@ -23,6 +32,22 @@ while (-not $shutdownRequested) {
     $proc = Start-Process -FilePath 'dotnet' `
         -ArgumentList 'run', '--project', $project `
         -NoNewWindow -PassThru
+
+    if ($firstStart) {
+        $firstStart = $false
+        Start-Job -ScriptBlock {
+            param($url)
+            for ($i = 0; $i -lt 30; $i++) {
+                try {
+                    $null = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 1
+                    Start-Process $url
+                    return
+                } catch {
+                    Start-Sleep -Seconds 1
+                }
+            }
+        } -ArgumentList $dashboardUrl | Out-Null
+    }
 
     try {
         $proc.WaitForExit()
