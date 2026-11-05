@@ -531,7 +531,9 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
 
     private HealthState GetState(decimal rawScore)
     {
-        if (rawScore < 0) return HealthState.Remove;
+        // Remove is a decision, not a score band: HealthService sets it only when nothing blocks removal
+        // (grace period, Auto Remove off, Passive Mode...). A negative score on its own is Critical.
+        if (rawScore < 0) return HealthState.Critical;
 
         if (rawScore >= _policy.HealthyThreshold) return HealthState.Healthy;
 

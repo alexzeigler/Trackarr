@@ -41,10 +41,10 @@ public class RoutineRunnerResultTests
         var definition = runner.GetDefinition(handler.Key)!;
         Assert.Equal(success, definition.LastRunSuccess);
 
-        var run = Assert.Single(runner.History);
+        await using var db = factory.CreateDbContext();
+        var run = Assert.Single(await db.RoutineRuns.ToListAsync());
         Assert.Equal(expectedState, run.State);
 
-        await using var db = factory.CreateDbContext();
         Assert.Equal(success, (await db.Routines.SingleAsync(r => r.Key == handler.Key)).LastRunSuccess);
     }
 
@@ -57,7 +57,6 @@ public class RoutineRunnerResultTests
         runner.RunAsync(handler.Key);
         await runner.TickAsync(CancellationToken.None, runScheduled: false);
 
-        Assert.Single(runner.History);
         Assert.Equal(1, handler.Runs);
     }
 
@@ -68,7 +67,6 @@ public class RoutineRunnerResultTests
 
         await runner.TickAsync(CancellationToken.None, runScheduled: false);
 
-        Assert.Empty(runner.History);
         Assert.Equal(0, handler.Runs);
     }
 

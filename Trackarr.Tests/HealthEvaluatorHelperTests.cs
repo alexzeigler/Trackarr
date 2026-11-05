@@ -101,9 +101,9 @@ public class DeriveStateFromScoreTests
     }
 
     [Fact]
-    public void NegativeScore_ReturnsRemove()
+    public void NegativeScore_ReturnsCritical() // Remove is set from the decision, not the score (M5)
     {
-        Assert.Equal(HealthState.Remove, _evaluator.DeriveStateFromScore(-1));
+        Assert.Equal(HealthState.Critical, _evaluator.DeriveStateFromScore(-1));
     }
 
     [Fact]
@@ -173,9 +173,9 @@ public class DeriveStateFromScoreTests
     }
 
     [Fact]
-    public void VeryNegativeScore_ReturnsRemove()
+    public void VeryNegativeScore_ReturnsCritical()
     {
-        Assert.Equal(HealthState.Remove, _evaluator.DeriveStateFromScore(-1000));
+        Assert.Equal(HealthState.Critical, _evaluator.DeriveStateFromScore(-1000));
     }
 }
 

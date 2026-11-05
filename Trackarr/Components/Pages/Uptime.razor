@@ -201,7 +201,7 @@
                         {
                             <tr @key="evt.Id">
                                 <td><i class="@EventIcon(evt.EventType)"></i></td>
-                                <td class="text-secondary" title="@evt.OccurredAt.ToLocalTime().ToString("f")">
+                                <td class="text-secondary" title="@Utils.ToLocal(evt.OccurredAt).ToString("f")">
                                     @TimeAgo(evt.OccurredAt)
                                 </td>
                                 <td>@evt.EventType</td>

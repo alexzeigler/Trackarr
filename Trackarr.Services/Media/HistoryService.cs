@@ -51,13 +51,20 @@ public sealed class HistoryService(IDbContextFactory<AppDbContext> dbFactory)
 
         var remoteIds = searchEvents.Select(e => e.RemoteId).Distinct().ToList();
 
-        var seriesTitles = await db.Series.AsNoTracking().Where(s => remoteIds.Contains(s.RemoteId))
-            .ToDictionaryAsync(s => (s.ServerId, s.RemoteId), s => s.Title, cancellationToken);
+        // Rows left behind by a deleted server have ServerId = null and can't match an event (events always have
+        // a server), so skip them. Two such orphans with the same remote ID used to throw a duplicate key here and
+        // take the History page down; TryAdd keeps the first of any remaining duplicates instead.
+        var seriesTitles = await db.Series.AsNoTracking()
+            .Where(s => s.ServerId != null && remoteIds.Contains(s.RemoteId))
+            .Select(s => new { s.ServerId, s.RemoteId, s.Title }).ToListAsync(cancellationToken);
 
-        var movieTitles = await db.Movies.AsNoTracking().Where(m => remoteIds.Contains(m.RemoteId))
-            .ToDictionaryAsync(m => (m.ServerId, m.RemoteId), m => m.Title, cancellationToken);
+        var movieTitles = await db.Movies.AsNoTracking()
+            .Where(m => m.ServerId != null && remoteIds.Contains(m.RemoteId))
+            .Select(m => new { m.ServerId, m.RemoteId, m.Title }).ToListAsync(cancellationToken);
 
-        var titleLookup = seriesTitles.Concat(movieTitles).ToDictionary(kv => kv.Key, kv => kv.Value);
+        var titleLookup = new Dictionary<(int?, int), string?>();
+        foreach (var t in seriesTitles.Concat(movieTitles))
+            titleLookup.TryAdd((t.ServerId, t.RemoteId), t.Title);
 
         var rows = new List<HistoryRow>();
 

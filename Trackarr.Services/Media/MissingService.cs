@@ -38,13 +38,21 @@ public sealed class MissingService(
 
         int count;
 
+        // Saves happen right after each batch of calls to Radarr/Sonarr (M6): if a later call fails, what was
+        // already pushed or changed stays recorded instead of being repeated next run. In particular a profile
+        // lowered but not saved would be lowered again, recording the fallback as the "original" profile.
         if (server.ServiceType == ServiceType.Radarr)
         {
             var missing = await media.GetMissingMoviesAsync(server, true);
             count = missing.Count;
             await ReconcileRadarrAsync(server, db, records, missing, queue);
+            await db.SaveChangesAsync(ct); // restored profiles + resolved records
+
             ProcessRadarr(server, db, records, missing, queue, active, batch, abandonedAt, now);
-            if (!passive) await ApplyRadarrFallbackAsync(server, db, records, missing);
+            await SendSearchesAsync(server, batch);
+            await db.SaveChangesAsync(ct);
+
+            if (!passive) await ApplyRadarrFallbackAsync(server, db, records, missing, ct);
         }
         else
         {
@@ -52,11 +60,14 @@ public sealed class MissingService(
             count = missing.Count;
 
             await ReconcileSonarrAsync(server, db, records, missing, queue);
-            await ProcessSonarrAsync(server, db, records, missing, queue, active, batch, abandonedAt, now);
-            if (!passive) await ApplySonarrFallbackAsync(server, db, records, missing, now);
-        }
+            await db.SaveChangesAsync(ct);
 
-        await SendSearchesAsync(server, batch);
+            await ProcessSonarrAsync(server, db, records, missing, queue, active, batch, abandonedAt, now);
+            await SendSearchesAsync(server, batch);
+            await db.SaveChangesAsync(ct);
+
+            if (!passive) await ApplySonarrFallbackAsync(server, db, records, missing, now, ct);
+        }
 
         await media.UpdateServerStatsAsync(server.Id, s =>
         {
@@ -304,7 +315,7 @@ public sealed class MissingService(
     }
 
     private async Task ApplyRadarrFallbackAsync(MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
-        List<Movie> missing)
+        List<Movie> missing, CancellationToken ct)
     {
         if (server.FallBackProfileId is not { } fallbackId) return;
 
@@ -325,11 +336,12 @@ public sealed class MissingService(
             rec.LastSearchPushedAt = null;
             rec.SearchState = MissingSearchState.New;
             AddEvent(db, rec, MissingEventType.DowngradedToFallback);
+            await db.SaveChangesAsync(ct); // record each change to the server before making the next
         }
     }
 
     private async Task ApplySonarrFallbackAsync(MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
-        List<Episode> missing, DateTime now)
+        List<Episode> missing, DateTime now, CancellationToken ct)
     {
         var cascadeTargets = records.Where(r =>
             r.EpisodeId == null && !r.LoweredToFallback && r.SearchState != MissingSearchState.Abandoned &&
@@ -379,6 +391,8 @@ public sealed class MissingService(
                 r.SearchState = MissingSearchState.New;
                 AddEvent(db, r, MissingEventType.DowngradedToFallback);
             }
+
+            await db.SaveChangesAsync(ct);
         }
     }
 

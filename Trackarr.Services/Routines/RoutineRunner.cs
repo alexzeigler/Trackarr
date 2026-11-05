@@ -24,8 +24,6 @@ public sealed class RoutineRunner(
             State = RoutineState.Running
         };
 
-        _history.Add(run);
-
         try
         {
             routine.IsRunning = true;
@@ -107,12 +105,10 @@ public sealed class RoutineRunner(
 
     #region Dependencies
 
-    private readonly List<RoutineRun> _history = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly Queue<string> _manualQueue = new();
     private readonly List<RoutineDefinition> _routines = [];
 
-    public IReadOnlyList<RoutineRun> History => _history.AsReadOnly();
     public bool IsRunning => _lock.CurrentCount == 0;
 
     #endregion

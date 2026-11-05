@@ -179,7 +179,9 @@ public class HealthServiceLifecycleTests
         await using var db = factory.CreateDbContext();
         var attempt = await db.DownloadAttempts.Include(e => e.HealthSnapshot).FirstAsync();
 
-        Assert.Equal(AttemptStatus.RemovedByTrackarr, attempt.Status);
+        // M2: your own removal is external, not a Trackarr removal.
+        Assert.Equal(AttemptStatus.RemovedExternally, attempt.Status);
+        Assert.False(attempt.WasRemovedByTrackarr);
     }
 
     [Fact]

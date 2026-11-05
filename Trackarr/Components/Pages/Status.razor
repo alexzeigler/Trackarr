@@ -147,7 +147,7 @@
 
     private static string FormatBuildTime(DateTime utc)
     {
-        return utc.ToLocalTime().ToString("MMM d, yyyy");
+        return Utils.ToLocal(utc).ToString("MMM d, yyyy");
     }
 
     public void Dispose()

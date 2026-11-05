@@ -70,7 +70,14 @@ public sealed class DatabaseCleanupRoutine(IDbContextFactory<AppDbContext> dbFac
     /// </summary>
     private static async Task<int> DeduplicateHealthEventsAsync(AppDbContext db, CancellationToken ct)
     {
-        var attemptIds = await db.HealthEvents.Select(e => e.DownloadAttemptId).Distinct().ToListAsync(ct);
+        // Only attempts with events since the last cleanup can have anything new to merge (P4). Everything older
+        // was deduped on an earlier run. The hour of margin covers a run that overlapped the previous one.
+        var lastCleanup = await db.Routines.AsNoTracking().Where(r => r.Key == "database-cleanup")
+            .Select(r => r.LastRun).FirstOrDefaultAsync(ct);
+        var since = lastCleanup?.AddHours(-1) ?? DateTime.MinValue;
+
+        var attemptIds = await db.HealthEvents.Where(e => e.OccurredAt >= since).Select(e => e.DownloadAttemptId)
+            .Distinct().ToListAsync(ct);
 
         var totalRemoved = 0;
 
@@ -92,6 +99,7 @@ public sealed class DatabaseCleanupRoutine(IDbContextFactory<AppDbContext> dbFac
                     curr.ConfidenceDelta == 0 && curr.RecoveryCreditDelta == 0)
                 {
                     prev.OccurredAt = curr.OccurredAt;
+                    prev.ScanCount += curr.ScanCount; // keep the rolling window counting scans, not events
                     toRemove.Add(curr);
                 }
                 else

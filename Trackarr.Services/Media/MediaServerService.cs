@@ -262,11 +262,15 @@ public class MediaServerService(
                 page++;
             }
 
+            // One query for the existing rows instead of one per movie (P2).
+            var movieRemoteIds = items.Select(i => i.RemoteId).Distinct().ToList();
+            var existingMovies = await db.Movies
+                .Where(m => m.ServerId == server.Id && movieRemoteIds.Contains(m.RemoteId))
+                .ToDictionaryAsync(m => m.RemoteId);
+
             foreach (var item in items)
             {
-                var existing =
-                    await db.Movies.FirstOrDefaultAsync(m =>
-                        m.ServerId == item.ServerId && m.RemoteId == item.RemoteId);
+                var existing = existingMovies.GetValueOrDefault(item.RemoteId);
 
                 if (existing is null)
                 {
@@ -297,11 +301,10 @@ public class MediaServerService(
 
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        var movies = await db.Movies.Where(movie => movie.ServerId == serverId && movieIds.Contains(movie.RemoteId))
+        var movies = await db.Movies.AsNoTracking().Where(movie => movie.ServerId == serverId && movieIds.Contains(movie.RemoteId))
             .ToListAsync();
 
-        await EnsureMediaHealthSummariesAsync(db, movies, DateTime.UtcNow);
-        await db.SaveChangesAsync();
+        // Read only (P3): the queue refresh already creates these summaries when it stores the queue.
 
         return movies.GroupBy(movie => movie.RemoteId).ToDictionary(group => group.Key, group => group.First());
     }
@@ -440,11 +443,15 @@ public class MediaServerService(
                 page++;
             }
 
+            // One query for the existing rows instead of one per episode (P2).
+            var episodeRemoteIds = items.Select(i => i.RemoteId).Distinct().ToList();
+            var existingEpisodes = await db.Episodes
+                .Where(e => e.ServerId == server.Id && episodeRemoteIds.Contains(e.RemoteId))
+                .ToDictionaryAsync(e => e.RemoteId);
+
             foreach (var item in items)
             {
-                var existing =
-                    await db.Episodes.FirstOrDefaultAsync(e =>
-                        e.ServerId == item.ServerId && e.RemoteId == item.RemoteId);
+                var existing = existingEpisodes.GetValueOrDefault(item.RemoteId);
 
                 if (existing is null)
                 {
@@ -478,11 +485,10 @@ public class MediaServerService(
 
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        var series = await db.Series.Where(item => item.ServerId == serverId && seriesIds.Contains(item.RemoteId))
+        var series = await db.Series.AsNoTracking().Where(item => item.ServerId == serverId && seriesIds.Contains(item.RemoteId))
             .ToListAsync();
 
-        await EnsureMediaHealthSummariesAsync(db, series, DateTime.UtcNow);
-        await db.SaveChangesAsync();
+        // Read only (P3): the queue refresh already creates these summaries when it stores the queue.
 
         return series.GroupBy(item => item.RemoteId).ToDictionary(group => group.Key, group => group.First());
     }
@@ -586,16 +592,23 @@ public class MediaServerService(
     {
         List<Series> saved = [];
 
-        foreach (var group in episodes.Where(e => e.RemoteSeriesId != 0 && !string.IsNullOrWhiteSpace(e.SeriesJson))
-                     .GroupBy(e => e.RemoteSeriesId))
+        var groups = episodes.Where(e => e.RemoteSeriesId != 0 && !string.IsNullOrWhiteSpace(e.SeriesJson))
+            .GroupBy(e => e.RemoteSeriesId).ToList();
+
+        // One query for the existing rows instead of one per series (P2).
+        var seriesRemoteIds = groups.Select(g => g.Key).ToList();
+        var existingSeries = await db.Series
+            .Where(s => s.ServerId == serverId && seriesRemoteIds.Contains(s.RemoteId))
+            .ToDictionaryAsync(s => s.RemoteId);
+
+        foreach (var group in groups)
         {
             var record = JsonSerializer.Deserialize<SeriesRecord>(group.First().SeriesJson!, _jsonOptions);
             if (record is null) continue;
 
             var series = record.ToEntity(serverId);
 
-            var existing =
-                await db.Series.FirstOrDefaultAsync(s => s.ServerId == serverId && s.RemoteId == series.RemoteId);
+            var existing = existingSeries.GetValueOrDefault(series.RemoteId);
 
             if (existing is null)
             {
@@ -693,6 +706,12 @@ public class MediaServerService(
             var seriesEntity =
                 await db.Series.FirstOrDefaultAsync(s => s.ServerId == server.Id && s.RemoteId == seriesId);
 
+            // One query for the existing rows instead of one per episode (P2).
+            var remoteIds = records.Select(r => r.Id).Distinct().ToList();
+            var existingById = await db.Episodes
+                .Where(e => e.ServerId == server.Id && remoteIds.Contains(e.RemoteId))
+                .ToDictionaryAsync(e => e.RemoteId);
+
             foreach (var record in records)
             {
                 var episode = record.ToEntity(server.Id);
@@ -700,9 +719,7 @@ public class MediaServerService(
                 if (seriesEntity is not null)
                     episode.SeriesDbId = seriesEntity.Id;
 
-                var existing =
-                    await db.Episodes.FirstOrDefaultAsync(e =>
-                        e.ServerId == server.Id && e.RemoteId == episode.RemoteId);
+                var existing = existingById.GetValueOrDefault(episode.RemoteId);
 
                 if (existing is null)
                 {
@@ -817,7 +834,18 @@ public class MediaServerService(
         var tracked = await db.MediaServers.FindAsync(server.Id) ??
                       throw new MediaServerException($"{server.Name}: Server not found.");
 
-        db.Entry(tracked).CurrentValues.SetValues(server);
+        var entry = db.Entry(tracked);
+        entry.CurrentValues.SetValues(server);
+
+        // The caller's copy is whatever the page loaded. Status the routines wrote since then (ping, auth,
+        // queue/missing counts, errors) must not be rolled back by saving a form, so keep the stored values.
+        foreach (var name in RoutineOwnedServerFields)
+        {
+            var property = entry.Property(name);
+            property.CurrentValue = property.OriginalValue;
+            property.IsModified = false;
+        }
+
         await db.SaveChangesAsync();
 
         // The config save above already succeeded — a server being unreachable shouldn't fail the
@@ -1168,6 +1196,16 @@ public class MediaServerService(
     }
 
     private static readonly ConcurrentDictionary<int, SemaphoreSlim> QueueLocks = new();
+
+    private static readonly string[] RoutineOwnedServerFields =
+    [
+        nameof(MediaServer.IsOnline), nameof(MediaServer.LastPingedAt), nameof(MediaServer.LastPingMs),
+        nameof(MediaServer.IsAuthenticated), nameof(MediaServer.LastAuthenticatedAt),
+        nameof(MediaServer.LastQueueFetchAt), nameof(MediaServer.LastQueueCount),
+        nameof(MediaServer.LastMissingFetchAt), nameof(MediaServer.LastMissingCount),
+        nameof(MediaServer.LastErrorAt), nameof(MediaServer.LastError),
+        nameof(MediaServer.UptimePercent), nameof(MediaServer.DownloadsProcessed), nameof(MediaServer.CreatedAt)
+    ];
 
     private async Task<List<DownloadItem>> FetchAndStoreQueueAsync(MediaServer server, bool forceRefresh)
     {

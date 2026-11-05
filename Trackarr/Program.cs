@@ -107,7 +107,8 @@ using (var scope = app.Services.CreateScope())
     await db.Database.MigrateAsync();
 
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
-    await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000;");
+    // No busy_timeout pragma: it only applied to this one pooled connection. Microsoft.Data.Sqlite already retries
+    // SQLITE_BUSY until the 30 second command timeout on every connection.
 }
 
 using (var scope = app.Services.CreateScope())
@@ -180,7 +181,8 @@ static string BuildSqliteConnectionString(string connectionString, string conten
 {
     var sqliteConnectionString = new SqliteConnectionStringBuilder(connectionString)
     {
-        Cache = SqliteCacheMode.Shared, Pooling = true, ForeignKeys = true
+        // Private cache (the default): shared cache is discouraged with WAL and can raise SQLITE_LOCKED.
+        Cache = SqliteCacheMode.Default, Pooling = true, ForeignKeys = true
     };
 
     var dataSource = sqliteConnectionString.DataSource;

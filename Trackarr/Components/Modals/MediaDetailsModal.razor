@@ -161,7 +161,8 @@
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
-                                        <button type="button" class="dropdown-item" @onclick="EvaluateItem">Evaluate
+                                        <button type="button" class="dropdown-item" @onclick="EvaluateItem"
+                                                title="Shows what a scan would decide now, without recording it">Evaluate
                                         </button>
                                     </li>
                                     <li>
@@ -182,6 +183,14 @@
 
                 @* ── Body ── *@
                 <div class="modal-body p-3">
+                    @if (_previewMessage != null)
+                    {
+                        <div class="alert alert-info alert-dismissible mb-3" role="status">
+                            <strong>Preview, not recorded:</strong> @_previewMessage
+                            <button type="button" class="btn-close" aria-label="Dismiss"
+                                    @onclick="() => _previewMessage = null"></button>
+                        </div>
+                    }
 
                     @* ═══════════════ OVERVIEW TAB ═══════════════ *@
                     @if (_activeTab == "overview")

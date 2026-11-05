@@ -265,6 +265,8 @@ public partial class MediaDetailsModal : ComponentBase
         }
     }
 
+    private string? _previewMessage;
+
     private async Task EvaluateItem()
     {
         if (_queueItem == null)
@@ -274,10 +276,10 @@ public partial class MediaDetailsModal : ComponentBase
         StateHasChanged();
         try
         {
+            // Preview only: a click mustn't count as a scan and push the item toward removal (M13).
             var delay = Task.Delay(1000);
-            await HealthService.EvaluateAsync(_queueItem);
-            await LoadHealthDataAsync();
-            await BuildActiveContextsAsync();
+            var decision = await HealthService.PreviewAsync(_queueItem);
+            _previewMessage = Pages.Queue.DescribePreview(_queueItem, decision);
             await delay;
         }
         finally
@@ -619,6 +621,7 @@ public partial class MediaDetailsModal : ComponentBase
 
     private void ResetModalState()
     {
+        _previewMessage = null;
         _activeTab = "overview";
         Item = null;
         _media = null;

@@ -320,10 +320,18 @@ public partial class Queue : ComponentBase
 
         try
         {
+            // Preview only: a click mustn't count as a scan and push items toward removal (M13).
+            var removable = new List<string>();
             foreach (var item in group.Items)
-                await HealthService.EvaluateAsync(item);
+            {
+                var decision = await HealthService.PreviewAsync(item);
+                if (decision.ShouldRemove) removable.Add(item.Title ?? "Unknown");
+            }
 
-            await RefreshAsync();
+            _previewMessage = removable.Count == 0
+                ? $"Previewed {group.Items.Count} item(s): none would be removed right now."
+                : $"Previewed {group.Items.Count} item(s): {removable.Count} would be removed on the next scan " +
+                  $"({string.Join(", ", removable)}).";
         }
         finally
         {
@@ -339,8 +347,8 @@ public partial class Queue : ComponentBase
 
         try
         {
-            await HealthService.EvaluateAsync(item);
-            await RefreshAsync();
+            // Preview only: a click mustn't count as a scan and push the item toward removal (M13).
+            _previewMessage = DescribePreview(item, await HealthService.PreviewAsync(item));
         }
         finally
         {
@@ -406,10 +414,26 @@ public partial class Queue : ComponentBase
 
     #region Data Loading
 
-    private async Task OnAutoRefreshAsync()
+    // Raised from a background thread: run on the component's dispatcher so state isn't changed off-thread,
+    // and skip entirely if a refresh is already in flight (charts included, not just the data).
+    private string? _previewMessage;
+
+    public static string DescribePreview(DownloadItem item, HealthDecision decision)
     {
-        await RefreshAsync();
-        await RefreshChartsAsync();
+        var verdict = decision.ShouldRemove
+            ? "Would be removed on the next scan."
+            : $"Would not be removed: {decision.Restrictions.FirstOrDefault() ?? decision.Message}";
+        return $"{item.Title}: score {decision.VisibleScore} ({decision.State}). {verdict}";
+    }
+
+    private Task OnAutoRefreshAsync()
+    {
+        return InvokeAsync(async () =>
+        {
+            if (_refreshLock.CurrentCount == 0) return;
+            await RefreshAsync();
+            await RefreshChartsAsync();
+        });
     }
 
     private async Task RefreshChartsAsync()
@@ -477,21 +501,8 @@ public partial class Queue : ComponentBase
             foreach (var profile in await MediaServerService.GetProfilesAsync(server))
                 profiles[$"{profile.ServerId}_{profile.RemoteId}"] = profile;
 
-            var snapshots = new Dictionary<string, HealthSnapshot>();
-            var summaries = new Dictionary<string, MediaHealthSummary>();
-            var healthEvents = new Dictionary<string, DownloadHealthEvent>();
-
-            foreach (var item in downloads)
-            {
-                var key = GetItemKey(item);
-
-                if (await HealthService.GetMostRecentSnapshotAsync(item) is { } snapshot) snapshots[key] = snapshot;
-
-                if (await HealthService.GetMediaSummary(item) is { } summary) summaries[key] = summary;
-
-                if (await HealthService.GetMostRecentHealthEventAsync(item) is { } healthEvent)
-                    healthEvents[key] = healthEvent;
-            }
+            // One batched read for the whole page (P3), instead of three service calls per download.
+            var (snapshots, summaries, healthEvents) = await HealthService.GetQueueHealthAsync(downloads, GetItemKey);
 
             _servers = servers;
             _serverMap = serverMap;

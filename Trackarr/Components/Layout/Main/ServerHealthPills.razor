@@ -28,10 +28,14 @@
         await LoadServersAsync();
     }
 
-    private async Task RefreshAsync()
+    // Raised from a background thread: load and render on the dispatcher so _servers isn't swapped mid-render.
+    private Task RefreshAsync()
     {
-        await LoadServersAsync();
-        await InvokeAsync(StateHasChanged);
+        return InvokeAsync(async () =>
+        {
+            await LoadServersAsync();
+            StateHasChanged();
+        });
     }
 
     private async Task LoadServersAsync()

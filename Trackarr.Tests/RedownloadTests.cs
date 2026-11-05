@@ -710,7 +710,7 @@ public class RedownloadTests
         var attempts = await db.DownloadAttempts.ToListAsync();
         Assert.Equal(2, attempts.Count);
         Assert.Single(attempts, a => a.Status == AttemptStatus.Active);
-        Assert.Single(attempts, a => a.Status == AttemptStatus.RemovedByTrackarr);
+        Assert.Single(attempts, a => a.Status == AttemptStatus.RemovedExternally);
     }
 
     #endregion

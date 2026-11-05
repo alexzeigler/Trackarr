@@ -19,14 +19,18 @@ public partial class Servers : ComponentBase
 
     #region Data Loading
 
-    private async Task RefreshAsync()
+    // Also raised from a background thread (auto refresh), so all state changes run on the dispatcher.
+    private Task RefreshAsync()
     {
-        IsRefreshing = true;
-        await InvokeAsync(StateHasChanged);
-        _servers = await MediaServerService.GetAllServersAsync();
-        await LoadLatestEventsAsync();
-        IsRefreshing = false;
-        await InvokeAsync(StateHasChanged);
+        return InvokeAsync(async () =>
+        {
+            IsRefreshing = true;
+            StateHasChanged();
+            _servers = await MediaServerService.GetAllServersAsync();
+            await LoadLatestEventsAsync();
+            IsRefreshing = false;
+            StateHasChanged();
+        });
     }
 
     private async Task LoadLatestEventsAsync()

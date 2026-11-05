@@ -89,9 +89,35 @@ public sealed class AppStateService : IAsyncDisposable
         await FireRefreshAsync();
     }
 
+    // Routines fire a change per item (a 50-item evaluation is 50 changes). Coalesce a burst into one refresh
+    // shortly after it starts instead of 50 full page refreshes per open tab.
+    private static readonly TimeSpan BusDebounce = TimeSpan.FromSeconds(1);
+    private int _busRefreshPending;
+
     private void OnBusChanged()
     {
-        _ = FireRefreshAsync();
+        if (Interlocked.Exchange(ref _busRefreshPending, 1) == 1) return;
+        _ = DebouncedRefreshAsync();
+    }
+
+    private async Task DebouncedRefreshAsync()
+    {
+        try
+        {
+            await Task.Delay(BusDebounce, _timerCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+
+        // Changes that arrive from here on schedule the next refresh.
+        Interlocked.Exchange(ref _busRefreshPending, 0);
+        await FireRefreshAsync();
     }
 
     private async Task RunAutoRefreshAsync(CancellationToken ct)

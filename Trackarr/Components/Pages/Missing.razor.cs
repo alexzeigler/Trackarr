@@ -250,10 +250,14 @@ public partial class Missing : ComponentBase, IAsyncDisposable
 
     #region Data Loading
 
-    private async Task OnAutoRefreshAsync()
+    // Raised from a background thread: run on the component's dispatcher so state isn't changed off-thread.
+    private Task OnAutoRefreshAsync()
     {
-        await RefreshAsync();
-        await RefreshChartsAsync();
+        return InvokeAsync(async () =>
+        {
+            await RefreshAsync();
+            await RefreshChartsAsync();
+        });
     }
 
     private async Task RefreshChartsAsync()

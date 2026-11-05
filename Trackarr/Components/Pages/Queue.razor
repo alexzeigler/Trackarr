@@ -22,6 +22,14 @@
         <div class="alert alert-danger mb-0">@_loadError</div>
     }
 
+    @if (_previewMessage != null)
+    {
+        <div class="alert alert-info alert-dismissible mb-0" role="status">
+            <strong>Preview, not recorded:</strong> @_previewMessage
+            <button type="button" class="btn-close" aria-label="Dismiss" @onclick="() => _previewMessage = null"></button>
+        </div>
+    }
+
     <div class="subheader mt-2 mb-2">Queue Overview</div>
     <div class="row row-cards mb-3">
         <div class="col-sm-6 col-xl-2">
@@ -463,7 +471,7 @@
                                                 @onclick="() => OpenGroupDetails(group, firstItem, firstMovie, firstSeries)">
                                             View Details
                                         </button>
-                                        <button class="dropdown-item" @onclick="() => EvaluateGroupAsync(group)">
+                                        <button class="dropdown-item" @onclick="() => EvaluateGroupAsync(group)" title="Shows what a scan would decide now, without recording it">
                                             Evaluate All
                                         </button>
                                         <div class="dropdown-divider"></div>
@@ -578,7 +586,7 @@
                                                         @onclick="() => OpenSetScore(item, snapshot)">
                                                     Set Score
                                                 </button>
-                                                <button class="dropdown-item" @onclick="() => EvaluateItemAsync(item)">
+                                                <button class="dropdown-item" @onclick="() => EvaluateItemAsync(item)" title="Shows what a scan would decide now, without recording it">
                                                     Evaluate
                                                 </button>
                                                 <button class="dropdown-item"
