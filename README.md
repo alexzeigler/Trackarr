@@ -151,8 +151,10 @@ first run, in `Trackarr.Data/` during development.
 dotnet test
 ```
 
-**Mock server:** `Trackarr.MockServer` imitates Radarr and Sonarr with a live queue, so you can try Trackarr without real
-servers. Start it with `run-mockserver.ps1`.
+**Mock server:** `Trackarr.MockServer` sits between Trackarr and a real Radarr/Sonarr. Reads (queue, missing, library)
+come from the live servers set in user secrets (`MockServer:RadarrSourceUrl`/`RadarrSourceApiKey`, same for Sonarr).
+Searches and queue removals are only logged, never forwarded, so you can test against real data safely. It requires
+its own API key, shown and editable on its dashboard. Start it with `run-mockserver.ps1`.
 
 ### Project structure
 

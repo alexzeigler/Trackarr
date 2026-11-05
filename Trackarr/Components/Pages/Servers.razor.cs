@@ -4,6 +4,7 @@ using Microsoft.JSInterop;
 using Trackarr.Components.Modals;
 using Trackarr.Core.Exception;
 using Trackarr.Core.Server;
+using Trackarr.Services.Media;
 using Trackarr.Services.UI;
 using static Trackarr.Utils;
 
@@ -14,6 +15,7 @@ public partial class Servers : ComponentBase
     #region Injected Services
 
     [Inject] private AppStateService AppState { get; set; } = null!;
+    [Inject] private ServerSyncService ServerSync { get; set; } = null!;
 
     #endregion
 
@@ -175,9 +177,9 @@ public partial class Servers : ComponentBase
 
         try
         {
-            await MediaServerService.SyncServerAsync(row);
+            await ServerSync.SyncAsync(row);
         }
-        catch (MediaServerException ex)
+        catch (Exception ex) // the missing pass can fail with more than an API error
         {
             _actionError = ex.Message;
         }

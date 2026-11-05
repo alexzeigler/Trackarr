@@ -106,9 +106,8 @@ public sealed class HealthService(
         var decision = evaluator.BuildDecision(attempt, snapshot, evaluation, now, scansSinceRecovery);
 
         // Settings that block removal belong in the decision too, so nothing shows as "Remove" that won't be.
-        var settingsBlock = settings.IsPassiveMode() ? "Passive Mode is on."
-            : server is not null && !settings.ShouldAutoRemove(server) ? "Auto Remove is off for this server."
-            : null;
+        var settingsBlock = settings.IsPassiveMode() ? "Passive Mode is on." :
+            server is not null && !settings.ShouldAutoRemove(server) ? "Auto Remove is off for this server." : null;
         if (settingsBlock is not null)
         {
             decision.Restrictions.Add(settingsBlock);
@@ -235,8 +234,8 @@ public sealed class HealthService(
 
         // Your own removal isn't a Trackarr removal: it mustn't set WasRemovedByTrackarr or count toward the
         // media's stuck flag.
-        await MarkTerminalAsync(attempt, AttemptStatus.RemovedExternally, HealthEventType.RemovedByUser,
-            Severity.Info, "removed-by-user", "Manually removed from queue by user.", false, cancellationToken);
+        await MarkTerminalAsync(attempt, AttemptStatus.RemovedExternally, HealthEventType.RemovedByUser, Severity.Info,
+            "removed-by-user", "Manually removed from queue by user.", false, cancellationToken);
     }
 
     // Test-only (nothing in the app calls it); internal so it isn't part of the service's API.
@@ -620,6 +619,33 @@ public sealed class HealthService(
             .ToListAsync(cancellationToken);
     }
 
+    /// <summary>
+    ///     Scores every item that has no active attempt yet (first scan), once per download ID, and returns how
+    ///     many it scored. Items already being tracked are left for the evaluation routine.
+    /// </summary>
+    public async Task<int> EvaluateNewItemsAsync(IReadOnlyCollection<DownloadItem> items,
+        CancellationToken cancellationToken = default)
+    {
+        if (items.Count == 0) return 0;
+
+        // Keyed by server too: attempts belong to one server, and two servers can share a download client.
+        var tracked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var serverId in items.Select(i => i.ServerId).Distinct())
+        foreach (var id in await GetActiveDownloadIdsAsync(serverId, cancellationToken))
+            tracked.Add($"{serverId}|{id}");
+
+        var evaluated = 0;
+        foreach (var item in items)
+        {
+            // Add returns false for IDs already tracked or already scored in this batch (season packs share one).
+            if (!tracked.Add($"{item.ServerId}|{GetDownloadId(item)}")) continue;
+            await EvaluateAsync(item, cancellationToken);
+            evaluated++;
+        }
+
+        return evaluated;
+    }
+
     public async Task<List<string>> GetActiveDownloadIdsAsync(int serverId,
         CancellationToken cancellationToken = default)
     {
@@ -653,10 +679,11 @@ public sealed class HealthService(
     ///     the per-item methods: the latest attempt's snapshot, the active attempt's latest event, and the movie's
     ///     or series' summary (the series roll-up for Sonarr items).
     /// </summary>
-    public async Task<(Dictionary<string, HealthSnapshot> Snapshots, Dictionary<string, MediaHealthSummary> Summaries,
-            Dictionary<string, DownloadHealthEvent> Events)>
-        GetQueueHealthAsync(IReadOnlyCollection<DownloadItem> items, Func<DownloadItem, string> keyOf,
-            CancellationToken cancellationToken = default)
+    public async
+        Task<(Dictionary<string, HealthSnapshot> Snapshots, Dictionary<string, MediaHealthSummary> Summaries,
+            Dictionary<string, DownloadHealthEvent> Events)> GetQueueHealthAsync(
+            IReadOnlyCollection<DownloadItem> items,
+            Func<DownloadItem, string> keyOf, CancellationToken cancellationToken = default)
     {
         var snapshots = new Dictionary<string, HealthSnapshot>();
         var summaries = new Dictionary<string, MediaHealthSummary>();
@@ -674,8 +701,7 @@ public sealed class HealthService(
         var attemptsByKey = attempts.ToLookup(e => (e.ServerId, e.DownloadId));
 
         var activeIds = attempts.Where(e => e.Status == AttemptStatus.Active).Select(e => e.Id).ToList();
-        var latestEvents = await db.HealthEvents.AsNoTracking()
-            .Where(e => activeIds.Contains(e.DownloadAttemptId))
+        var latestEvents = await db.HealthEvents.AsNoTracking().Where(e => activeIds.Contains(e.DownloadAttemptId))
             .Where(e => e.Id == db.HealthEvents.Where(x => x.DownloadAttemptId == e.DownloadAttemptId)
                 .OrderByDescending(x => x.OccurredAt).Select(x => x.Id).First())
             .ToDictionaryAsync(e => e.DownloadAttemptId, cancellationToken);
@@ -700,7 +726,8 @@ public sealed class HealthService(
             .Where(e => e.MediaType == TrackedMediaType.Series && localSeriesIds.Contains(e.SeriesId))
             .ToListAsync(cancellationToken);
 
-        var movieIdByRemote = movieIds.GroupBy(e => (e.ServerId, e.RemoteId)).ToDictionary(g => g.Key, g => g.First().Id);
+        var movieIdByRemote =
+            movieIds.GroupBy(e => (e.ServerId, e.RemoteId)).ToDictionary(g => g.Key, g => g.First().Id);
         var seriesIdByRemote =
             seriesIds.GroupBy(e => (e.ServerId, e.RemoteId)).ToDictionary(g => g.Key, g => g.First().Id);
         var movieSummaryById = movieSummaries.GroupBy(e => e.MovieId!.Value)
@@ -877,7 +904,8 @@ public sealed class HealthService(
 
             if (seriesId > 0)
             {
-                return await db.MediaHealthSummaries.AsNoTracking().Where(e => e.SeriesId == seriesId)
+                return await db.MediaHealthSummaries.AsNoTracking().Where(e =>
+                        e.MediaType == TrackedMediaType.Series && e.SeriesId == seriesId)
                     .OrderByDescending(e => e.CreatedAt).FirstOrDefaultAsync(cancellationToken);
             }
         }
@@ -928,7 +956,8 @@ public sealed class HealthService(
                 .FirstOrDefaultAsync(cancellationToken);
             if (seriesId <= 0) return null;
 
-            return await db.MediaHealthSummaries.AsNoTracking().Where(e => e.SeriesId == seriesId)
+            return await db.MediaHealthSummaries.AsNoTracking()
+                .Where(e => e.MediaType == TrackedMediaType.Series && e.SeriesId == seriesId)
                 .OrderByDescending(e => e.CreatedAt).FirstOrDefaultAsync(cancellationToken);
         }
 

@@ -6,6 +6,9 @@ namespace Trackarr.Tests;
 
 public class QueueStatsServiceTests : IDisposable
 {
+    // A snapshot only counts toward averages once it has been scored (not just seen waiting in a queue).
+    private static readonly DateTime Seen = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
     private readonly SqliteInMemoryFactory _factory = new();
     private readonly QueueStatsService _sut;
 
@@ -101,8 +104,8 @@ public class QueueStatsServiceTests : IDisposable
 
         var snapshots = new Dictionary<string, HealthSnapshot>
         {
-            [Key(downloads[0])] = new() { VisibleScore = 30 }, // <= 39 -> at risk
-            [Key(downloads[1])] = new() { VisibleScore = 80 } // fine
+            [Key(downloads[0])] = new() { VisibleScore = 30, LastObservationAt = Seen }, // <= 39 -> at risk
+            [Key(downloads[1])] = new() { VisibleScore = 80, LastObservationAt = Seen } // fine
         };
 
         var result = _sut.BuildStats(downloads, snapshots, new(), d => Key(d));
@@ -117,7 +120,7 @@ public class QueueStatsServiceTests : IDisposable
 
         var snapshots = new Dictionary<string, HealthSnapshot>
         {
-            [Key(downloads[0])] = new() { VisibleScore = 90, IsEligibleForRemoval = true }
+            [Key(downloads[0])] = new() { VisibleScore = 90, IsEligibleForRemoval = true, LastObservationAt = Seen }
         };
 
         var result = _sut.BuildStats(downloads, snapshots, new(), d => Key(d));
@@ -143,7 +146,8 @@ public class QueueStatsServiceTests : IDisposable
 
         var snapshots = new Dictionary<string, HealthSnapshot>
         {
-            [Key(downloads[0])] = new() { VisibleScore = 95 }, [Key(downloads[1])] = new() { VisibleScore = 85 }
+            [Key(downloads[0])] = new() { VisibleScore = 95, LastObservationAt = Seen },
+            [Key(downloads[1])] = new() { VisibleScore = 85, LastObservationAt = Seen }
         };
 
         var result = _sut.BuildStats(downloads, snapshots, new(), d => Key(d));
@@ -162,9 +166,9 @@ public class QueueStatsServiceTests : IDisposable
 
         var snapshots = new Dictionary<string, HealthSnapshot>
         {
-            [Key(downloads[0])] = new() { VisibleScore = 60 },
-            [Key(downloads[1])] = new() { VisibleScore = 80 },
-            [Key(downloads[2])] = new() { VisibleScore = 100 }
+            [Key(downloads[0])] = new() { VisibleScore = 60, LastObservationAt = Seen },
+            [Key(downloads[1])] = new() { VisibleScore = 80, LastObservationAt = Seen },
+            [Key(downloads[2])] = new() { VisibleScore = 100, LastObservationAt = Seen }
         };
 
         var result = _sut.BuildStats(downloads, snapshots, new(), d => Key(d));
@@ -188,7 +192,10 @@ public class QueueStatsServiceTests : IDisposable
         var downloads = new List<DownloadItem> { MakeDownload(), MakeDownload() };
 
         // Only one download has a snapshot
-        var snapshots = new Dictionary<string, HealthSnapshot> { [Key(downloads[0])] = new() { VisibleScore = 50 } };
+        var snapshots = new Dictionary<string, HealthSnapshot>
+        {
+            [Key(downloads[0])] = new() { VisibleScore = 50, LastObservationAt = Seen }
+        };
 
         var result = _sut.BuildStats(downloads, snapshots, new(), d => Key(d));
 
@@ -291,11 +298,11 @@ public class QueueStatsServiceTests : IDisposable
 
         var snapshots = new Dictionary<string, HealthSnapshot>
         {
-            [Key(downloads[0])] = new() { VisibleScore = 20 }, // Critical
-            [Key(downloads[1])] = new() { VisibleScore = 50 }, // Poor
-            [Key(downloads[2])] = new() { VisibleScore = 70 }, // Fair
-            [Key(downloads[3])] = new() { VisibleScore = 85 }, // Good
-            [Key(downloads[4])] = new() { VisibleScore = 95 } // Healthy
+            [Key(downloads[0])] = new() { VisibleScore = 20, LastObservationAt = Seen }, // Critical
+            [Key(downloads[1])] = new() { VisibleScore = 50, LastObservationAt = Seen }, // Poor
+            [Key(downloads[2])] = new() { VisibleScore = 70, LastObservationAt = Seen }, // Fair
+            [Key(downloads[3])] = new() { VisibleScore = 85, LastObservationAt = Seen }, // Good
+            [Key(downloads[4])] = new() { VisibleScore = 95, LastObservationAt = Seen } // Healthy
         };
 
         var result = _sut.BuildStats(downloads, snapshots, new(), d => Key(d));
@@ -325,14 +332,14 @@ public class QueueStatsServiceTests : IDisposable
 
         var snapshots = new Dictionary<string, HealthSnapshot>
         {
-            [Key(downloads[0])] = new() { VisibleScore = 0 }, // Critical
-            [Key(downloads[1])] = new() { VisibleScore = 39 }, // Critical
-            [Key(downloads[2])] = new() { VisibleScore = 40 }, // Poor
-            [Key(downloads[3])] = new() { VisibleScore = 59 }, // Poor
-            [Key(downloads[4])] = new() { VisibleScore = 60 }, // Fair
-            [Key(downloads[5])] = new() { VisibleScore = 79 }, // Fair
-            [Key(downloads[6])] = new() { VisibleScore = 80 }, // Good
-            [Key(downloads[7])] = new() { VisibleScore = 90 } // Healthy
+            [Key(downloads[0])] = new() { VisibleScore = 0, LastObservationAt = Seen }, // Critical
+            [Key(downloads[1])] = new() { VisibleScore = 39, LastObservationAt = Seen }, // Critical
+            [Key(downloads[2])] = new() { VisibleScore = 40, LastObservationAt = Seen }, // Poor
+            [Key(downloads[3])] = new() { VisibleScore = 59, LastObservationAt = Seen }, // Poor
+            [Key(downloads[4])] = new() { VisibleScore = 60, LastObservationAt = Seen }, // Fair
+            [Key(downloads[5])] = new() { VisibleScore = 79, LastObservationAt = Seen }, // Fair
+            [Key(downloads[6])] = new() { VisibleScore = 80, LastObservationAt = Seen }, // Good
+            [Key(downloads[7])] = new() { VisibleScore = 90, LastObservationAt = Seen } // Healthy
         };
 
         var result = _sut.BuildStats(downloads, snapshots, new(), d => Key(d));

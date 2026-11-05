@@ -263,7 +263,7 @@
                                                      title="Health score from 0–100">
                                                     Score
                                                 </div>
-                                                <div class="h2 mb-0 fw-semibold">@IntDisplay(snapshot?.VisibleScore)</div>
+                                                <div class="h2 mb-0 fw-semibold">@IntDisplay(ScoreOf(snapshot))</div>
                                             </div>
 
                                             <div class="col-6 col-md-3">
@@ -366,7 +366,7 @@
                                                         @_activeContexts.Count active
                                                     </span>
                                                 }
-                                                <span class="@StatusBadgeClass(queueItem.Status)">@TextDisplay(queueItem.Status)</span>
+                                                <span class="@StatusBadgeClass(GetStatusText(queueItem))">@GetStatusText(queueItem)</span>
                                             </div>
                                         }
                                     </div>

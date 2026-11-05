@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.JSInterop;
 using Trackarr.Core.Routine;
 using Trackarr.Data;
 using Trackarr.Services.Routines;
@@ -28,6 +29,7 @@ public partial class Routines : ComponentBase, IDisposable
     [Inject] private RoutineService RoutineService { get; set; } = null!;
     [Inject] private SettingsService SettingsService { get; set; } = null!;
     [Inject] private ILogger<Routines> Logger { get; set; } = null!;
+    [Inject] private IJSRuntime Js { get; set; } = null!;
 
     #endregion
 
@@ -43,6 +45,8 @@ public partial class Routines : ComponentBase, IDisposable
     private string? _editingKey;
     private int _editValue;
     private int _editUnit = 60;
+    private string _editingName = string.Empty;
+    private int _editingCurrentSeconds;
 
     private bool IsLoading { get; set; }
 
@@ -138,37 +142,79 @@ public partial class Routines : ComponentBase, IDisposable
     // Database cleanup's interval is also a Maintenance setting (whole hours); keep the two in sync.
     private const string CleanupKey = "database-cleanup";
 
-    private void BeginEditInterval(RoutineDefinition routine)
+    private const string IntervalModalId = "intervalModal";
+
+    private static readonly (string Label, int Seconds)[] IntervalPresets =
+    [
+        ("1 min", 60), ("5 min", 300), ("15 min", 900), ("1 hour", 3600), ("6 hours", 21600), ("1 day", 86400)
+    ];
+
+    private bool IsCleanupEdit => _editingKey == CleanupKey;
+
+    /// <summary>What the form adds up to, before the runner clamps it to 1 minute–7 days.</summary>
+    private long EditSeconds => (long)_editValue * _editUnit;
+
+    private bool EditIsValid =>
+        _editValue >= 1 && EditSeconds >= RoutineRunner.MinIntervalSeconds &&
+        EditSeconds <= RoutineRunner.MaxIntervalSeconds;
+
+    /// <summary>"every 1 hour 30 minutes": the full interval, which the short table form (1h) rounds off.</summary>
+    private static string EveryText(long seconds)
+    {
+        if (seconds <= 0) return "manually only";
+
+        var span = TimeSpan.FromSeconds(seconds);
+        var parts = new List<string>();
+        if (span.Days > 0) parts.Add(span.Days == 1 ? "1 day" : $"{span.Days} days");
+        if (span.Hours > 0) parts.Add(span.Hours == 1 ? "1 hour" : $"{span.Hours} hours");
+        if (span.Minutes > 0) parts.Add(span.Minutes == 1 ? "1 minute" : $"{span.Minutes} minutes");
+        if (parts.Count == 0) parts.Add($"{span.Seconds} seconds");
+        return "every " + string.Join(" ", parts);
+    }
+
+    private async Task BeginEditInterval(RoutineDefinition routine)
     {
         _editingKey = routine.Key;
+        _editingName = routine.Name;
+        _editingCurrentSeconds = routine.IntervalSeconds;
         var useHours = routine.Key == CleanupKey || routine.IntervalSeconds % 3600 == 0;
         _editUnit = useHours ? 3600 : 60;
         _editValue = Math.Max(1, routine.IntervalSeconds / _editUnit);
+        StateHasChanged();
+        await Js.InvokeVoidAsync("modalHelper.show", IntervalModalId);
     }
 
-    private void CancelEditInterval()
+    private void ApplyPreset(int seconds)
+    {
+        var useHours = seconds % 3600 == 0;
+        _editUnit = useHours ? 3600 : 60;
+        _editValue = seconds / _editUnit;
+    }
+
+    private async Task CancelEditInterval()
     {
         _editingKey = null;
+        await Js.InvokeVoidAsync("modalHelper.hide", IntervalModalId);
     }
 
-    private async Task OnIntervalKeyDown(KeyboardEventArgs e, string key)
+    private async Task OnIntervalKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await SaveInterval(key);
-        else if (e.Key == "Escape") CancelEditInterval();
+        if (e.Key == "Enter") await SaveInterval();
     }
 
-    private async Task SaveInterval(string key)
+    private async Task SaveInterval()
     {
-        var seconds = (int)Math.Min((long)Math.Max(1, _editValue) * _editUnit, int.MaxValue);
+        if (_editingKey is not { } key || !EditIsValid) return;
+
+        var seconds = (int)Math.Min(EditSeconds, int.MaxValue);
         var saved = await RoutineRunner.SetIntervalAsync(key, seconds);
 
         if (saved is { } applied && key == CleanupKey)
-            await SettingsService.SaveCategoryAsync("Maintenance", new Dictionary<string, string>
-            {
-                ["CleanupIntervalHours"] = Math.Max(1, applied / 3600).ToString()
-            });
+            await SettingsService.SaveCategoryAsync("Maintenance",
+                new Dictionary<string, string> { ["CleanupIntervalHours"] = Math.Max(1, applied / 3600).ToString() });
 
         _editingKey = null;
+        await Js.InvokeVoidAsync("modalHelper.hide", IntervalModalId);
         await Refresh();
     }
 

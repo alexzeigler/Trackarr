@@ -2,9 +2,11 @@
 @using global::System.Diagnostics
 @using Trackarr.Components.Modals
 @using Trackarr.Core.UI
+@using Trackarr.Services.Routines
 @using Trackarr.Services.Settings
 @layout SettingsLayout
 @inject SettingsService SettingsService
+@inject RoutineRunner RoutineRunner
 @inject IHostApplicationLifetime Lifetime
 @inject IJSRuntime Js
 
@@ -348,7 +350,7 @@
 
         try
         {
-            await SettingsService.ResetDatabaseAsync();
+            await RoutineRunner.ResetAsync(SettingsService.ResetDatabaseAsync);
             _dangerMessage = "Database wiped. All data has been deleted and default settings re-seeded.";
             _dangerSuccess = true;
         }

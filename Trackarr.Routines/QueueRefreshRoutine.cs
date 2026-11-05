@@ -31,7 +31,7 @@ public sealed class QueueRefreshRoutine(
         }
 
         var count = 0;
-        var evaluated = 0;
+        var added = 0;
         var failed = 0;
 
         foreach (var server in servers)
@@ -42,6 +42,7 @@ public sealed class QueueRefreshRoutine(
                 var existingIds = (await healthService.GetActiveDownloadIdsAsync(server.Id, cancellationToken))
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+                // The fresh fetch scores every download it hasn't seen before (MediaServerService.GetQueueAsync).
                 var items = server.ServiceType switch
                 {
                     ServiceType.Radarr or ServiceType.Sonarr => await mediaServerService.GetQueueAsync(server, true),
@@ -49,22 +50,19 @@ public sealed class QueueRefreshRoutine(
                 };
 
                 count += items.Count;
-
-                foreach (var item in items.Where(i => !existingIds.Contains(HealthService.GetDownloadId(i))))
-                {
-                    await healthService.EvaluateAsync(item, cancellationToken);
-                    evaluated++;
-                }
+                added += items.Select(HealthService.GetDownloadId).Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count(id => !existingIds.Contains(id));
             }
-            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            catch (Exception ex) when (ex is not OperationCanceledException ||
+                                       !cancellationToken.IsCancellationRequested)
             {
                 failed++;
                 logger.LogError(ex, "Queue refresh failed for {name}", server.Name);
             }
         }
 
-        var summary = evaluated > 0
-            ? $"{count} queue items found, {evaluated} new item(s) evaluated"
+        var summary = added > 0
+            ? $"{count} queue items found, {added} new item(s) evaluated"
             : $"{count} queue items found";
         return new RoutineResult(summary + (failed > 0 ? $", {failed} server(s) failed." : "."), failed == 0);
     }

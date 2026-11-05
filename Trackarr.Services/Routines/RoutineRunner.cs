@@ -47,8 +47,8 @@ public sealed class RoutineRunner(
                 {
                     run.State = RoutineState.Success;
                     await eventService.LogAsync(
-                        $"Task '{routine.Name}' completed in {routine.LastRunTime}ms. {result.Message}",
-                        routine.Key, LogLevel.Information, null, cancellationToken);
+                        $"Task '{routine.Name}' completed in {routine.LastRunTime}ms. {result.Message}", routine.Key,
+                        LogLevel.Information, null, cancellationToken);
                 }
                 else
                 {
@@ -106,8 +106,11 @@ public sealed class RoutineRunner(
     #region Dependencies
 
     private readonly SemaphoreSlim _lock = new(1, 1);
+
     private readonly Queue<string> _manualQueue = new();
-    private readonly List<RoutineDefinition> _routines = [];
+
+    // Swapped as a whole (never changed in place) so readers on other threads never see a half-built list.
+    private volatile List<RoutineDefinition> _routines = [];
 
     public bool IsRunning => _lock.CurrentCount == 0;
 
@@ -123,7 +126,30 @@ public sealed class RoutineRunner(
 
     public void Load(List<RoutineDefinition> definitions)
     {
-        _routines.AddRange(definitions);
+        _routines = [.. definitions];
+    }
+
+    /// <summary>
+    ///     Runs <paramref name="wipe" /> (the database reset) once no routine is running, then re-creates the
+    ///     routine rows and reloads them. Without this the runner keeps the old in-memory definitions, whose rows
+    ///     are gone, and every later run fails to save until the app restarts.
+    /// </summary>
+    public async Task ResetAsync(Func<Task> wipe, CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            _manualQueue.Clear();
+            await wipe();
+
+            foreach (var handler in handlers)
+                await routineService.RegisterRoutineInDbAsync(handler, cancellationToken);
+            Load(await routineService.GetAllAsync(cancellationToken));
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     /// <summary>
@@ -174,6 +200,9 @@ public sealed class RoutineRunner(
     {
         return _routines.FirstOrDefault(x => x.Key == key);
     }
+
+    /// <summary>All loaded routines, for status displays. The list is replaced, never changed, so it's safe to read.</summary>
+    public IReadOnlyList<RoutineDefinition> Definitions => _routines;
 
     public const int MinIntervalSeconds = 60;
     public const int MaxIntervalSeconds = 7 * 86400;

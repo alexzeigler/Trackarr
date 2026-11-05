@@ -25,6 +25,7 @@ public partial class AddServerModal : ComponentBase
     #region State
 
     private string _autoRemove = "";
+    private int _fallbackSelectKey;
     private string _monitorQueue = "";
     private DotNetObjectReference<AddServerModal>? _ref;
     private string _searchMissing = "";
@@ -64,6 +65,7 @@ public partial class AddServerModal : ComponentBase
             : ServiceType.Radarr;
         ServiceType = type.Value;
 
+        await ResetFallbackSelect();
         Model = new MediaServer
         {
             IsEnabled = true,
@@ -90,6 +92,7 @@ public partial class AddServerModal : ComponentBase
     public async Task OpenForEdit(MediaServer server)
     {
         ServiceType = server.ServiceType;
+        await ResetFallbackSelect();
         Model = server.Clone();
         SyncBehaviorFromModel();
         if (server.FallBackProfileId != null)
@@ -123,6 +126,7 @@ public partial class AddServerModal : ComponentBase
         TestResult = null;
         try
         {
+            await ResetFallbackSelect(); // the profile options are about to change, on success or failure
             TestResult = await ServerService.TestConnectionAsync(Model);
 
             if (TestResult is { Item1: true })
@@ -191,7 +195,7 @@ public partial class AddServerModal : ComponentBase
         else
             await ServerService.CreateServerAsync(Model);
 
-        await Js.InvokeVoidAsync("tomSelectHelper.destroy", "fallbackProfileSelect");
+        await ResetFallbackSelect();
         await Js.InvokeVoidAsync("modalHelper.hide", "serverModal");
 
         IsSaving = false;
@@ -199,7 +203,7 @@ public partial class AddServerModal : ComponentBase
         await InvokeAsync(StateHasChanged);
 
         if (isNew)
-            _ = ServerService.SyncServerAsync(Model);
+            ServerSync.SyncInBackground(Model);
     }
 
     private async Task Close()
@@ -214,6 +218,17 @@ public partial class AddServerModal : ComponentBase
     #endregion
 
     #region Display Helpers
+
+    /// <summary>
+    ///     Tom Select rewrites the select's option nodes (and rebuilds them on destroy), so Blazor's references to
+    ///     those nodes go stale and its next diff of the options fails with "removeChild of null". Before the
+    ///     options change, tear Tom Select down and bump the @key so Blazor renders a brand-new select element.
+    /// </summary>
+    private async Task ResetFallbackSelect()
+    {
+        await Js.InvokeVoidAsync("tomSelectHelper.destroy", "fallbackProfileSelect");
+        _fallbackSelectKey++;
+    }
 
     private async Task InitFallbackSelect()
     {

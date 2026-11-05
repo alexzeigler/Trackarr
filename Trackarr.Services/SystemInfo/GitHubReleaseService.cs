@@ -44,6 +44,29 @@ public sealed class GitHubReleaseService(IHttpClientFactory httpClientFactory)
         return _cache;
     }
 
+    /// <summary>
+    ///     The newest release when it is newer than <paramref name="currentVersion" /> (e.g. "5.2.0-alpha"), else
+    ///     null. Only the numeric part is compared, so a local dev build never reads as out of date by its suffix.
+    /// </summary>
+    public async Task<GitHubRelease?> GetNewerReleaseAsync(string currentVersion)
+    {
+        if (ParseVersion(currentVersion) is not { } current) return null;
+
+        var newest = (await GetReleasesAsync()).Select(r => (Release: r, Version: ParseVersion(r.TagName)))
+            .Where(r => r.Version is not null).MaxBy(r => r.Version);
+
+        return newest.Version is { } latest && latest > current ? newest.Release : null;
+    }
+
+    private static Version? ParseVersion(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var core = value.Trim().TrimStart('v', 'V').Split('-', '+')[0];
+        if (!Version.TryParse(core, out var v)) return null;
+        // "5.2" and "5.2.0" must compare equal; Version treats a missing part as lower than 0.
+        return new Version(v.Major, v.Minor, Math.Max(v.Build, 0), Math.Max(v.Revision, 0));
+    }
+
     private sealed class GitHubReleaseDto
     {
         [JsonPropertyName("tag_name")] public string? TagName { get; set; }

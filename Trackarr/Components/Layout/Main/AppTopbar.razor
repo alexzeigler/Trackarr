@@ -1,5 +1,9 @@
 @inject AppStateService AppState
 @inject IJSRuntime Js
+@inject SystemStatusService SystemStatus
+@inject GitHubReleaseService Releases
+@using Trackarr.Core.SystemInfo
+@using Trackarr.Services.SystemInfo
 @implements IDisposable
 
 <header class="app-topbar d-print-none">
@@ -9,7 +13,7 @@
             <i class="ti ti-menu-2 fs-2"></i>
         </button>
 
-        <div class="d-flex flex-column justify-content-center me-auto">
+        <div class="d-flex flex-column justify-content-center me-auto" style="min-width: 0;">
             @if (AppState.Breadcrumbs.Count > 1)
             {
                 <nav aria-label="breadcrumb" class="d-none d-md-block">
@@ -30,45 +34,75 @@
                     </ol>
                 </nav>
             }
-            <h4 class="m-0 text-white topbar-page-title">@AppState.PageTitle</h4>
+            <h4 class="m-0 text-white topbar-page-title text-truncate">@AppState.PageTitle</h4>
         </div>
+
+        <TopbarStatus/>
 
         <TopbarSearch/>
 
         <button class="btn btn-icon btn-app-ghost"
                 @onclick="RequestRefreshAsync"
                 disabled="@_isRefreshing"
-                data-bs-toggle="tooltip"
-                data-bs-placement="bottom"
                 title="Refresh">
             <i class="ti ti-refresh @(_isRefreshing ? "spinner" : "")"></i>
         </button>
 
-        <a href="https://github.com/alexzeigler/Trackarr"
+        <a href="@(_update?.HtmlUrl is { Length: > 0 } url ? url : GitHubUrl)"
            target="_blank"
            rel="noopener"
-           class="btn btn-icon btn-app-ghost"
-           data-bs-toggle="tooltip"
-           data-bs-placement="bottom"
-           title="GitHub">
+           class="btn btn-icon btn-app-ghost position-relative"
+           title="@(_update is not null ? $"Update available: {_update.TagName} (you have v{_version})" : "Trackarr on GitHub")">
             <i class="ti ti-brand-github"></i>
+            @if (_update is not null)
+            {
+                <span class="topbar-icon-badge"></span>
+            }
         </a>
 
         <div class="dropdown">
-            <button class="btn btn-icon btn-app-ghost" data-bs-toggle="dropdown" aria-expanded="false">
+            <button class="btn btn-icon btn-app-ghost" data-bs-toggle="dropdown" aria-expanded="false" title="Menu">
                 <i class="ti ti-settings"></i>
             </button>
             <div class="dropdown-menu dropdown-menu-end">
+                @if (_version is not null)
+                {
+                    <span class="dropdown-header">Trackarr v@(_version)</span>
+                }
+                @if (_update is not null)
+                {
+                    <a class="dropdown-item text-green" href="system/releases">
+                        <i class="ti ti-arrow-up-circle me-2"></i>
+                        @_update.TagName is available
+                    </a>
+                    <div class="dropdown-divider"></div>
+                }
                 <a class="dropdown-item" href="settings">
                     <i class="ti ti-adjustments-horizontal me-2"></i>
-                    Services
+                    Settings
+                </a>
+                <a class="dropdown-item" href="system/routines">
+                    <i class="ti ti-clock-play me-2"></i>
+                    Routines
+                </a>
+                <a class="dropdown-item" href="system/events">
+                    <i class="ti ti-list-details me-2"></i>
+                    Events
                 </a>
                 <a class="dropdown-item" href="system/status">
                     <i class="ti ti-activity me-2"></i>
                     System Status
                 </a>
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="https://github.com/alexzeigler/Trackarr" target="_blank" rel="noopener">
+                <a class="dropdown-item" href="system/releases">
+                    <i class="ti ti-notes me-2"></i>
+                    Release Notes
+                </a>
+                <a class="dropdown-item" href="@($"{GitHubUrl}/issues/new")" target="_blank" rel="noopener">
+                    <i class="ti ti-bug me-2"></i>
+                    Report a Bug
+                </a>
+                <a class="dropdown-item" href="@GitHubUrl" target="_blank" rel="noopener">
                     <i class="ti ti-brand-github me-2"></i>
                     GitHub
                 </a>
@@ -79,12 +113,47 @@
 </header>
 
 @code {
-    private bool _isRefreshing;
+    private const string GitHubUrl = "https://github.com/alexzeigler/Trackarr";
 
-    protected override void OnInitialized()
+    private bool _isRefreshing;
+    private string? _version;
+    private GitHubRelease? _update;
+
+    protected override async Task OnInitializedAsync()
     {
         AppState.OnStateChanged += HandleStateChanged;
         _isRefreshing = false;
+
+        try
+        {
+            _version = (await SystemStatus.GetAppInfoAsync()).Version;
+        }
+        catch (Exception)
+        {
+            // The version is a nicety; the topbar must render without it.
+        }
+
+        // GitHub can be slow or unreachable: check in the background and never hold up the page.
+        if (_version is not null)
+            _ = CheckForUpdateAsync(_version);
+    }
+
+    private async Task CheckForUpdateAsync(string version)
+    {
+        try
+        {
+            var update = await Releases.GetNewerReleaseAsync(version);
+            if (update is null) return;
+
+            await InvokeAsync(() =>
+            {
+                _update = update;
+                StateHasChanged();
+            });
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private async Task RequestRefreshAsync()

@@ -3,6 +3,7 @@
 @using Trackarr.Services.Settings
 @inject IJSRuntime Js
 @inject MediaServerService ServerService
+@inject ServerSyncService ServerSync
 @inject SettingsService Settings
 
 <div id="serverModal" class="modal modal-blur fade" tabindex="-1">
@@ -242,7 +243,10 @@
                               id="fallbackTooltip"
                               data-bs-toggle="@(HasProfiles ? null : "tooltip")"
                               title="Test connection to load profiles">
-                            <select class="form-select" id="fallbackProfileSelect" disabled="@(!HasProfiles)">
+                            <select @key="_fallbackSelectKey"
+                                    class="form-select"
+                                    id="fallbackProfileSelect"
+                                    disabled="@(!HasProfiles)">
                                 <option value="">None</option>
                                 @foreach (var p in Profiles ?? [])
                                 {

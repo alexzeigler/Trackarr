@@ -32,8 +32,7 @@ public sealed class QueueEvaluationRoutine(
     {
         // Monitor Queue off means hands off the queue entirely: no fetching, scoring or removing on that server.
         var servers = (await mediaServerService.GetAllServersAsync())
-            .Where(s => s.IsEnabled && settings.ShouldMonitorQueue(s)).OrderBy(s => s.Priority)
-            .ToList();
+            .Where(s => s.IsEnabled && settings.ShouldMonitorQueue(s)).OrderBy(s => s.Priority).ToList();
 
         if (servers.Count == 0)
         {
@@ -58,7 +57,19 @@ public sealed class QueueEvaluationRoutine(
             // One unreachable server must not stop evaluation (and removals) on the others.
             try
             {
+                var trackedBefore = (await healthService.GetActiveDownloadIdsAsync(server.Id, cancellationToken))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var queue = await mediaServerService.GetQueueAsync(server);
+                // A fresh fetch scores downloads it hasn't seen before. Scoring those again right away would count
+                // a second scan seconds after the first, which looks like no progress.
+                var trackedAfter = (await healthService.GetActiveDownloadIdsAsync(server.Id, cancellationToken))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                bool JustScored(string id)
+                {
+                    return !trackedBefore.Contains(id) && trackedAfter.Contains(id);
+                }
+
                 if (HealthEvaluator.IsDownloadClientUnavailable(queue))
                 {
                     // While the client is down every item looks stalled; scoring now would put the whole queue at risk.
@@ -74,9 +85,13 @@ public sealed class QueueEvaluationRoutine(
 
                 foreach (var download in downloads)
                 {
+                    var justScored = JustScored(HealthService.GetDownloadId(download));
+
                     if (IsBlacklisted(download, blacklist))
                     {
-                        var blDecision = await healthService.EvaluateAsync(download, cancellationToken);
+                        var blDecision = justScored
+                            ? await healthService.PreviewAsync(download, cancellationToken)
+                            : await healthService.EvaluateAsync(download, cancellationToken);
                         // A blacklist match is still a removal, so Auto Remove off keeps it in the queue too.
                         if (passiveMode || !autoRemoveEnabled) continue;
 
@@ -88,6 +103,13 @@ public sealed class QueueEvaluationRoutine(
                         }
                         else failedRemovals++;
 
+                        continue;
+                    }
+
+                    // Scored by the fetch above, in this same run: count it, but don't scan it twice.
+                    if (justScored)
+                    {
+                        evaluated++;
                         continue;
                     }
 
@@ -106,7 +128,8 @@ public sealed class QueueEvaluationRoutine(
                 }
 
                 var activeIds = downloads.Select(HealthService.GetDownloadId).ToList();
-                var missingIds = await healthService.GetMissingDownloadIdsAsync(server.Id, activeIds, cancellationToken);
+                var missingIds =
+                    await healthService.GetMissingDownloadIdsAsync(server.Id, activeIds, cancellationToken);
                 var importedIds = missingIds.Count == 0
                     ? []
                     : await mediaServerService.GetImportedDownloadIdsAsync(server, missingIds);
@@ -117,7 +140,8 @@ public sealed class QueueEvaluationRoutine(
                 imported += resolved.Count(e => e.Status == AttemptStatus.Imported);
                 disappeared += resolved.Count(e => e.Status == AttemptStatus.Disappeared);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            catch (Exception ex) when (ex is not OperationCanceledException ||
+                                       !cancellationToken.IsCancellationRequested)
             {
                 failedServers++;
                 logger.LogError(ex, "Queue evaluation failed for {name}", server.Name);
@@ -177,7 +201,8 @@ public sealed class QueueEvaluationRoutine(
                 catch (ArgumentException ex)
                 {
                     // An invalid blacklist pattern is your config, not a bug: say so, then skip the entry.
-                    logger.LogWarning(ex, "Blacklist pattern {Pattern} is not a valid regex; skipping it", entry.Pattern);
+                    logger.LogWarning(ex, "Blacklist pattern {Pattern} is not a valid regex; skipping it",
+                        entry.Pattern);
                 }
             }
             else

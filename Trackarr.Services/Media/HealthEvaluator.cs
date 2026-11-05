@@ -11,132 +11,6 @@ namespace Trackarr.Services.Media;
 /// </summary>
 public sealed class HealthEvaluator(HealthPolicy? policy = null)
 {
-    #region Observation
-
-    private static readonly string[] ImportWaitStates = ["importPending", "importBlocked", "importing"];
-
-    /// <summary>
-    ///     Returns why an item should not be scored right now, or null if it should be. These are states where
-    ///     no byte progress is expected, so "no progress" or a warning says nothing about the release itself.
-    ///     Values follow the Radarr/Sonarr v3 queue API (<c>status</c> and <c>trackedDownloadState</c>).
-    /// </summary>
-    public static string? GetScoringExemption(DownloadItem item)
-    {
-        if (IsValue(item.Status, "downloadClientUnavailable")) return "Download client is unavailable.";
-        if (IsValue(item.Status, "queued")) return "Queued in the download client.";
-        if (IsValue(item.Status, "paused")) return "Paused in the download client.";
-        if (IsValue(item.Status, "delay")) return "Held by a delay profile.";
-
-        if (item.SizeLeft == 0 && ImportWaitStates.Any(s => IsValue(item.TrackedDownloadState, s)))
-            return "Download finished and is waiting on import.";
-
-        return null;
-    }
-
-    /// <summary>True when any queue item reports its download client as unavailable.</summary>
-    public static bool IsDownloadClientUnavailable(IEnumerable<DownloadItem> queue)
-    {
-        return queue.Any(i => IsValue(i.Status, "downloadClientUnavailable"));
-    }
-
-    private static bool IsValue(string? value, string expected)
-    {
-        return string.Equals(value?.Trim(), expected, StringComparison.OrdinalIgnoreCase);
-    }
-
-    public static HealthObservation BuildObservation(DownloadItem item, DownloadAttempt attempt,
-        HealthSnapshot snapshot, DateTime now)
-    {
-        var progress = CalculateProgress(item.Size, item.SizeLeft);
-
-        var progressIncreased = progress.HasValue && snapshot.LastProgress.HasValue &&
-                                progress.Value > snapshot.LastProgress.Value;
-        var sizeLeftDecreased = snapshot.LastSizeLeft.HasValue && item.SizeLeft < snapshot.LastSizeLeft.Value;
-        var isActivelyProgressing = progressIncreased || sizeLeftDecreased;
-
-        var isFetchingMetadata = !isActivelyProgressing &&
-                                 ContainsAny(item.ErrorMessage, "downloading metadata", "fetching metadata");
-        var errorKey = isFetchingMetadata ? null : NormalizeError(item.ErrorMessage);
-        var hasError = !isActivelyProgressing && !isFetchingMetadata && !string.IsNullOrWhiteSpace(item.ErrorMessage);
-        var hasWarning = !isActivelyProgressing && (ContainsAny(item.Status, "warn", "warning") ||
-                                                    ContainsAny(item.TrackedDownloadStatus, "warn", "warning"));
-
-        var isStalled = !isActivelyProgressing && (ContainsAny(item.Status, "stalled", "stuck") ||
-                                                   ContainsAny(item.TrackedDownloadStatus, "stalled", "stuck") ||
-                                                   ContainsAny(item.TrackedDownloadState, "stalled", "stuck") ||
-                                                   ContainsAny(item.ErrorMessage, "stalled", "stuck"));
-        var isStalledNoConnections = !isActivelyProgressing && isStalled &&
-                                     ContainsAny(item.ErrorMessage, "no connections", "no peers", "0 peers");
-
-        var errorCleared = !hasError && !isFetchingMetadata && !string.IsNullOrWhiteSpace(snapshot.LastErrorMessage);
-        var repeatedError = !string.IsNullOrWhiteSpace(errorKey) && errorKey == snapshot.LastErrorKey;
-        var hasPreviousObservation = snapshot.LastObservationAt.HasValue;
-        var hasNoProgress = hasPreviousObservation && !isActivelyProgressing && !isFetchingMetadata && !hasError &&
-                            !hasWarning && !isStalled;
-        var isGood = isActivelyProgressing || errorCleared;
-        var isUsenet = string.Equals(item.Protocol, "usenet", StringComparison.OrdinalIgnoreCase);
-        var isBad = !isActivelyProgressing && ((hasNoProgress && !isUsenet) || hasError || hasWarning || isStalled ||
-                                               isStalledNoConnections || isFetchingMetadata || repeatedError);
-        var meaningfulRecovery = isGood && (snapshot.ConsecutiveBadScans > 0 ||
-                                            snapshot.State is HealthState.Watching or HealthState.Degrading
-                                                or HealthState.Critical);
-        var sustainedProgress = isGood && snapshot.ConsecutiveGoodScans >= 3;
-
-        return new HealthObservation
-        {
-            DownloadAttemptId = attempt.Id,
-            ObservedAt = now,
-            DownloadId = attempt.DownloadId,
-            Title = item.Title ?? attempt.Title,
-            Progress = progress,
-            Size = item.Size,
-            SizeLeft = item.SizeLeft,
-            Status = item.Status,
-            TrackedDownloadStatus = item.TrackedDownloadStatus,
-            TrackedDownloadState = item.TrackedDownloadState,
-            ErrorMessage = item.ErrorMessage,
-            ErrorKey = errorKey,
-            HasProgressIncrease = progressIncreased,
-            HasSizeLeftDecrease = sizeLeftDecreased,
-            HasPositiveSpeed = isActivelyProgressing,
-            HasError = hasError,
-            HasWarning = hasWarning,
-            IsStalled = isStalled,
-            IsStalledNoConnections = isStalledNoConnections,
-            IsFetchingMetadata = isFetchingMetadata,
-            IsMeaningfulRecovery = meaningfulRecovery,
-            DownloadClient = item.DownloadClient,
-            Indexer = item.Indexer,
-            Protocol = item.Protocol,
-            HasNoProgress = hasNoProgress,
-            HasErrorCleared = errorCleared,
-            IsRepeatedError = repeatedError,
-            IsGoodObservation = isGood,
-            IsBadObservation = isBad,
-            HasSustainedProgress = sustainedProgress
-        };
-    }
-
-    /// <summary>
-    ///     Stores what this scan saw on the snapshot, so the next scan can compare against it. Kept separate from
-    ///     <see cref="BuildObservation" /> so building an observation has no side effects; call it right after.
-    /// </summary>
-    public static void RecordObservation(HealthSnapshot snapshot, HealthObservation observation, DateTime now)
-    {
-        snapshot.LastProgress = observation.Progress;
-        snapshot.LastSizeLeft = observation.SizeLeft;
-        snapshot.LastSize = observation.Size;
-        snapshot.LastStatus = observation.Status;
-        snapshot.LastTrackedDownloadStatus = observation.TrackedDownloadStatus;
-        snapshot.LastTrackedDownloadState = observation.TrackedDownloadState;
-        snapshot.LastErrorKey = observation.ErrorKey;
-        snapshot.LastErrorMessage = observation.IsFetchingMetadata ? null : observation.ErrorMessage;
-
-        if (observation.HasPositiveSpeed) snapshot.LastByteProgressAt = now;
-    }
-
-    #endregion
-
     #region Evaluation
 
     /// <summary>
@@ -483,6 +357,159 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
             RawTrackedDownloadState = observation.TrackedDownloadState,
             RawErrorMessage = observation.ErrorMessage
         };
+    }
+
+    #endregion
+
+    #region Observation
+
+    private static readonly string[] ImportWaitStates = ["importPending", "importBlocked", "importing"];
+
+    /// <summary>
+    ///     Returns why an item should not be scored right now, or null if it should be. These are states where
+    ///     no byte progress is expected, so "no progress" or a warning says nothing about the release itself.
+    ///     Values follow the Radarr/Sonarr v3 queue API (<c>status</c> and <c>trackedDownloadState</c>).
+    /// </summary>
+    public static string? GetScoringExemption(DownloadItem item)
+    {
+        if (IsValue(item.Status, "downloadClientUnavailable")) return "Download client is unavailable.";
+        if (IsValue(item.Status, "queued")) return "Queued in the download client.";
+        if (IsValue(item.Status, "paused")) return "Paused in the download client.";
+        if (IsValue(item.Status, "delay")) return "Held by a delay profile.";
+        if (IsWaitingInUsenetQueue(item)) return "Waiting its turn in the usenet download client.";
+
+        if (item.SizeLeft == 0 && ImportWaitStates.Any(s => IsValue(item.TrackedDownloadState, s)))
+            return "Download finished and is waiting on import.";
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Usenet clients download one NZB at a time, yet Radarr/Sonarr often report the ones waiting behind it as
+    ///     "downloading". With not a byte downloaded yet, it is really queued.
+    /// </summary>
+    public static bool IsWaitingInUsenetQueue(DownloadItem item)
+    {
+        return IsValue(item.Protocol, "usenet") && IsValue(item.Status, "downloading") && item.Size > 0 &&
+               item.SizeLeft >= item.Size;
+    }
+
+    /// <summary>
+    ///     False while a download has only ever been waiting (queued, paused...): its score is still the starting
+    ///     value, not a judgement, so the UI shows "–" instead and leaves it out of averages.
+    /// </summary>
+    public static bool HasBeenScored(HealthSnapshot? snapshot)
+    {
+        return snapshot is not null &&
+               (snapshot.LastObservationAt.HasValue || snapshot.LastReasonKey == "manual-override");
+    }
+
+    /// <summary>The status to show for an item: Radarr/Sonarr's, except usenet items still waiting their turn.</summary>
+    public static string? GetDisplayStatus(DownloadItem item)
+    {
+        return IsWaitingInUsenetQueue(item) ? "queued" : item.Status;
+    }
+
+    /// <summary>True when any queue item reports its download client as unavailable.</summary>
+    public static bool IsDownloadClientUnavailable(IEnumerable<DownloadItem> queue)
+    {
+        return queue.Any(i => IsValue(i.Status, "downloadClientUnavailable"));
+    }
+
+    private static bool IsValue(string? value, string expected)
+    {
+        return string.Equals(value?.Trim(), expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static HealthObservation BuildObservation(DownloadItem item, DownloadAttempt attempt,
+        HealthSnapshot snapshot, DateTime now)
+    {
+        var progress = CalculateProgress(item.Size, item.SizeLeft);
+
+        var progressIncreased = progress.HasValue && snapshot.LastProgress.HasValue &&
+                                progress.Value > snapshot.LastProgress.Value;
+        var sizeLeftDecreased = snapshot.LastSizeLeft.HasValue && item.SizeLeft < snapshot.LastSizeLeft.Value;
+        var isActivelyProgressing = progressIncreased || sizeLeftDecreased;
+
+        var isFetchingMetadata = !isActivelyProgressing &&
+                                 ContainsAny(item.ErrorMessage, "downloading metadata", "fetching metadata");
+        var errorKey = isFetchingMetadata ? null : NormalizeError(item.ErrorMessage);
+        var hasError = !isActivelyProgressing && !isFetchingMetadata && !string.IsNullOrWhiteSpace(item.ErrorMessage);
+        var hasWarning = !isActivelyProgressing && (ContainsAny(item.Status, "warn", "warning") ||
+                                                    ContainsAny(item.TrackedDownloadStatus, "warn", "warning"));
+
+        var isStalled = !isActivelyProgressing && (ContainsAny(item.Status, "stalled", "stuck") ||
+                                                   ContainsAny(item.TrackedDownloadStatus, "stalled", "stuck") ||
+                                                   ContainsAny(item.TrackedDownloadState, "stalled", "stuck") ||
+                                                   ContainsAny(item.ErrorMessage, "stalled", "stuck"));
+        var isStalledNoConnections = !isActivelyProgressing && isStalled &&
+                                     ContainsAny(item.ErrorMessage, "no connections", "no peers", "0 peers");
+
+        var errorCleared = !hasError && !isFetchingMetadata && !string.IsNullOrWhiteSpace(snapshot.LastErrorMessage);
+        var repeatedError = !string.IsNullOrWhiteSpace(errorKey) && errorKey == snapshot.LastErrorKey;
+        var hasPreviousObservation = snapshot.LastObservationAt.HasValue;
+        var hasNoProgress = hasPreviousObservation && !isActivelyProgressing && !isFetchingMetadata && !hasError &&
+                            !hasWarning && !isStalled;
+        var isGood = isActivelyProgressing || errorCleared;
+        var isUsenet = string.Equals(item.Protocol, "usenet", StringComparison.OrdinalIgnoreCase);
+        var isBad = !isActivelyProgressing && ((hasNoProgress && !isUsenet) || hasError || hasWarning || isStalled ||
+                                               isStalledNoConnections || isFetchingMetadata || repeatedError);
+        var meaningfulRecovery = isGood && (snapshot.ConsecutiveBadScans > 0 ||
+                                            snapshot.State is HealthState.Watching or HealthState.Degrading
+                                                or HealthState.Critical);
+        var sustainedProgress = isGood && snapshot.ConsecutiveGoodScans >= 3;
+
+        return new HealthObservation
+        {
+            DownloadAttemptId = attempt.Id,
+            ObservedAt = now,
+            DownloadId = attempt.DownloadId,
+            Title = item.Title ?? attempt.Title,
+            Progress = progress,
+            Size = item.Size,
+            SizeLeft = item.SizeLeft,
+            Status = item.Status,
+            TrackedDownloadStatus = item.TrackedDownloadStatus,
+            TrackedDownloadState = item.TrackedDownloadState,
+            ErrorMessage = item.ErrorMessage,
+            ErrorKey = errorKey,
+            HasProgressIncrease = progressIncreased,
+            HasSizeLeftDecrease = sizeLeftDecreased,
+            HasPositiveSpeed = isActivelyProgressing,
+            HasError = hasError,
+            HasWarning = hasWarning,
+            IsStalled = isStalled,
+            IsStalledNoConnections = isStalledNoConnections,
+            IsFetchingMetadata = isFetchingMetadata,
+            IsMeaningfulRecovery = meaningfulRecovery,
+            DownloadClient = item.DownloadClient,
+            Indexer = item.Indexer,
+            Protocol = item.Protocol,
+            HasNoProgress = hasNoProgress,
+            HasErrorCleared = errorCleared,
+            IsRepeatedError = repeatedError,
+            IsGoodObservation = isGood,
+            IsBadObservation = isBad,
+            HasSustainedProgress = sustainedProgress
+        };
+    }
+
+    /// <summary>
+    ///     Stores what this scan saw on the snapshot, so the next scan can compare against it. Kept separate from
+    ///     <see cref="BuildObservation" /> so building an observation has no side effects; call it right after.
+    /// </summary>
+    public static void RecordObservation(HealthSnapshot snapshot, HealthObservation observation, DateTime now)
+    {
+        snapshot.LastProgress = observation.Progress;
+        snapshot.LastSizeLeft = observation.SizeLeft;
+        snapshot.LastSize = observation.Size;
+        snapshot.LastStatus = observation.Status;
+        snapshot.LastTrackedDownloadStatus = observation.TrackedDownloadStatus;
+        snapshot.LastTrackedDownloadState = observation.TrackedDownloadState;
+        snapshot.LastErrorKey = observation.ErrorKey;
+        snapshot.LastErrorMessage = observation.IsFetchingMetadata ? null : observation.ErrorMessage;
+
+        if (observation.HasPositiveSpeed) snapshot.LastByteProgressAt = now;
     }
 
     #endregion
