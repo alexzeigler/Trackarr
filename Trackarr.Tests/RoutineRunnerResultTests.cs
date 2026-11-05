@@ -110,6 +110,63 @@ public class RoutineRunnerResultTests
     }
 
     [Fact]
+    public async Task SetInterval_PersistsAndReschedulesFromLastRun()
+    {
+        // Issue #2: users need to slow down routines like Missing Media Refresh, and the change must stick.
+        var (runner, handler) = await CreateRunnerAsync();
+        runner.RunAsync(handler.Key);
+        await runner.TickAsync(CancellationToken.None);
+        var lastRun = runner.GetDefinition(handler.Key)!.LastRun!.Value;
+
+        var saved = await runner.SetIntervalAsync(handler.Key, 3600);
+
+        Assert.Equal(3600, saved);
+        var definition = runner.GetDefinition(handler.Key)!;
+        Assert.Equal(3600, definition.IntervalSeconds);
+        Assert.Equal(lastRun.AddSeconds(3600), definition.NextRun);
+    }
+
+    [Fact]
+    public async Task SetInterval_SurvivesReRegistration()
+    {
+        // Re-registering on startup must not put the hardcoded default back.
+        using var factory = new SqliteInMemoryFactory();
+        var routineService = new RoutineService(factory);
+        var handler = new CountingRoutine();
+        await routineService.RegisterRoutineInDbAsync(handler);
+        var runner = new RoutineRunner([handler], routineService,
+            new EventService(factory, NullLogger<EventService>.Instance, new DataChangeBus()),
+            NullLogger<RoutineRunner>.Instance);
+        runner.Load(await routineService.GetAllAsync());
+
+        await runner.SetIntervalAsync(handler.Key, 7200);
+        await routineService.RegisterRoutineInDbAsync(new CountingRoutine());
+
+        Assert.Equal(7200, (await routineService.GetByKeyAsync(handler.Key))!.IntervalSeconds);
+    }
+
+    [Theory]
+    [InlineData(1, RoutineRunner.MinIntervalSeconds)]
+    [InlineData(int.MaxValue, RoutineRunner.MaxIntervalSeconds)]
+    public async Task SetInterval_ClampsToLimits(int requested, int expected)
+    {
+        var (runner, handler) = await CreateRunnerAsync();
+
+        var saved = await runner.SetIntervalAsync(handler.Key, requested);
+
+        Assert.Equal(expected, saved);
+        Assert.Equal(expected, runner.GetDefinition(handler.Key)!.IntervalSeconds);
+    }
+
+    [Fact]
+    public async Task SetInterval_UnknownKey_ReturnsNull()
+    {
+        var (runner, _) = await CreateRunnerAsync();
+
+        Assert.Null(await runner.SetIntervalAsync("nope", 600));
+    }
+
+    [Fact]
     public void PlainString_IsASuccessfulResult()
     {
         RoutineResult result = "done";

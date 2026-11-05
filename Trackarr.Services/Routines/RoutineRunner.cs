@@ -175,6 +175,28 @@ public sealed class RoutineRunner(
         return _routines.FirstOrDefault(x => x.Key == key);
     }
 
+    public const int MinIntervalSeconds = 60;
+    public const int MaxIntervalSeconds = 7 * 86400;
+
+    /// <summary>
+    ///     Changes how often a routine runs. The value is clamped to [<see cref="MinIntervalSeconds" />,
+    ///     <see cref="MaxIntervalSeconds" />] and the next run is rescheduled from the last run, so the change
+    ///     applies right away and survives restarts. Returns the interval that was saved, or null for an unknown key.
+    /// </summary>
+    public async Task<int?> SetIntervalAsync(string key, int seconds, CancellationToken cancellationToken = default)
+    {
+        var routine = _routines.FirstOrDefault(x => x.Key == key);
+        if (routine is null) return null;
+
+        seconds = Math.Clamp(seconds, MinIntervalSeconds, MaxIntervalSeconds);
+        if (routine.IntervalSeconds == seconds) return seconds;
+
+        routine.IntervalSeconds = seconds;
+        if (routine.LastRun is { } lastRun) routine.NextRun = lastRun.AddSeconds(seconds);
+        await routineService.UpdateDefinitionAsync(routine, cancellationToken);
+        return seconds;
+    }
+
     public async Task ForceResetAsync(string key)
     {
         var routine = _routines.FirstOrDefault(x => x.Key == key);

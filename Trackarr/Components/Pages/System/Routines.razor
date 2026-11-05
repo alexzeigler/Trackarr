@@ -132,7 +132,43 @@
                                     @RoutineStatusText(routine, queued)
                                 </span>
                             </td>
-                            <td>@IntervalText(routine.IntervalSeconds)</td>
+                            <td>
+                                @if (_editingKey == routine.Key)
+                                {
+                                    <div class="input-group input-group-sm flex-nowrap" style="width: 220px">
+                                        <input type="number"
+                                               class="form-control"
+                                               min="1"
+                                               @bind="_editValue"
+                                               @onkeydown="e => OnIntervalKeyDown(e, routine.Key)"/>
+                                        <select class="form-select" style="max-width: 90px" @bind="_editUnit">
+                                            @if (routine.Key != CleanupKey)
+                                            {
+                                                <option value="60">min</option>
+                                            }
+                                            <option value="3600">hours</option>
+                                        </select>
+                                        <button type="button" class="btn btn-app-primary" title="Save"
+                                                @onclick="() => SaveInterval(routine.Key)">
+                                            <i class="ti ti-check"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-app-ghost" title="Cancel"
+                                                @onclick="CancelEditInterval">
+                                            <i class="ti ti-x"></i>
+                                        </button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <button type="button"
+                                            class="btn btn-sm btn-app-ghost px-2"
+                                            title="Change how often this routine runs"
+                                            @onclick="() => BeginEditInterval(routine)">
+                                        @IntervalText(routine.IntervalSeconds)
+                                        <i class="ti ti-pencil ms-1 text-secondary"></i>
+                                    </button>
+                                }
+                            </td>
                             <td class="text-end text-secondary">@TimeAgo(routine.LastRun)</td>
                             <td class="text-end text-secondary">@TimeAgo(routine.NextRun)</td>
                             <td>

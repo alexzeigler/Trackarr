@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.EntityFrameworkCore;
 using Trackarr.Core.Routine;
 using Trackarr.Data;
 using Trackarr.Services.Routines;
+using Trackarr.Services.Settings;
 using static Trackarr.Utils;
 
 namespace Trackarr.Components.Pages.System;
@@ -24,6 +26,7 @@ public partial class Routines : ComponentBase, IDisposable
 
     [Inject] private IDbContextFactory<AppDbContext> DbFactory { get; set; } = null!;
     [Inject] private RoutineService RoutineService { get; set; } = null!;
+    [Inject] private SettingsService SettingsService { get; set; } = null!;
     [Inject] private ILogger<Routines> Logger { get; set; } = null!;
 
     #endregion
@@ -37,6 +40,9 @@ public partial class Routines : ComponentBase, IDisposable
     private string _sortColumn = "name";
     private bool _sortDescending;
     private string _statusFilter = string.Empty;
+    private string? _editingKey;
+    private int _editValue;
+    private int _editUnit = 60;
 
     private bool IsLoading { get; set; }
 
@@ -126,6 +132,43 @@ public partial class Routines : ComponentBase, IDisposable
         }
 
         await RoutineService.UpdateDefinitionAsync(definition);
+        await Refresh();
+    }
+
+    // Database cleanup's interval is also a Maintenance setting (whole hours); keep the two in sync.
+    private const string CleanupKey = "database-cleanup";
+
+    private void BeginEditInterval(RoutineDefinition routine)
+    {
+        _editingKey = routine.Key;
+        var useHours = routine.Key == CleanupKey || routine.IntervalSeconds % 3600 == 0;
+        _editUnit = useHours ? 3600 : 60;
+        _editValue = Math.Max(1, routine.IntervalSeconds / _editUnit);
+    }
+
+    private void CancelEditInterval()
+    {
+        _editingKey = null;
+    }
+
+    private async Task OnIntervalKeyDown(KeyboardEventArgs e, string key)
+    {
+        if (e.Key == "Enter") await SaveInterval(key);
+        else if (e.Key == "Escape") CancelEditInterval();
+    }
+
+    private async Task SaveInterval(string key)
+    {
+        var seconds = (int)Math.Min((long)Math.Max(1, _editValue) * _editUnit, int.MaxValue);
+        var saved = await RoutineRunner.SetIntervalAsync(key, seconds);
+
+        if (saved is { } applied && key == CleanupKey)
+            await SettingsService.SaveCategoryAsync("Maintenance", new Dictionary<string, string>
+            {
+                ["CleanupIntervalHours"] = Math.Max(1, applied / 3600).ToString()
+            });
+
+        _editingKey = null;
         await Refresh();
     }
 
