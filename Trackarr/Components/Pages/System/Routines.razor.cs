@@ -7,7 +7,7 @@ using static Trackarr.Utils;
 
 namespace Trackarr.Components.Pages.System;
 
-public partial class Routines : ComponentBase
+public partial class Routines : ComponentBase, IDisposable
 {
     #region Lifecycle
 
@@ -24,6 +24,7 @@ public partial class Routines : ComponentBase
 
     [Inject] private IDbContextFactory<AppDbContext> DbFactory { get; set; } = null!;
     [Inject] private RoutineService RoutineService { get; set; } = null!;
+    [Inject] private ILogger<Routines> Logger { get; set; } = null!;
 
     #endregion
 
@@ -157,12 +158,36 @@ public partial class Routines : ComponentBase
 
     private async Task RunRefreshLoopAsync(CancellationToken token)
     {
-        PeriodicTimer timer = new(TimeSpan.FromSeconds(2));
-        while (await timer.WaitForNextTickAsync(token))
+        using PeriodicTimer timer = new(TimeSpan.FromSeconds(2));
+        try
         {
-            await Refresh();
-            await InvokeAsync(StateHasChanged);
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                try
+                {
+                    await Refresh();
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // A failed refresh shouldn't kill the loop; the next tick tries again.
+                    Logger.LogWarning(ex, "Routines page refresh failed");
+                }
+            }
         }
+        catch (OperationCanceledException)
+        {
+            // Page closed.
+        }
+    }
+
+    // Without this the loop outlived the page: every visit added another 2 second database poll for the
+    // rest of the browser session.
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
     }
 
     private async Task Refresh()

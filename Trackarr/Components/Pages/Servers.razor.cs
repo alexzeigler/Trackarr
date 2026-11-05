@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop;
 using Trackarr.Components.Modals;
+using Trackarr.Core.Exception;
 using Trackarr.Core.Server;
 using Trackarr.Services.UI;
+using static Trackarr.Utils;
 
 namespace Trackarr.Components.Pages;
 
@@ -16,13 +19,31 @@ public partial class Servers : ComponentBase
 
     #region Data Loading
 
-    private async Task RefreshAsync()
+    // Also raised from a background thread (auto refresh), so all state changes run on the dispatcher.
+    private Task RefreshAsync()
     {
-        IsRefreshing = true;
-        await InvokeAsync(StateHasChanged);
-        _servers = await MediaServerService.GetAllServersAsync();
-        IsRefreshing = false;
-        await InvokeAsync(StateHasChanged);
+        return InvokeAsync(async () =>
+        {
+            IsRefreshing = true;
+            StateHasChanged();
+            _servers = await MediaServerService.GetAllServersAsync();
+            await LoadLatestEventsAsync();
+            IsRefreshing = false;
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadLatestEventsAsync()
+    {
+        var events = new Dictionary<int, ServerHealthEvent?>();
+
+        foreach (var server in _servers)
+        {
+            var recent = await MediaServerService.GetRecentHealthEventsAsync(server.Id, 1);
+            events[server.Id] = recent.FirstOrDefault();
+        }
+
+        _latestEvents = events;
     }
 
     #endregion
@@ -32,6 +53,8 @@ public partial class Servers : ComponentBase
     private ConfirmationDialog? _confirmModal;
     private string? _confirmText = "Are you sure you want to delete this server?";
 
+    private string? _actionError;
+    private Dictionary<int, ServerHealthEvent?> _latestEvents = [];
     private string _searchTerm = string.Empty;
     private int _selectedServerId;
     private AddServerModal _serverModal = new();
@@ -65,6 +88,7 @@ public partial class Servers : ComponentBase
     {
         AppState.OnRefreshRequested += RefreshAsync;
         _servers = await MediaServerService.GetAllServersAsync();
+        await LoadLatestEventsAsync();
     }
 
     #endregion
@@ -109,35 +133,56 @@ public partial class Servers : ComponentBase
         await _serverModal.OpenForAdd();
     }
 
-    private async Task SyncAll()
-    {
-        IsRefreshing = true;
-        await InvokeAsync(StateHasChanged);
-        foreach (var server in _servers.Where(s => s.IsEnabled))
-            await SyncServer(server);
-        await RefreshAsync();
-    }
-
     private async Task ToggleEnabled(MediaServer server)
     {
         server.IsEnabled = !server.IsEnabled;
-        await MediaServerService.UpdateServerAsync(server);
+        server.DisabledByHeartbeat = false;
+        _actionError = null;
+
+        try
+        {
+            await MediaServerService.UpdateServerAsync(server);
+        }
+        catch (MediaServerException ex)
+        {
+            _actionError = ex.Message;
+        }
+
         await RefreshAsync();
     }
 
     private async Task TestConnection(MediaServer row)
     {
-        await MediaServerService.TestConnectionAsync(row);
+        _actionError = null;
+
+        try
+        {
+            await MediaServerService.TestConnectionAsync(row);
+        }
+        catch (MediaServerException ex)
+        {
+            _actionError = ex.Message;
+        }
+
+        await RefreshAsync();
     }
 
     private async Task SyncServer(MediaServer row)
     {
-        await MediaServerService.UpdateServerAsync(row);
-        await MediaServerService.GetQueueAsync(row, true);
-        if (row.ServiceType == ServiceType.Sonarr)
-            await MediaServerService.GetMissingEpisodesAsync(row, true);
-        else
-            await MediaServerService.GetMissingMoviesAsync(row, true);
+        IsRefreshing = true;
+        _actionError = null;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            await MediaServerService.SyncServerAsync(row);
+        }
+        catch (MediaServerException ex)
+        {
+            _actionError = ex.Message;
+        }
+
+        await RefreshAsync();
     }
 
     private async Task EditServer(MediaServer row)
@@ -145,10 +190,22 @@ public partial class Servers : ComponentBase
         await _serverModal.OpenForEdit(row);
     }
 
-    private async void SendDeleteToDb(int id)
+    // Task, not async void: an exception from an async void handler can't be caught and ends the circuit.
+    private async Task SendDeleteToDb(int id)
     {
-        await MediaServerService.DeleteServerAsync(id);
+        _actionError = null;
+
+        try
+        {
+            await MediaServerService.DeleteServerAsync(id);
+        }
+        catch (Exception ex) when (ex is MediaServerException or DbUpdateException)
+        {
+            _actionError = ex.Message;
+        }
+
         await Js.InvokeVoidAsync("modalHelper.hide", "confirmationModal");
+        await RefreshAsync();
     }
 
     private async Task RemoveServer(MediaServer row)
@@ -201,6 +258,9 @@ public partial class Servers : ComponentBase
             "status" => _sortDescending
                 ? rows.OrderByDescending(s => GetServerStatusSort(s))
                 : rows.OrderBy(s => GetServerStatusSort(s)),
+            "uptime" => _sortDescending
+                ? rows.OrderByDescending(s => s.UptimePercent)
+                : rows.OrderBy(s => s.UptimePercent),
             "queue" => _sortDescending
                 ? rows.OrderByDescending(s => s.LastQueueCount ?? 0)
                 : rows.OrderBy(s => s.LastQueueCount ?? 0),
@@ -259,6 +319,24 @@ public partial class Servers : ComponentBase
             "Disabled" => 4,
             _ => 5
         };
+    }
+
+    private static string UptimeClass(double uptimePercent)
+    {
+        return uptimePercent switch
+        {
+            >= 99.5 => "text-green",
+            >= 95 => "text-blue",
+            >= 90 => "text-warning",
+            _ => "text-red"
+        };
+    }
+
+    private string? GetLatestEventTooltip(MediaServer server)
+    {
+        return _latestEvents.GetValueOrDefault(server.Id) is { } evt
+            ? $"{evt.EventType}: {evt.Message} ({TimeAgo(evt.OccurredAt)})"
+            : null;
     }
 
     #endregion

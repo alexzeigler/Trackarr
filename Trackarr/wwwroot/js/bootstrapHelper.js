@@ -78,14 +78,14 @@ window.initTooltips = () => {
     console.log("initToolTips")
 };
 window.tomSelectHelper = {
-    init: function (id, dotnetRef) {
+    init: function (id, dotnetRef, methodName) {
         const el = document.getElementById(id);
         if (!el) return;
         if (el.tomselect) el.tomselect.destroy();
         const ts = new TomSelect(el, {
             create: false,
             dropdownParent: 'body',
-            onChange: v => dotnetRef.invokeMethodAsync('OnFallbackChanged', v)
+            onChange: v => dotnetRef.invokeMethodAsync(methodName, v)
         });
         document.body.appendChild(ts.dropdown);
         ts.dropdown.style.position = 'absolute';
@@ -120,3 +120,10 @@ window.sidebarHelper = {
 
 dropdownPortal.init();
 window.initTooltips();
+// Settings pages: rebuild plain Bootstrap tooltips after the page content changes.
+window.refreshSettingsTooltips = () => {
+    document.querySelectorAll('[data-bs-toggle=tooltip]').forEach(el => {
+        bootstrap.Tooltip.getInstance(el)?.dispose();
+        new bootstrap.Tooltip(el);
+    });
+};

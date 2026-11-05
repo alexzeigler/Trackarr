@@ -9,7 +9,21 @@
         <AppTopbar/>
         <div class="page-body pt-3">
             <div class="container-xl">
-                @Body
+                @* Catches unexpected errors in a page so they show here instead of ending the whole session. *@
+                <ErrorBoundary @ref="_errorBoundary">
+                    <ChildContent>
+                        @Body
+                    </ChildContent>
+                    <ErrorContent Context="ex">
+                        <div class="alert alert-danger" role="alert">
+                            <h4 class="alert-title">Something went wrong on this page</h4>
+                            <div class="text-secondary mb-2">@ex.Message</div>
+                            <button class="btn btn-app-primary btn-sm" @onclick="() => _errorBoundary?.Recover()">
+                                Try again
+                            </button>
+                        </div>
+                    </ErrorContent>
+                </ErrorBoundary>
             </div>
         </div>
     </div>
@@ -25,6 +39,8 @@
 
 @code {
 
+    private ErrorBoundary? _errorBoundary;
+
     protected override void OnInitialized()
     {
         Nav.LocationChanged += OnLocationChanged;
@@ -35,6 +51,9 @@
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         AppState.UpdateRoute(e.Location);
+
+        // Leaving a broken page clears the error so the next page renders normally.
+        _errorBoundary?.Recover();
     }
 
     public void Dispose()

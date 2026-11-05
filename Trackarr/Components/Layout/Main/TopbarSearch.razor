@@ -22,7 +22,7 @@
     {
         if (e.Key != "Enter" || string.IsNullOrWhiteSpace(_searchTerm)) return;
 
-        Nav.NavigateTo($"/?search={Uri.EscapeDataString(_searchTerm.Trim())}");
+        Nav.NavigateTo($"./?search={Uri.EscapeDataString(_searchTerm.Trim())}");
         _searchTerm = string.Empty;
     }
 

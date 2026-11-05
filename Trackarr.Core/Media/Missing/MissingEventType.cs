@@ -7,5 +7,7 @@ public enum MissingEventType
     DowngradedToFallback,
     Resolved,
     CascadedToEpisode,
-    Abandoned
+    Abandoned,
+    Retried,
+    ProfileRestored
 }

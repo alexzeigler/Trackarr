@@ -58,9 +58,29 @@ public static class Utils
         return string.IsNullOrWhiteSpace(value) ? "—" : value;
     }
 
+    /// <summary>
+    ///     Turns an app path like "/servers" into a link relative to &lt;base href&gt; ("servers"), so links keep
+    ///     working when Trackarr runs under a URL base such as /trackarr. The root becomes "./".
+    /// </summary>
+    public static string AppHref(string? path)
+    {
+        var relative = (path ?? "").TrimStart('/');
+        return relative.Length == 0 ? "./" : relative;
+    }
+
     public static string DateTimeDisplay(DateTime? value)
     {
-        return value?.ToString(_dateFormat) ?? "—";
+        return value is { } v ? ToLocal(v).ToString(_dateFormat) : "—";
+    }
+
+    /// <summary>
+    ///     Converts a stored time to the server's local time zone (the container's TZ). Times are stored in UTC,
+    ///     but SQLite returns them with Kind = Unspecified, which ToLocalTime() would treat as already local and
+    ///     leave unchanged, so treat anything not explicitly local as UTC.
+    /// </summary>
+    public static DateTime ToLocal(DateTime value)
+    {
+        return value.Kind == DateTimeKind.Local ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc).ToLocalTime();
     }
 
     public static string TimeAgo(DateTime? value)

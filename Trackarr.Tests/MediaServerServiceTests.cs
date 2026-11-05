@@ -1,9 +1,11 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
+using Trackarr.Services.Settings;
 using Trackarr.Services.UI;
 
 namespace Trackarr.Tests;
@@ -12,8 +14,12 @@ public class MediaServerServiceTests
 {
     private static MediaServerService Create(SqliteInMemoryFactory factory)
     {
+        var changeBus = new DataChangeBus();
+        var settings = new SettingsService(factory, NullLogger<SettingsService>.Instance, changeBus);
+        var healthService = new HealthService(factory, settings, changeBus);
+
         return new MediaServerService(factory, new StubHttpClientFactory(), NullLogger<MediaServerService>.Instance,
-            new DataChangeBus());
+            changeBus, healthService);
     }
 
     [Fact]
@@ -90,6 +96,33 @@ public class MediaServerServiceTests
     }
 
     [Fact]
+    public async Task SyncServerAsync_EvaluatesHealthForQueuedItems()
+    {
+        using var factory = new SqliteInMemoryFactory();
+        var service = Create(factory);
+
+        var server = new MediaServer
+        {
+            Name = "Synced Radarr",
+            Host = "localhost",
+            Port = 7878,
+            ApiKey = "test-key",
+            ServiceType = ServiceType.Radarr,
+            IsEnabled = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await service.CreateServerAsync(server);
+        await service.SyncServerAsync(server);
+
+        await using var db = await factory.CreateDbContextAsync();
+        var attempts = await db.DownloadAttempts.Where(a => a.ServerId == server.Id).ToListAsync();
+
+        Assert.Single(attempts);
+        Assert.Equal("queue-item-1", attempts[0].DownloadId);
+    }
+
+    [Fact]
     public async Task CreateServer_NoFallbackProfile_LeavesIdNull()
     {
         using var factory = new SqliteInMemoryFactory();
@@ -143,6 +176,57 @@ public class MediaServerServiceTests
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
                 {
                     Content = new StringContent("[]", Encoding.UTF8, "application/json")
+                });
+            }
+
+            if (path.EndsWith("/api/v3/queue"))
+            {
+                var body = JsonSerializer.Serialize(new
+                {
+                    page = 1,
+                    pageSize = 100,
+                    totalRecords = 1,
+                    records = new[]
+                    {
+                        new
+                        {
+                            id = 1,
+                            movieId = 0,
+                            seriesId = 0,
+                            episodeId = 0,
+                            size = 1_000_000,
+                            sizeleft = 500_000,
+                            title = "Some.Movie.2024.1080p",
+                            added = DateTime.UtcNow,
+                            status = "downloading",
+                            trackedDownloadStatus = "ok",
+                            trackedDownloadState = "downloading",
+                            downloadId = "queue-item-1",
+                            protocol = "torrent",
+                            downloadClient = "qBittorrent",
+                            indexer = "Prowlarr",
+                            languages = Array.Empty<object>(),
+                            quality = new { quality = new { id = 7, name = "Bluray-1080p" } },
+                            customFormats = Array.Empty<object>(),
+                            statusMessages = Array.Empty<object>()
+                        }
+                    }
+                });
+
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(body, Encoding.UTF8, "application/json")
+                });
+            }
+
+            if (path.EndsWith("/api/v3/wanted/missing"))
+            {
+                var body = JsonSerializer.Serialize(
+                    new { page = 1, pageSize = 100, totalRecords = 0, records = Array.Empty<object>() });
+
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(body, Encoding.UTF8, "application/json")
                 });
             }
 

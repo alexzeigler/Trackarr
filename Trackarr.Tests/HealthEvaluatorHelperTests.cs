@@ -101,9 +101,9 @@ public class DeriveStateFromScoreTests
     }
 
     [Fact]
-    public void NegativeScore_ReturnsRemove()
+    public void NegativeScore_ReturnsCritical() // Remove is set from the decision, not the score (M5)
     {
-        Assert.Equal(HealthState.Remove, _evaluator.DeriveStateFromScore(-1));
+        Assert.Equal(HealthState.Critical, _evaluator.DeriveStateFromScore(-1));
     }
 
     [Fact]
@@ -173,9 +173,9 @@ public class DeriveStateFromScoreTests
     }
 
     [Fact]
-    public void VeryNegativeScore_ReturnsRemove()
+    public void VeryNegativeScore_ReturnsCritical()
     {
-        Assert.Equal(HealthState.Remove, _evaluator.DeriveStateFromScore(-1000));
+        Assert.Equal(HealthState.Critical, _evaluator.DeriveStateFromScore(-1000));
     }
 }
 
@@ -345,7 +345,8 @@ public class ApplyEvaluationTests
     public void BadScansInLastTen_DecayedOnGoodObservation()
     {
         var snapshot = new HealthSnapshot { BadScansInLastTen = 0 };
-        var evaluation = new HealthEvaluation { IsGoodObservation = true, BadScansInWindow = 7 };
+        // Evaluate always counts the current good scan in the window, so GoodScansInWindow is at least 1 here.
+        var evaluation = new HealthEvaluation { IsGoodObservation = true, BadScansInWindow = 7, GoodScansInWindow = 1 };
         var now = DateTime.UtcNow;
 
         _evaluator.ApplyEvaluation(snapshot, evaluation, now);

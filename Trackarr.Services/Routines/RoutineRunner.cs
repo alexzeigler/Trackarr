@@ -24,8 +24,6 @@ public sealed class RoutineRunner(
             State = RoutineState.Running
         };
 
-        _history.Add(run);
-
         try
         {
             routine.IsRunning = true;
@@ -34,20 +32,33 @@ public sealed class RoutineRunner(
                 cancellationToken);
             if (handler != null)
             {
-                var msg = await handler.ExecuteAsync(cancellationToken);
+                var result = await handler.ExecuteAsync(cancellationToken);
 
                 var finishedAt = DateTime.UtcNow;
 
                 routine.LastRun = finishedAt;
                 routine.LastRunTime = (int)(finishedAt - run.StartTime).TotalMilliseconds;
                 routine.NextRun = finishedAt.AddSeconds(routine.IntervalSeconds);
-                routine.LastRunSuccess = true;
+                routine.LastRunSuccess = result.Success;
 
                 run.EndTime = finishedAt;
-                run.State = RoutineState.Success;
 
-                await eventService.LogAsync($"Task '{routine.Name}' completed in {routine.LastRunTime}ms. {msg}",
-                    routine.Key, LogLevel.Information, null, cancellationToken);
+                if (result.Success)
+                {
+                    run.State = RoutineState.Success;
+                    await eventService.LogAsync(
+                        $"Task '{routine.Name}' completed in {routine.LastRunTime}ms. {result.Message}",
+                        routine.Key, LogLevel.Information, null, cancellationToken);
+                }
+                else
+                {
+                    // Finished, but part of the work failed (say one server was unreachable).
+                    run.State = RoutineState.Failed;
+                    run.ErrorMessage = result.Message;
+                    await eventService.LogAsync(
+                        $"Task '{routine.Name}' finished with errors in {routine.LastRunTime}ms. {result.Message}",
+                        routine.Key, LogLevel.Warning, null, cancellationToken);
+                }
             }
         }
         catch (Exception ex)
@@ -94,12 +105,10 @@ public sealed class RoutineRunner(
 
     #region Dependencies
 
-    private readonly List<RoutineRun> _history = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly Queue<string> _manualQueue = new();
     private readonly List<RoutineDefinition> _routines = [];
 
-    public IReadOnlyList<RoutineRun> History => _history.AsReadOnly();
     public bool IsRunning => _lock.CurrentCount == 0;
 
     #endregion
@@ -117,7 +126,11 @@ public sealed class RoutineRunner(
         _routines.AddRange(definitions);
     }
 
-    public async Task TickAsync(CancellationToken cancellationToken)
+    /// <summary>
+    ///     Runs at most one routine: the next manually queued one, otherwise (when <paramref name="runScheduled" />)
+    ///     the most overdue enabled one. Manual runs go through even when scheduled runs are off.
+    /// </summary>
+    public async Task TickAsync(CancellationToken cancellationToken, bool runScheduled = true)
     {
         if (!await _lock.WaitAsync(0, cancellationToken)) return;
 
@@ -127,8 +140,10 @@ public sealed class RoutineRunner(
 
             var routine = _manualQueue.Count > 0
                 ? _routines.FirstOrDefault(x => x.Key == _manualQueue.Peek() && !x.IsRunning)
-                : _routines.Where(x => x.Enabled).Where(x => !x.IsPaused).Where(x => !x.IsRunning)
-                    .Where(x => x.NextRun <= now).OrderBy(x => x.NextRun).FirstOrDefault();
+                : runScheduled
+                    ? _routines.Where(x => x.Enabled).Where(x => !x.IsPaused).Where(x => !x.IsRunning)
+                        .Where(x => x.NextRun <= now).OrderBy(x => x.NextRun).FirstOrDefault()
+                    : null;
 
             if (routine is null) return;
 

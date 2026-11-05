@@ -44,10 +44,10 @@ public sealed class RoutineService(IDbContextFactory<AppDbContext> dbContextFact
         }
         else
         {
+            // Enabled and IntervalSeconds belong to the user once the row exists (Routines page, Maintenance
+            // settings). Only the code-owned text is refreshed, so a restart doesn't undo their changes.
             existing.Name = routine.Name;
             existing.Description = routine.Description;
-            existing.Enabled = routine.Enabled;
-            existing.IntervalSeconds = routine.IntervalSeconds;
         }
 
         await db.SaveChangesAsync(cancellationToken);

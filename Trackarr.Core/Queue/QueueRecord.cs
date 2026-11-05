@@ -31,4 +31,10 @@ public class QueueRecord
     public JsonElement Quality { get; set; }
     public JsonElement CustomFormats { get; set; }
     public JsonElement StatusMessages { get; set; }
+
+    // Populated when the queue request includes includeMovie/includeSeries/includeEpisode,
+    // so queue refreshes can hydrate parent media locally instead of fetching each by id.
+    public JsonElement? Movie { get; set; }
+    public JsonElement? Series { get; set; }
+    public JsonElement? Episode { get; set; }
 }

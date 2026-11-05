@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Trackarr.Components.Modals;
+using Trackarr.Core.Exception;
 using Trackarr.Core.Health;
 using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Media.Shows;
@@ -61,6 +62,8 @@ public partial class Queue : ComponentBase
     private bool _hasServers = true;
     private bool _chartsInitialized;
     private bool _chartsPending;
+    private bool _disposed;
+    private string? _loadError;
 
     private MediaDetailsModal _detailsModal = null!;
     private List<DownloadItem> _downloads = [];
@@ -222,6 +225,7 @@ public partial class Queue : ComponentBase
 
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
         AppState.OnRefreshRequested -= OnAutoRefreshAsync;
         _refreshLock.Dispose();
 
@@ -316,10 +320,18 @@ public partial class Queue : ComponentBase
 
         try
         {
+            // Preview only: a click mustn't count as a scan and push items toward removal (M13).
+            var removable = new List<string>();
             foreach (var item in group.Items)
-                await HealthService.EvaluateAsync(item);
+            {
+                var decision = await HealthService.PreviewAsync(item);
+                if (decision.ShouldRemove) removable.Add(item.Title ?? "Unknown");
+            }
 
-            await RefreshAsync();
+            _previewMessage = removable.Count == 0
+                ? $"Previewed {group.Items.Count} item(s): none would be removed right now."
+                : $"Previewed {group.Items.Count} item(s): {removable.Count} would be removed on the next scan " +
+                  $"({string.Join(", ", removable)}).";
         }
         finally
         {
@@ -335,8 +347,8 @@ public partial class Queue : ComponentBase
 
         try
         {
-            await HealthService.EvaluateAsync(item);
-            await RefreshAsync();
+            // Preview only: a click mustn't count as a scan and push the item toward removal (M13).
+            _previewMessage = DescribePreview(item, await HealthService.PreviewAsync(item));
         }
         finally
         {
@@ -402,10 +414,38 @@ public partial class Queue : ComponentBase
 
     #region Data Loading
 
-    private async Task OnAutoRefreshAsync()
+    // Raised from a background thread: run on the component's dispatcher so state isn't changed off-thread,
+    // and skip entirely if a refresh is already in flight (charts included, not just the data).
+    private string? _previewMessage;
+    private string? _noticeMessage;
+
+    private async Task SetProtectedAsync(DownloadItem item, bool isProtected)
     {
+        if (!await HealthService.SetProtectedAsync(item, isProtected))
+        {
+            _noticeMessage = $"{item.Title} hasn't been scanned yet, so it can't be protected until the next scan.";
+            return;
+        }
+
         await RefreshAsync();
-        await RefreshChartsAsync();
+    }
+
+    public static string DescribePreview(DownloadItem item, HealthDecision decision)
+    {
+        var verdict = decision.ShouldRemove
+            ? "Would be removed on the next scan."
+            : $"Would not be removed: {decision.Restrictions.FirstOrDefault() ?? decision.Message}";
+        return $"{item.Title}: score {decision.VisibleScore} ({decision.State}). {verdict}";
+    }
+
+    private Task OnAutoRefreshAsync()
+    {
+        return InvokeAsync(async () =>
+        {
+            if (_refreshLock.CurrentCount == 0) return;
+            await RefreshAsync();
+            await RefreshChartsAsync();
+        });
     }
 
     private async Task RefreshChartsAsync()
@@ -422,6 +462,7 @@ public partial class Queue : ComponentBase
 
     private async Task RefreshAsync()
     {
+        if (_disposed) return;
         if (!await _refreshLock.WaitAsync(0)) return;
 
         try
@@ -429,6 +470,7 @@ public partial class Queue : ComponentBase
             IsRefreshing = true;
             await InvokeAsync(StateHasChanged);
 
+            _loadError = null;
             var allServers = await MediaServerService.GetAllServersAsync();
             _hasServers = allServers.Count > 0;
             if (!_hasServers) return;
@@ -460,7 +502,10 @@ public partial class Queue : ComponentBase
                     episodes[kvp.Key] = kvp.Value;
             }
 
-            downloads = downloads.DistinctBy(download => $"{download.ServerId}_{download.DownloadId}").ToList();
+            // Same key the evaluation routine uses. Items with no download ID (pending releases, for example)
+            // fall back to queue ID + title instead of all collapsing into one "{server}_" row.
+            downloads = downloads.DistinctBy(download => $"{download.ServerId}_{HealthService.GetDownloadId(download)}")
+                .ToList();
 
             var profiles = new Dictionary<string, QualityProfile>();
 
@@ -468,21 +513,8 @@ public partial class Queue : ComponentBase
             foreach (var profile in await MediaServerService.GetProfilesAsync(server))
                 profiles[$"{profile.ServerId}_{profile.RemoteId}"] = profile;
 
-            var snapshots = new Dictionary<string, HealthSnapshot>();
-            var summaries = new Dictionary<string, MediaHealthSummary>();
-            var healthEvents = new Dictionary<string, DownloadHealthEvent>();
-
-            foreach (var item in downloads)
-            {
-                var key = GetItemKey(item);
-
-                if (await HealthService.GetMostRecentSnapshotAsync(item) is { } snapshot) snapshots[key] = snapshot;
-
-                if (await HealthService.GetMediaSummary(item) is { } summary) summaries[key] = summary;
-
-                if (await HealthService.GetMostRecentHealthEventAsync(item) is { } healthEvent)
-                    healthEvents[key] = healthEvent;
-            }
+            // One batched read for the whole page (P3), instead of three service calls per download.
+            var (snapshots, summaries, healthEvents) = await HealthService.GetQueueHealthAsync(downloads, GetItemKey);
 
             _servers = servers;
             _serverMap = serverMap;
@@ -504,11 +536,19 @@ public partial class Queue : ComponentBase
             if (!_chartsInitialized)
                 _chartsPending = true;
         }
+        catch (MediaServerException ex)
+        {
+            _loadError = ex.Message;
+        }
         finally
         {
             IsRefreshing = false;
-            _refreshLock.Release();
-            await InvokeAsync(StateHasChanged);
+
+            if (!_disposed)
+            {
+                _refreshLock.Release();
+                await InvokeAsync(StateHasChanged);
+            }
         }
     }
 

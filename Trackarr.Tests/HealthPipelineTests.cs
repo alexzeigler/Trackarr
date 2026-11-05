@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Trackarr.Core.Health;
+using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
@@ -66,6 +67,46 @@ public class HealthPipelineTests
 
             Assert.Equal(firstId, again.Id);
             Assert.Equal(1, await db.DownloadAttempts.CountAsync());
+        }
+    }
+
+    [Fact]
+    public async Task GetOrCreateAttempt_LinksMovieFromSameServerWhenRemoteIdsCollide()
+    {
+        // Regression guard for C3: two Radarr instances both number their movies from 1.
+        using var factory = new SqliteInMemoryFactory();
+        var repo = new HealthRepository();
+        var now = DateTime.UtcNow;
+
+        int hdServerId, uhdServerId, uhdMovieId;
+        await using (var db = factory.CreateDbContext())
+        {
+            var hd = new MediaServer { Name = "Radarr 1080p", ServiceType = ServiceType.Radarr, Host = "a", Port = 1 };
+            var uhd = new MediaServer { Name = "Radarr 4K", ServiceType = ServiceType.Radarr, Host = "b", Port = 2 };
+            db.MediaServers.AddRange(hd, uhd);
+            await db.SaveChangesAsync();
+
+            // The other server's movie is inserted first, so an unscoped lookup would return it.
+            db.Movies.Add(new Movie { RemoteId = 1, Title = "Movie A", ServerId = hd.Id });
+            await db.SaveChangesAsync();
+            var uhdMovie = new Movie { RemoteId = 1, Title = "Movie B", ServerId = uhd.Id };
+            db.Movies.Add(uhdMovie);
+            await db.SaveChangesAsync();
+
+            hdServerId = hd.Id;
+            uhdServerId = uhd.Id;
+            uhdMovieId = uhdMovie.Id;
+        }
+
+        await using (var db = factory.CreateDbContext())
+        {
+            var item = MovieDownload(uhdServerId);
+            item.MovieId = 1;
+
+            var attempt = await repo.GetOrCreateAttemptAsync(db, item, null, now, CancellationToken.None);
+
+            Assert.Equal(uhdMovieId, attempt.MovieId);
+            Assert.NotEqual(hdServerId, uhdServerId);
         }
     }
 

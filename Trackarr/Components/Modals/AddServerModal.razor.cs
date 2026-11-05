@@ -163,6 +163,12 @@ public partial class AddServerModal : ComponentBase
         if (Model.FallbackProfile != null) Model.FallBackProfileId = Model.FallbackProfile.Id;
     }
 
+    // A pasted full URL ("https://example.com/radarr") is split into SSL, host, port and URL base.
+    private void ParseAddress()
+    {
+        if (Model.Host?.Contains("://") == true) Model.NormalizeAddress();
+    }
+
     private void UpdatePort()
     {
         Model.Port = (Model.ServiceType, Model.UseHttps) switch
@@ -179,6 +185,7 @@ public partial class AddServerModal : ComponentBase
     {
         SyncBehaviorToModel();
         IsSaving = true;
+        var isNew = !IsEditing;
         if (IsEditing)
             await ServerService.UpdateServerAsync(Model);
         else
@@ -190,6 +197,9 @@ public partial class AddServerModal : ComponentBase
         IsSaving = false;
         await OnSaved.InvokeAsync();
         await InvokeAsync(StateHasChanged);
+
+        if (isNew)
+            _ = ServerService.SyncServerAsync(Model);
     }
 
     private async Task Close()
@@ -212,7 +222,7 @@ public partial class AddServerModal : ComponentBase
         {
             await Js.InvokeVoidAsync("disposeTooltip", "#fallbackTooltip");
             await Js.InvokeVoidAsync("tomSelectHelper.init", "fallbackProfileSelect",
-                _ref ??= DotNetObjectReference.Create(this));
+                _ref ??= DotNetObjectReference.Create(this), nameof(OnFallbackChanged));
         }
 
         await Js.InvokeVoidAsync("initTooltips");
@@ -244,7 +254,8 @@ public partial class AddServerModal : ComponentBase
         {
             not null when reasonPhrase.Contains("401") => "401: Unauthorized — check your API key.",
             not null when reasonPhrase.Contains("403") => "403: Forbidden — insufficient permissions.",
-            not null when reasonPhrase.Contains("404") => "404: Not Found — check your host and API path.",
+            not null when reasonPhrase.Contains("404") =>
+                "404: Not Found — check the host, port and URL base (e.g. /radarr behind a reverse proxy).",
             not null when reasonPhrase.Contains("408") => "408: Request Timeout — server took too long to respond.",
             not null when reasonPhrase.Contains("500") =>
                 "500: Internal Server Error — something went wrong on the server.",

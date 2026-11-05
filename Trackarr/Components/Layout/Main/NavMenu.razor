@@ -1,7 +1,7 @@
 @inject NavigationManager Nav
 @inject SystemStatusService StatusService
 @inject MediaServerService MediaServerService
-@inject MissingService MissingService
+@inject ILogger<NavMenu> Logger
 @using Trackarr.Core.SystemInfo
 @using Trackarr.Services.Media
 @using Trackarr.Services.SystemInfo
@@ -66,7 +66,7 @@
                             @foreach (var child in item.Children)
                             {
                                 <li class="nav-item">
-                                    <a class="nav-link @(IsChildActive(child.Href) ? "active" : "")" href="@child.Href">
+                                    <a class="nav-link @(IsChildActive(child.Href) ? "active" : "")" href="@Utils.AppHref(child.Href)">
                                         @child.Label
                                         @if (child.Badge is { } childBadge)
                                         {
@@ -82,7 +82,7 @@
             else
             {
                 <li class="nav-item @(active ? "active-group" : "inactive-group")">
-                    <a class="nav-link @(active ? "active" : "")  px-3" href="@item.Href">
+                    <a class="nav-link @(active ? "active" : "")  px-3" href="@Utils.AppHref(item.Href)">
                         <span class="nav-link-icon d-md-none d-lg-inline-block">
                             <i class="@item.Icon"></i>
                         </span>
@@ -126,7 +126,10 @@
     [
         new("Queue", "", "/", "ti ti-stack-2", []),
         new("Missing", "/missing", "/missing", "ti ti-stack-2", []),
-        new("Servers", "/servers", "/servers", "ti ti-server", []),
+        new("Servers", "/servers", "/servers", "ti ti-server", [
+            new NavChild("All Servers", "/servers"),
+            new NavChild("Uptime", "/servers/uptime")
+        ]),
         new("History", "/history", "/history", "ti ti-history", []),
         new("System", "/system/status", "/system", "bi bi-laptop", [
             new NavChild("Status", "/system/status"),
@@ -164,9 +167,9 @@
                 await RefreshBadgeAsync();
                 await InvokeAsync(StateHasChanged);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                //ignore
+                Logger.LogDebug(ex, "Nav badge refresh failed");
             }
         }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
     }
@@ -204,12 +207,19 @@
         {
             var servers = await MediaServerService.GetAllServersAsync();
 
-            var queues = await Task.WhenAll(servers.Select(s => MediaServerService.GetQueueAsync(s)));
-            var queueCount = queues.Sum(q => q.Count);
+            var disabledCount = servers.Count(s => !s.IsEnabled);
+            var serversBadge = disabledCount > 0 ? new BadgeState(disabledCount, "bg-danger") : (BadgeState?)null;
+            GetItem("/servers").Badge = serversBadge;
+            GetChild("/servers", "/servers").Badge = serversBadge;
+
+            // Badges read counts the routines already stored. Never call Radarr/Sonarr from the UI here:
+            // GetQueueAsync rewrites the queue table and EvaluateServerAsync pushes searches and profile changes.
+            var enabledServers = servers.Where(s => s.IsEnabled).ToList();
+
+            var queueCount = enabledServers.Sum(s => s.LastQueueCount ?? 0);
             GetItem("/").Badge = queueCount > 0 ? new BadgeState(queueCount, "bg-info") : null;
 
-            var missingCounts = await Task.WhenAll(servers.Select(s => MissingService.EvaluateServerAsync(s)));
-            var missingCount = missingCounts.Sum();
+            var missingCount = enabledServers.Sum(s => s.LastMissingCount ?? 0);
             GetItem("/missing").Badge = missingCount > 0 ? new BadgeState(missingCount, "bg-warning text-dark") : null;
 
             var messages = await StatusService.GetStatusMessagesAsync();
@@ -229,9 +239,9 @@
                 GetItem("/system").Badge = null;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Clear all badges on error
+            Logger.LogDebug(ex, "Nav badges could not be loaded; clearing them");
             foreach (var item in _navItems)
             {
                 item.Badge = null;

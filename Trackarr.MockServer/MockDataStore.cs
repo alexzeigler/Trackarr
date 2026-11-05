@@ -9,6 +9,19 @@ public enum MockMode
     Sonarr
 }
 
+public record MockStatus(
+    int RadarrPort,
+    int SonarrPort,
+    int Movies,
+    int Series,
+    int Episodes,
+    int MovieQueueItems,
+    int SeriesQueueItems,
+    int MissingMovies,
+    int MissingEpisodes,
+    int ProfileChangedItems,
+    int PendingSearches);
+
 public class FakeQueueItem
 {
     public int Id { get; set; }
@@ -69,8 +82,8 @@ public class MockCommand
 
 public class MockDataStore(ILogger<MockDataStore> logger)
 {
-    private const double BaseSearchSuccessRate = 0.40;
-    private const double ProfileChangedSearchSuccessRate = 0.70;
+    private const double BaseSearchSuccessRate = 0.85;
+    private const double ProfileChangedSearchSuccessRate = 0.95;
 
     private static readonly string[] DownloadClients = ["qBittorrent", "SABnzbd", "NZBGet", "Transmission", "Deluge"];
     private static readonly string[] Indexers = ["NZBgeek", "DrunkenSlug", "Jackett", "Prowlarr", "1337x"];
@@ -90,6 +103,7 @@ public class MockDataStore(ILogger<MockDataStore> logger)
     private readonly List<int> _missingMovieIds = [];
 
     private readonly List<FakeQueueItem> _movieQueue = [];
+    private readonly List<object> _healthMessages = [];
 
     private readonly Dictionary<int, string> _movies = [];
     private readonly HashSet<int> _profileChangedItems = [];
@@ -102,8 +116,6 @@ public class MockDataStore(ILogger<MockDataStore> logger)
 
     private string _radarrProfiles = "[]";
     private string _sonarrProfiles = "[]";
-    private int _targetMovieQueueCount;
-    private int _targetSeriesQueueCount;
     public int RadarrPort { get; private set; }
     public int SonarrPort { get; private set; }
 
@@ -231,11 +243,14 @@ public class MockDataStore(ILogger<MockDataStore> logger)
 
     private void GenerateFakeData(IConfiguration config)
     {
-        var queueCount = config.GetValue("MockServer:FakeQueueCount", 8);
         var missingCount = config.GetValue("MockServer:FakeMissingCount", 10);
 
         var movieIds = _movies.Keys.ToList();
-        var episodeIds = _episodes.Keys.ToList();
+
+        // Season 0 (specials) is excluded so generated "missing" episodes look like normal
+        // gaps in a season instead of always landing on the specials nobody searches for.
+        var episodeIds = _episodes.Where(kv => GetJsonIntProp(kv.Value, "seasonNumber") != 0).Select(kv => kv.Key)
+            .ToList();
 
         if (movieIds.Count > 0)
         {
@@ -250,59 +265,9 @@ public class MockDataStore(ILogger<MockDataStore> logger)
             logger.LogInformation("Generated {Count} missing episodes", _missingEpisodeIds.Count);
         }
 
-        var hasMovies = movieIds.Count > 0;
-        var hasEpisodes = episodeIds.Count > 0;
-        if (hasMovies && hasEpisodes)
-        {
-            _targetMovieQueueCount = Math.Max(1, queueCount / 2);
-            _targetSeriesQueueCount = Math.Max(1, queueCount - _targetMovieQueueCount);
-        }
-        else if (hasMovies) _targetMovieQueueCount = queueCount;
-        else if (hasEpisodes) _targetSeriesQueueCount = queueCount;
-
-        for (var i = 0; i < _targetMovieQueueCount && hasMovies; i++) AddRandomQueueItem(true);
-        for (var i = 0; i < _targetSeriesQueueCount && hasEpisodes; i++) AddRandomQueueItem(false);
-
-        ApplyInitialVariety(_movieQueue);
-        ApplyInitialVariety(_seriesQueue);
-
-        logger.LogInformation("Generated {Movie} movie + {Series} series queue items", _movieQueue.Count,
-            _seriesQueue.Count);
-    }
-
-    private void ApplyInitialVariety(List<FakeQueueItem> queue)
-    {
-        if (queue.Count < 4) return;
-
-        // Fast healthy download — already has progress
-        queue[0].Momentum = 0.7 + _rng.NextDouble() * 0.3;
-        queue[0].SizeLeft = queue[0].Size / 3;
-        queue[0].MetadataTicksNeeded = 0;
-        queue[0].StuckOnMetadata = false;
-
-        // Stalled with warning
-        queue[1].Status = "warning";
-        queue[1].TrackedDownloadStatus = "warning";
-        queue[1].ErrorMessage = "No connections were made because no connectable peers were found";
-        queue[1].Momentum = 0;
-        queue[1].SizeLeft = (long)(queue[1].Size * 0.7);
-        queue[1].MetadataTicksNeeded = 0;
-        queue[1].StuckOnMetadata = false;
-
-        // Completed, waiting for import
-        queue[2].Status = "completed";
-        queue[2].TrackedDownloadStatus = "ok";
-        queue[2].TrackedDownloadState = "importPending";
-        queue[2].SizeLeft = 0;
-        queue[2].Momentum = 0;
-        queue[2].MetadataTicksNeeded = 0;
-        queue[2].StuckOnMetadata = false;
-
-        // Stuck on metadata
-        queue[3].StuckOnMetadata = true;
-        queue[3].MetadataTicksNeeded = int.MaxValue;
-        queue[3].ErrorMessage = "qBittorrent is downloading metadata";
-        queue[3].Momentum = 0;
+        // Queue starts empty — Trackarr is responsible for pushing searches against the missing
+        // list above, and a successful search (see ProcessCompletedSearches) is what populates it.
+        logger.LogInformation("Queue starts empty; populated only by Trackarr-initiated searches");
     }
 
     private FakeQueueItem? CreateQueueItemForId(bool isMovie, int targetId)
@@ -355,19 +320,6 @@ public class MockDataStore(ILogger<MockDataStore> logger)
         return item;
     }
 
-    private void AddRandomQueueItem(bool isMovie)
-    {
-        if (isMovie && _movies.Count == 0) return;
-        if (!isMovie && _episodes.Count == 0) return;
-
-        var ids = isMovie ? _movies.Keys.ToList() : _episodes.Keys.ToList();
-        var item = CreateQueueItemForId(isMovie, ids[_rng.Next(ids.Count)]);
-        if (item is null) return;
-
-        if (isMovie) _movieQueue.Add(item);
-        else _seriesQueue.Add(item);
-    }
-
     // ── Queue Tick (State Machine) ──
 
     public void TickQueue()
@@ -375,14 +327,14 @@ public class MockDataStore(ILogger<MockDataStore> logger)
         lock (_lock)
         {
             ProcessCompletedSearches();
-            TickList(_movieQueue, _targetMovieQueueCount, true, "Movie");
-            TickList(_seriesQueue, _targetSeriesQueueCount, false, "Series");
+            TickList(_movieQueue, "Movie");
+            TickList(_seriesQueue, "Series");
         }
     }
 
-    private void TickList(List<FakeQueueItem> queue, int targetCount, bool isMovie, string label)
+    private void TickList(List<FakeQueueItem> queue, string label)
     {
-        int completed = 0, imported = 0, warned = 0, failed = 0, resumed = 0, added = 0;
+        int completed = 0, imported = 0, warned = 0, failed = 0, resumed = 0;
         var toRemove = new List<int>();
 
         foreach (var item in queue)
@@ -490,18 +442,11 @@ public class MockDataStore(ILogger<MockDataStore> logger)
 
         queue.RemoveAll(q => toRemove.Contains(q.Id));
 
-        var available = isMovie ? _movies.Count : _episodes.Count;
-        while (queue.Count < targetCount && available > 0)
-        {
-            AddRandomQueueItem(isMovie);
-            added++;
-        }
-
-        if (completed + imported + warned + failed + resumed + added > 0)
+        if (completed + imported + warned + failed + resumed > 0)
         {
             logger.LogInformation(
-                "[{Label}] +{Done} done, +{Imp} imported, +{Warn} warned, +{Fail} failed, +{Res} resumed, +{Add} new ({Total} in queue)",
-                label, completed, imported, warned, failed, resumed, added, queue.Count);
+                "[{Label}] +{Done} done, +{Imp} imported, +{Warn} warned, +{Fail} failed, +{Res} resumed ({Total} in queue)",
+                label, completed, imported, warned, failed, resumed, queue.Count);
         }
     }
 
@@ -689,6 +634,35 @@ public class MockDataStore(ILogger<MockDataStore> logger)
         return Results.Content(json, "application/json");
     }
 
+    public List<object> GetHealth()
+    {
+        lock (_lock)
+        {
+            return _healthMessages.ToList();
+        }
+    }
+
+    public void SetHealthWarning(bool enabled)
+    {
+        lock (_lock)
+        {
+            _healthMessages.Clear();
+
+            if (enabled)
+            {
+                _healthMessages.Add(new
+                {
+                    source = "DownloadClientCheck",
+                    type = "warning",
+                    message = "Unable to communicate with qBittorrent",
+                    wikiUrl = "https://wiki.servarr.com/radarr/system#health-checks"
+                });
+            }
+        }
+
+        logger.LogInformation("Mock health warning {State}", enabled ? "enabled" : "cleared");
+    }
+
     public IResult GetMissingMovies(int page, int pageSize)
     {
         lock (_lock)
@@ -779,7 +753,8 @@ public class MockDataStore(ILogger<MockDataStore> logger)
 
     public IResult GetMovie(int id)
     {
-        return _movies.TryGetValue(id, out var json) ? Results.Content(json, "application/json") : Results.NotFound();
+        if (!_movies.TryGetValue(id, out var json)) return Results.NotFound();
+        return Results.Content(WithMovieMissingState(id, json).ToJsonString(), "application/json");
     }
 
     public IResult GetSeries(int id)
@@ -789,33 +764,64 @@ public class MockDataStore(ILogger<MockDataStore> logger)
 
     public IResult GetEpisode(int id)
     {
-        return _episodes.TryGetValue(id, out var json) ? Results.Content(json, "application/json") : Results.NotFound();
+        if (!_episodes.TryGetValue(id, out var json)) return Results.NotFound();
+        return Results.Content(WithEpisodeMissingState(id, json).ToJsonString(), "application/json");
     }
 
     public IResult GetEpisodesBySeries(int seriesId)
     {
         if (!_episodesBySeries.TryGetValue(seriesId, out var epIds))
             return Results.Content("[]", "application/json");
-        var items = epIds.Where(id => _episodes.ContainsKey(id)).Select(id => _episodes[id]);
+        var items = epIds.Where(id => _episodes.ContainsKey(id))
+            .Select(id => WithEpisodeMissingState(id, _episodes[id]).ToJsonString());
         return Results.Content($"[{string.Join(",", items)}]", "application/json");
     }
 
-    public object GetMockStatus()
+    // Episodes/movies marked missing only get hasFile=false/monitored=true synthesized on the
+    // fly by GetMissingMovies/GetMissingEpisodes; the stored JSON (seeded from a real instance,
+    // or fake-generated) keeps its original hasFile value. Apply the same override here so every
+    // endpoint agrees on missing state - otherwise a full-library sync (e.g. /api/v3/episode by
+    // series) overwrites Trackarr's "missing" record with stale hasFile=true data.
+    private JsonObject WithMovieMissingState(int movieId, string json)
+    {
+        var node = JsonNode.Parse(json)!.AsObject();
+        if (_missingMovieIds.Contains(movieId))
+        {
+            node["hasFile"] = false;
+            node["monitored"] = true;
+        }
+
+        return node;
+    }
+
+    private JsonObject WithEpisodeMissingState(int episodeId, string json)
+    {
+        var node = JsonNode.Parse(json)!.AsObject();
+        if (_missingEpisodeIds.Contains(episodeId))
+        {
+            node["hasFile"] = false;
+            node["monitored"] = true;
+        }
+
+        return node;
+    }
+
+    public MockStatus GetMockStatus()
     {
         lock (_lock)
         {
-            return new
-            {
-                Movies = _movies.Count,
-                Series = _series.Count,
-                Episodes = _episodes.Count,
-                MovieQueueItems = _movieQueue.Count,
-                SeriesQueueItems = _seriesQueue.Count,
-                MissingMovies = _missingMovieIds.Count,
-                MissingEpisodes = _missingEpisodeIds.Count,
-                ProfileChangedItems = _profileChangedItems.Count,
-                PendingSearches = _commands.Count(c => !c.Processed && c.WillSucceed)
-            };
+            return new MockStatus(
+                RadarrPort,
+                SonarrPort,
+                _movies.Count,
+                _series.Count,
+                _episodes.Count,
+                _movieQueue.Count,
+                _seriesQueue.Count,
+                _missingMovieIds.Count,
+                _missingEpisodeIds.Count,
+                _profileChangedItems.Count,
+                _commands.Count(c => !c.Processed && c.WillSucceed));
         }
     }
 

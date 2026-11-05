@@ -45,7 +45,6 @@ public class BuildDecisionTests
             DateTime.UtcNow);
 
         Assert.True(decision.ShouldRemove);
-        Assert.True(decision.ShouldReplace);
         Assert.Empty(decision.Restrictions);
         Assert.Equal(HealthState.Remove, decision.State);
         Assert.Equal("eligible-for-removal", decision.ReasonKey);
@@ -211,7 +210,8 @@ public class BuildDecisionTests
         var snapshot = EligibleSnapshot();
         snapshot.LastMeaningfulRecoveryAt = now.AddMinutes(-1);
 
-        var decision = _evaluator.BuildDecision(EligibleAttempt(), snapshot, DefaultEvaluation(), now);
+        var decision = _evaluator.BuildDecision(EligibleAttempt(), snapshot, DefaultEvaluation(), now,
+            scansSinceRecovery: 1);
 
         Assert.False(decision.ShouldRemove);
         Assert.Contains(decision.Restrictions, r => r.Contains("meaningful recovery"));
@@ -222,33 +222,27 @@ public class BuildDecisionTests
     {
         var now = DateTime.UtcNow;
         var snapshot = EligibleSnapshot();
-        snapshot.LastMeaningfulRecoveryAt = now.AddMinutes(-(Policy.RecentRecoveryProtectionScans + 1));
+        snapshot.LastMeaningfulRecoveryAt = now.AddMinutes(-30);
 
-        var decision = _evaluator.BuildDecision(EligibleAttempt(), snapshot, DefaultEvaluation(), now);
+        var decision = _evaluator.BuildDecision(EligibleAttempt(), snapshot, DefaultEvaluation(), now,
+            scansSinceRecovery: Policy.RecentRecoveryProtectionScans);
 
         Assert.DoesNotContain(decision.Restrictions, r => r.Contains("meaningful recovery"));
     }
 
     [Fact]
-    public void ShouldProtect_WhenRecoveryCreditExists()
+    public void RecoveryProtection_CountsScans_NotMinutes()
     {
+        // Regression guard for H6: 3 "scans" used to mean 3 minutes, so at a 5 minute interval a recovery
+        // was unprotected by the very next scan.
+        var now = DateTime.UtcNow;
         var snapshot = EligibleSnapshot();
-        snapshot.RecoveryCredit = 5;
+        snapshot.LastMeaningfulRecoveryAt = now.AddMinutes(-(Policy.RecentRecoveryProtectionScans + 2));
 
-        var decision = _evaluator.BuildDecision(EligibleAttempt(), snapshot, DefaultEvaluation(), DateTime.UtcNow);
+        var decision = _evaluator.BuildDecision(EligibleAttempt(), snapshot, DefaultEvaluation(), now,
+            scansSinceRecovery: 1);
 
-        Assert.True(decision.ShouldProtect);
-    }
-
-    [Fact]
-    public void ShouldNotProtect_WhenNoRecoveryCredit()
-    {
-        var snapshot = EligibleSnapshot();
-        snapshot.RecoveryCredit = 0;
-
-        var decision = _evaluator.BuildDecision(EligibleAttempt(), snapshot, DefaultEvaluation(), DateTime.UtcNow);
-
-        Assert.False(decision.ShouldProtect);
+        Assert.Contains(decision.Restrictions, r => r.Contains("meaningful recovery"));
     }
 
     [Fact]

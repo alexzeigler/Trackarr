@@ -108,6 +108,7 @@
         LoadValues();
         Context.SaveAsync = SaveAsync;
         Context.DiscardAsync = DiscardAsync;
+        Context.NotifyChanged();
     }
 
     private void LoadValues()

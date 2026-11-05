@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Trackarr.Services.Settings;
 
 namespace Trackarr.Services.UI;
@@ -23,18 +24,21 @@ public sealed class AppStateService : IAsyncDisposable
         new("/settings/missing", "Missing Policy", [new BreadcrumbSegment("Settings", "/settings/missing")]),
         new("/settings/blacklist", "Blacklist", [new BreadcrumbSegment("Settings", "/settings/blacklist")]),
         new("/settings/services", "Servers", [new BreadcrumbSegment("Settings", "/settings/services")]),
-        new("/settings/maintenance", "Maintenance", [new BreadcrumbSegment("Settings", "/settings/maintenance")])
+        new("/settings/maintenance", "Maintenance", [new BreadcrumbSegment("Settings", "/settings/maintenance")]),
+        new("/settings/network", "Network", [new BreadcrumbSegment("Settings", "/settings/network")])
     ];
 
     private readonly DataChangeBus _bus;
+    private readonly ILogger<AppStateService>? _logger;
     private readonly SettingsService _settings;
     private readonly CancellationTokenSource _timerCts = new();
     private Task? _timerTask;
 
-    public AppStateService(SettingsService settings, DataChangeBus bus)
+    public AppStateService(SettingsService settings, DataChangeBus bus, ILogger<AppStateService>? logger = null)
     {
         _settings = settings;
         _bus = bus;
+        _logger = logger;
         _bus.OnChanged += OnBusChanged;
     }
 
@@ -89,9 +93,35 @@ public sealed class AppStateService : IAsyncDisposable
         await FireRefreshAsync();
     }
 
+    // Routines fire a change per item (a 50-item evaluation is 50 changes). Coalesce a burst into one refresh
+    // shortly after it starts instead of 50 full page refreshes per open tab.
+    private static readonly TimeSpan BusDebounce = TimeSpan.FromSeconds(1);
+    private int _busRefreshPending;
+
     private void OnBusChanged()
     {
-        _ = FireRefreshAsync();
+        if (Interlocked.Exchange(ref _busRefreshPending, 1) == 1) return;
+        _ = DebouncedRefreshAsync();
+    }
+
+    private async Task DebouncedRefreshAsync()
+    {
+        try
+        {
+            await Task.Delay(BusDebounce, _timerCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+
+        // Changes that arrive from here on schedule the next refresh.
+        Interlocked.Exchange(ref _busRefreshPending, 0);
+        await FireRefreshAsync();
     }
 
     private async Task RunAutoRefreshAsync(CancellationToken ct)
@@ -118,8 +148,10 @@ public sealed class AppStateService : IAsyncDisposable
             {
                 await d();
             }
-            catch
+            catch (Exception ex)
             {
+                // One page's failed refresh mustn't stop the others; it'll try again next time.
+                _logger?.LogDebug(ex, "Auto-refresh handler failed");
             }
         }
     }

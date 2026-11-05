@@ -14,7 +14,7 @@
   <Project>https://github.com/alexzeigler/Trackarr</Project>
   <Overview>Trackarr is a self-hosted companion app for Radarr and Sonarr that gives you a unified view of your media automation. Monitor downloads, queue health, missing media, and what needs your attention — all in one place.[br][br]Features include queue monitoring with health scoring, missing media tracking, multi-server support, background routines, and download history.[br][br][b]Setup:[/b] After starting the container, open the WebUI and add your Radarr/Sonarr servers under the Servers page. You will need the host, port, and API key for each instance.</Overview>
   <Category>MediaApp:Other</Category>
-  <WebUI>http://[IP]:[PORT:5264]/</WebUI>
+  <WebUI>http://[IP]:[PORT:8585]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/alexzeigler/Trackarr/master/deploy/unraid/trackarr.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/alexzeigler/Trackarr/master/Trackarr/wwwroot/android-chrome-512x512.png</Icon>
   <Date>2026-06-26</Date>
@@ -31,17 +31,14 @@
   <ExtraParams/>
   <PostArgs/>
 
-  <Config Name="WebUI Port" Target="8080" Default="5264" Mode="tcp" Description="Port for the Trackarr web interface." Type="Port" Display="always" Required="true" Mask="false">5264</Config>
+  <Config Name="WebUI Port" Target="8585" Default="8585" Mode="tcp" Description="Port for the Trackarr web interface. If you change Trackarr's port in Settings &gt; Network, change the container port here to match." Type="Port" Display="always" Required="true" Mask="false">8585</Config>
 
   <Config Name="Config Path" Target="/config" Default="/mnt/user/appdata/trackarr" Mode="rw" Description="Path to store Trackarr configuration and database." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/trackarr</Config>
 
-  <Config Name="ASPNETCORE_ENVIRONMENT" Target="ASPNETCORE_ENVIRONMENT" Default="Production" Description="Application environment. Leave as Production." Type="Variable" Display="advanced" Required="false" Mask="false">Production</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Description="User ID Trackarr runs as; files in /config are owned by it. 99 = nobody on Unraid." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
 
-  <Config Name="DOTNET_ENVIRONMENT" Target="DOTNET_ENVIRONMENT" Default="Production" Description="Runtime environment. Leave as Production." Type="Variable" Display="advanced" Required="false" Mask="false">Production</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Description="Group ID Trackarr runs as. 100 = users on Unraid." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
 
-  <Config Name="ASPNETCORE_URLS" Target="ASPNETCORE_URLS" Default="http://+:8080" Description="Internal listen URL. Do not change." Type="Variable" Display="advanced" Required="false" Mask="false">http://+:8080</Config>
+  <Config Name="Time Zone" Target="TZ" Default="Etc/UTC" Description="Time zone for times shown in the UI, e.g. America/New_York. Use the same value as your other containers." Type="Variable" Display="always" Required="false" Mask="false">Etc/UTC</Config>
 
-  <Config Name="Database Connection" Target="ConnectionStrings__DefaultConnection" Default="Data Source=/config/trackarr.db" Description="SQLite database path. Only change if you know what you are doing." Type="Variable" Display="advanced" Required="false" Mask="false">Data Source=/config/trackarr.db</Config>
-
-  <Config Name="Data Protection Keys Path" Target="DataProtection__KeysPath" Default="/config/keys" Description="Path for encryption key storage." Type="Variable" Display="advanced" Required="false" Mask="false">/config/keys</Config>
 </Container>

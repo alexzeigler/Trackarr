@@ -1,0 +1,241 @@
+@page "/servers/uptime"
+@using Trackarr.Components.Modals
+@using Trackarr.Core.Server
+@using Trackarr.Services.Media
+@using static Utils
+@inject MediaServerService MediaServerService
+@implements IAsyncDisposable
+
+<PageTitle>Uptime</PageTitle>
+
+@if (!_hasServers)
+{
+    <NoServersPlaceholder/>
+    return;
+}
+
+<AddServerModal @ref="_serverModal"/>
+<ConfirmationDialog @ref="_confirmModal" Text="@_confirmText" OnConfirm="@(() => SendDeleteToDb(_selectedServerId))"/>
+
+<div class="d-flex flex-column gap-3">
+    @if (_actionError != null)
+    {
+        <div class="alert alert-danger mb-0">@_actionError</div>
+    }
+
+    <div class="card app-card">
+        <div class="card-header">
+            <div class="d-flex flex-wrap align-items-center gap-2 w-100">
+                <select class="form-select w-auto" id="uptimeServerSelect">
+                    @foreach (var server in _servers)
+                    {
+                        <option value="@server.Id" selected="@(server.Id == _selectedServerId)">@server.Name</option>
+                    }
+                </select>
+
+                <select class="form-select w-auto ms-auto" value="@_periodHours" @onchange="OnPeriodChanged">
+                    <option value="24" selected="@(_periodHours == 24)">Last 24 hours</option>
+                    <option value="168" selected="@(_periodHours == 168)">Last 7 days</option>
+                    <option value="720" selected="@(_periodHours == 720)">Last 30 days</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    @if (SelectedServer is null)
+    {
+        <div class="text-center text-muted py-4">No servers configured.</div>
+    }
+    else
+    {
+        @foreach (var message in _remoteHealth)
+        {
+            <div class="alert @RemoteHealthAlertClass(message.Type) mb-0" role="alert">
+                <div class="d-flex">
+                    <div>
+                        <i class="@RemoteHealthIcon(message.Type) me-2"></i>
+                    </div>
+                    <div>
+                        @if (!string.IsNullOrWhiteSpace(message.Source))
+                        {
+                            <strong>@message.Source: </strong>
+                        }
+                        @message.Message
+                        @if (!string.IsNullOrWhiteSpace(message.WikiUrl))
+                        {
+                            <a href="@message.WikiUrl" target="_blank" class="alert-link ms-1">Learn more</a>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
+        <div class="row g-3 align-items-center">
+            <div class="col-auto">
+                <span class="@StatusIndicatorClass(SelectedServer)">
+                    <span class="status-indicator-circle"></span>
+                    <span class="status-indicator-circle"></span>
+                    <span class="status-indicator-circle"></span>
+                </span>
+            </div>
+            <div class="col">
+                <h2 class="page-title mb-0">@SelectedServer.Name</h2>
+                <div class="text-secondary">
+                    <ul class="list-inline list-inline-dots mb-0">
+                        <li class="list-inline-item">
+                            <span class="@StatusTextClass(SelectedServer)">@StatusPillText(SelectedServer)</span>
+                        </li>
+                        <li class="list-inline-item">@CheckIntervalText()</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-auto ms-auto d-print-none">
+                <div class="btn-group">
+                    <button class="btn btn-app-ghost" type="button" @onclick="EditServer">
+                        <i class="ti ti-edit me-1"></i>
+                        Edit
+                    </button>
+                    <button data-bs-toggle="dropdown"
+                            data-bs-strategy="fixed"
+                            type="button"
+                            class="btn btn-app-ghost dropdown-toggle dropdown-toggle-split"
+                            aria-expanded="false"></button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <button class="dropdown-item" type="button" @onclick="ToggleEnabled">
+                            @(SelectedServer.IsEnabled ? "Disable" : "Enable")
+                        </button>
+                        <button class="dropdown-item" type="button" @onclick="SyncServer">
+                            Sync Now
+                        </button>
+                        <button class="dropdown-item" type="button" @onclick="TestConnection">
+                            Test Connection
+                        </button>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item text-danger" type="button" @onclick="RemoveServer">
+                            Remove
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row row-cards mb-3">
+            <div class="col-sm-6 col-xl-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader mb-2">Status</div>
+                        <span class="@StatusPillClass(SelectedServer)">@StatusPillText(SelectedServer)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-6 col-xl-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader mb-2">@CurrentStreakLabel()</div>
+                        <div class="h3 mb-0">@CurrentStreakValue()</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-6 col-xl-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader mb-2">Last Checked At</div>
+                        <div class="h3 mb-0">
+                            @(SelectedServer.LastPingedAt.HasValue ? TimeAgo(SelectedServer.LastPingedAt) : "—")
+                            @if (SelectedServer.LastPingMs.HasValue)
+                            {
+                                <span class="text-secondary fs-5">(@(SelectedServer.LastPingMs)ms)</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-6 col-xl-3">
+                <div class="card app-card">
+                    <div class="card-body">
+                        <div class="subheader mb-2">Uptime (period)</div>
+                        <div class="h1 mb-0">@UptimePercent()%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card app-card">
+            <div class="card-header">
+                <div class="card-title">Response Time</div>
+            </div>
+            <div class="card-body">
+                <div id="uptime-chart"></div>
+            </div>
+        </div>
+
+        <div class="card app-card">
+            <div class="card-header">
+                <div class="card-title">Health Events</div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-vcenter table-nowrap">
+                    <thead>
+                    <tr>
+                        <th class="w-1"></th>
+                        <th style="width: 140px">Time</th>
+                        <th style="width: 100px">Type</th>
+                        <th style="width: 100px">Source</th>
+                        <th>Message</th>
+                    </tr>
+                    </thead>
+                    <tbody class="table-tbody">
+                    @if (PagedEvents.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">No down events recorded</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var evt in PagedEvents)
+                        {
+                            <tr @key="evt.Id">
+                                <td><i class="@EventIcon(evt.EventType)"></i></td>
+                                <td class="text-secondary" title="@Utils.ToLocal(evt.OccurredAt).ToString("f")">
+                                    @TimeAgo(evt.OccurredAt)
+                                </td>
+                                <td>@evt.EventType</td>
+                                <td class="text-secondary">@(evt.Source ?? "—")</td>
+                                <td class="text-truncate" style="max-width: 600px" title="@evt.Message">
+                                    @evt.Message
+                                </td>
+                            </tr>
+                        }
+                    }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card-footer d-flex align-items-center justify-content-end">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="fw-semibold">@_events.Count events</div>
+                    <ul class="pagination m-0">
+                        <li class="page-item @(_currentPage <= 1 ? "disabled" : "")">
+                            <button type="button" class="page-link" @onclick="PreviousPage">
+                                <i class="ti ti-chevron-left"></i>
+                            </button>
+                        </li>
+                        <li class="page-item active">
+                            <span class="page-link">@_currentPage / @TotalPages</span>
+                        </li>
+                        <li class="page-item @(_currentPage >= TotalPages ? "disabled" : "")">
+                            <button type="button" class="page-link" @onclick="NextPage">
+                                <i class="ti ti-chevron-right"></i>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    }
+</div>

@@ -1,5 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Trackarr.Core.Routine;
+using Trackarr.Core.Server;
 using Trackarr.Services.Media;
 
 namespace Trackarr.Routines;
@@ -13,24 +14,97 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
     public override int IntervalSeconds { get; set; } = 300;
     public override DateTimeOffset NextRun { get; set; } = DateTimeOffset.UtcNow;
 
-    public override async Task<string> ExecuteAsync(CancellationToken cancellationToken)
+    public override async Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken)
     {
-        var servers = (await mediaServerService.GetAllServersAsync()).Where(s => s.IsEnabled).ToList();
+        // Keep probing servers we disabled ourselves so we can detect recovery and re-enable them.
+        // A server the user disabled manually (IsEnabled false, DisabledByHeartbeat false) is skipped.
+        var servers = (await mediaServerService.GetAllServersAsync())
+            .Where(s => s.IsEnabled || s.DisabledByHeartbeat).ToList();
+
+        var disabled = 0;
+        var reenabled = 0;
 
         foreach (var server in servers)
         {
+            long? pingMs = null;
+            var success = false;
+
             try
             {
                 var result = await mediaServerService.TestConnectionAsync(server);
+                success = true;
+                pingMs = result.ElapsedMilliseconds;
+
                 logger.LogInformation("Heartbeat [{name}]: {message} ({ping}ms)", server.Name, result.ReasonPhrase,
                     result.ElapsedMilliseconds);
+
+                var wasDisabledByHeartbeat = server.DisabledByHeartbeat;
+
+                if (wasDisabledByHeartbeat)
+                {
+                    // Keep the in-memory server in sync before SyncServerAsync uses it below — it reads
+                    // IsEnabled to decide whether to hit the live APIs instead of returning cached data.
+                    server.IsEnabled = true;
+                    server.DisabledByHeartbeat = false;
+
+                    await mediaServerService.LogHealthEventAsync(server.Id, ServerHealthEventType.Resolved,
+                        $"{server.Name} responded again after being automatically disabled; re-enabled.",
+                        "Heartbeat");
+                    reenabled++;
+                }
+
+                await mediaServerService.UpdateServerStatsAsync(server.Id, s =>
+                {
+                    s.IsEnabled = true;
+                    s.DisabledByHeartbeat = false;
+                });
+
+                if (wasDisabledByHeartbeat)
+                {
+                    // Recovering from a disable should pull a full sync (metadata, queue, health, missing) —
+                    // not just resume the lightweight ping that runs on every other tick.
+                    try
+                    {
+                        await mediaServerService.SyncServerAsync(server);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning("Heartbeat [{name}]: recovery sync failed — {message}", server.Name,
+                            ex.Message);
+                    }
+                }
             }
             catch (Exception ex)
             {
-                logger.LogWarning("Heartbeat [{name}]: failed — {message}", server.Name, ex.Message);
+                if (server.IsEnabled)
+                {
+                    logger.LogWarning("Heartbeat [{name}]: failed — {message}. Disabling server.", server.Name,
+                        ex.Message);
+
+                    await mediaServerService.LogHealthEventAsync(server.Id, ServerHealthEventType.Down, ex.Message,
+                        "Heartbeat");
+
+                    await mediaServerService.UpdateServerStatsAsync(server.Id, s =>
+                    {
+                        s.IsEnabled = false;
+                        s.DisabledByHeartbeat = true;
+                    });
+
+                    disabled++;
+                }
+                else
+                {
+                    logger.LogDebug("Heartbeat [{name}]: still unreachable — {message}", server.Name, ex.Message);
+                }
             }
+
+            await mediaServerService.RecordStatusSampleAsync(server.Id, pingMs, success);
         }
 
-        return $"{servers.Count} servers checked";
+        var parts = new List<string> { $"{servers.Count} servers checked" };
+        if (disabled > 0) parts.Add($"{disabled} disabled");
+        if (reenabled > 0) parts.Add($"{reenabled} re-enabled");
+
+        return string.Join(", ", parts);
     }
 }

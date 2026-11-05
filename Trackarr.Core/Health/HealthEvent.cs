@@ -20,6 +20,9 @@ public class DownloadHealthEvent
 
     public DateTime OccurredAt { get; set; }
 
+    /// <summary>How many scans this event stands for. Identical no-change scans are merged into one event.</summary>
+    public int ScanCount { get; set; } = 1;
+
     public HealthEventType EventType { get; set; }
     public Severity Severity { get; set; }
 

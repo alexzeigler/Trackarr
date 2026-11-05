@@ -246,14 +246,36 @@ public partial class Missing : ComponentBase, IAsyncDisposable
         if (series != null) await _detailsModal.Open(series);
     }
 
+    private async Task SearchMedia(MissingMediaRow row)
+    {
+        // await, not .Result: blocking on an async call can freeze or deadlock a Blazor Server page.
+        var server = await MediaServerService.GetServerByIdAsync(row.ServerId);
+        if (server is null) return;
+
+        var movie = GetMovie(row);
+        if (movie != null)
+        {
+            await MediaServerService.TriggerMovieSearchAsync(server, movie.RemoteId);
+            return;
+        }
+
+        var series = GetSeries(row);
+        if (series != null)
+            await MediaServerService.TriggerSeriesSearchAsync(server, series.RemoteId);
+    }
+
     #endregion
 
     #region Data Loading
 
-    private async Task OnAutoRefreshAsync()
+    // Raised from a background thread: run on the component's dispatcher so state isn't changed off-thread.
+    private Task OnAutoRefreshAsync()
     {
-        await RefreshAsync();
-        await RefreshChartsAsync();
+        return InvokeAsync(async () =>
+        {
+            await RefreshAsync();
+            await RefreshChartsAsync();
+        });
     }
 
     private async Task RefreshChartsAsync()
@@ -465,7 +487,13 @@ public partial class Missing : ComponentBase, IAsyncDisposable
 
     private int GetTotalEpisodeCount(MissingMediaRow row)
     {
-        return _episodes.Values.Count(x => x.ServerId == row.ServerId && x.RemoteSeriesId == row.RemoteId);
+        return MissingEpisodeCounts.GetTotalEpisodeCount(_episodes.Values, row.ServerId, row.RemoteId);
+    }
+
+    private int GetMissingEpisodeCount(MissingMediaRow row)
+    {
+        return MissingEpisodeCounts.GetMissingEpisodeCount(_episodes.Values, row.ServerId, row.RemoteId,
+            row.IsEpisodeGroup, row.MissingCount, DateTime.UtcNow);
     }
 
     private static string GetStateDisplay(MissingMediaRow row)
@@ -482,6 +510,7 @@ public partial class Missing : ComponentBase, IAsyncDisposable
             MissingSearchState.NotAvailable => "Not Available",
             MissingSearchState.Stuck => "Stuck",
             MissingSearchState.Abandoned => "Abandoned",
+            MissingSearchState.Waiting => "Waiting",
             _ => states[0].ToString()
         };
     }

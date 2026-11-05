@@ -13,6 +13,37 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
 {
     #region Observation
 
+    private static readonly string[] ImportWaitStates = ["importPending", "importBlocked", "importing"];
+
+    /// <summary>
+    ///     Returns why an item should not be scored right now, or null if it should be. These are states where
+    ///     no byte progress is expected, so "no progress" or a warning says nothing about the release itself.
+    ///     Values follow the Radarr/Sonarr v3 queue API (<c>status</c> and <c>trackedDownloadState</c>).
+    /// </summary>
+    public static string? GetScoringExemption(DownloadItem item)
+    {
+        if (IsValue(item.Status, "downloadClientUnavailable")) return "Download client is unavailable.";
+        if (IsValue(item.Status, "queued")) return "Queued in the download client.";
+        if (IsValue(item.Status, "paused")) return "Paused in the download client.";
+        if (IsValue(item.Status, "delay")) return "Held by a delay profile.";
+
+        if (item.SizeLeft == 0 && ImportWaitStates.Any(s => IsValue(item.TrackedDownloadState, s)))
+            return "Download finished and is waiting on import.";
+
+        return null;
+    }
+
+    /// <summary>True when any queue item reports its download client as unavailable.</summary>
+    public static bool IsDownloadClientUnavailable(IEnumerable<DownloadItem> queue)
+    {
+        return queue.Any(i => IsValue(i.Status, "downloadClientUnavailable"));
+    }
+
+    private static bool IsValue(string? value, string expected)
+    {
+        return string.Equals(value?.Trim(), expected, StringComparison.OrdinalIgnoreCase);
+    }
+
     public static HealthObservation BuildObservation(DownloadItem item, DownloadAttempt attempt,
         HealthSnapshot snapshot, DateTime now)
     {
@@ -51,17 +82,6 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
                                                 or HealthState.Critical);
         var sustainedProgress = isGood && snapshot.ConsecutiveGoodScans >= 3;
 
-        snapshot.LastProgress = progress;
-        snapshot.LastSizeLeft = item.SizeLeft;
-        snapshot.LastSize = item.Size;
-        snapshot.LastStatus = item.Status;
-        snapshot.LastTrackedDownloadStatus = item.TrackedDownloadStatus;
-        snapshot.LastTrackedDownloadState = item.TrackedDownloadState;
-        snapshot.LastErrorKey = errorKey;
-        snapshot.LastErrorMessage = isFetchingMetadata ? null : item.ErrorMessage;
-
-        if (isActivelyProgressing) snapshot.LastByteProgressAt = now;
-
         return new HealthObservation
         {
             DownloadAttemptId = attempt.Id,
@@ -95,6 +115,24 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
             IsBadObservation = isBad,
             HasSustainedProgress = sustainedProgress
         };
+    }
+
+    /// <summary>
+    ///     Stores what this scan saw on the snapshot, so the next scan can compare against it. Kept separate from
+    ///     <see cref="BuildObservation" /> so building an observation has no side effects; call it right after.
+    /// </summary>
+    public static void RecordObservation(HealthSnapshot snapshot, HealthObservation observation, DateTime now)
+    {
+        snapshot.LastProgress = observation.Progress;
+        snapshot.LastSizeLeft = observation.SizeLeft;
+        snapshot.LastSize = observation.Size;
+        snapshot.LastStatus = observation.Status;
+        snapshot.LastTrackedDownloadStatus = observation.TrackedDownloadStatus;
+        snapshot.LastTrackedDownloadState = observation.TrackedDownloadState;
+        snapshot.LastErrorKey = observation.ErrorKey;
+        snapshot.LastErrorMessage = observation.IsFetchingMetadata ? null : observation.ErrorMessage;
+
+        if (observation.HasPositiveSpeed) snapshot.LastByteProgressAt = now;
     }
 
     #endregion
@@ -302,11 +340,12 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
             _policy.MaximumScore);
         snapshot.RecoveryCredit = Math.Clamp(previousRecoveryCredit + evaluation.RecoveryCreditDelta, 0,
             _policy.RecoveryCreditMax);
-        snapshot.BadScansInLastTen = evaluation.BadScansInWindow;
+        // The window is rebuilt from events every scan, so the decay has to be applied to the whole window: each
+        // good scan still in it forgives GoodObservationBadScanDecay bad ones. (Subtracting only on the good scan
+        // itself was undone by the next scan's recount.)
+        snapshot.BadScansInLastTen = Math.Max(0,
+            evaluation.BadScansInWindow - _policy.GoodObservationBadScanDecay * evaluation.GoodScansInWindow);
         snapshot.GoodScansInLastTen = evaluation.GoodScansInWindow;
-
-        if (evaluation.IsGoodObservation && snapshot.BadScansInLastTen > 0)
-            snapshot.BadScansInLastTen = Math.Max(0, snapshot.BadScansInLastTen - _policy.GoodObservationBadScanDecay);
 
         snapshot.LastScoreChange = snapshot.RawScore - previousScore;
 
@@ -348,8 +387,12 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
 
     #region Decision
 
+    /// <param name="scansSinceRecovery">
+    ///     Scans since <see cref="HealthSnapshot.LastMeaningfulRecoveryAt" />, counting this one; the caller counts
+    ///     them from history. Null when unknown, which keeps a recovered download protected.
+    /// </param>
     public HealthDecision BuildDecision(DownloadAttempt attempt, HealthSnapshot snapshot, HealthEvaluation evaluation,
-        DateTime now)
+        DateTime now, int? scansSinceRecovery = null)
     {
         List<string> restrictions = [];
 
@@ -383,13 +426,11 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
             TimeSpan.FromMinutes(_policy.ByteProgressProtectionMinutes))
             restrictions.Add("Download moved bytes recently.");
 
-        if (snapshot.LastMeaningfulRecoveryAt.HasValue)
-        {
-            var protectedUntil =
-                snapshot.LastMeaningfulRecoveryAt.Value.AddMinutes(_policy.RecentRecoveryProtectionScans);
-
-            if (now < protectedUntil) restrictions.Add("Download had recent meaningful recovery.");
-        }
+        // Counted in scans, as the setting says (it used to be applied as minutes, which at a 5 minute
+        // evaluation interval protected almost nothing).
+        if (snapshot.LastMeaningfulRecoveryAt.HasValue &&
+            (scansSinceRecovery is null || scansSinceRecovery < _policy.RecentRecoveryProtectionScans))
+            restrictions.Add("Download had recent meaningful recovery.");
 
         var shouldRemove = restrictions.Count == 0;
 
@@ -397,8 +438,6 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
         {
             DownloadAttemptId = attempt.Id,
             ShouldRemove = shouldRemove,
-            ShouldReplace = shouldRemove,
-            ShouldProtect = snapshot.RecoveryCredit > 0,
             State = shouldRemove ? HealthState.Remove : snapshot.State,
             RawScore = snapshot.RawScore,
             VisibleScore = snapshot.VisibleScore,
@@ -497,7 +536,9 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
 
     private HealthState GetState(decimal rawScore)
     {
-        if (rawScore < 0) return HealthState.Remove;
+        // Remove is a decision, not a score band: HealthService sets it only when nothing blocks removal
+        // (grace period, Auto Remove off, Passive Mode...). A negative score on its own is Critical.
+        if (rawScore < 0) return HealthState.Critical;
 
         if (rawScore >= _policy.HealthyThreshold) return HealthState.Healthy;
 

@@ -17,6 +17,33 @@
     <MediaDetailsModal @ref="_detailsModal"/>
     <SetScoreModal @ref="_setScoreModal" OnSaved="RefreshAsync"/>
 
+    @if (_loadError != null)
+    {
+        <div class="alert alert-danger mb-0">@_loadError</div>
+    }
+
+    @if (_noticeMessage != null)
+    {
+        <div class="alert alert-warning alert-dismissible mb-0" role="status">
+            @_noticeMessage
+            <button type="button"
+                    class="btn-close"
+                    aria-label="Dismiss"
+                    @onclick="() => _noticeMessage = null"></button>
+        </div>
+    }
+
+    @if (_previewMessage != null)
+    {
+        <div class="alert alert-info alert-dismissible mb-0" role="status">
+            <strong>Preview, not recorded:</strong> @_previewMessage
+            <button type="button"
+                    class="btn-close"
+                    aria-label="Dismiss"
+                    @onclick="() => _previewMessage = null"></button>
+        </div>
+    }
+
     <div class="subheader mt-2 mb-2">Queue Overview</div>
     <div class="row row-cards mb-3">
         <div class="col-sm-6 col-xl-2">
@@ -292,7 +319,7 @@
         </div>
 
         <div class="table-responsive">
-            <table class="table table-vcenter table-nowrap @TableDensityClass">
+            <table class="table table-vcenter @TableDensityClass">
                 <thead>
                 <tr>
                     <th>
@@ -458,7 +485,9 @@
                                                 @onclick="() => OpenGroupDetails(group, firstItem, firstMovie, firstSeries)">
                                             View Details
                                         </button>
-                                        <button class="dropdown-item" @onclick="() => EvaluateGroupAsync(group)">
+                                        <button class="dropdown-item"
+                                                @onclick="() => EvaluateGroupAsync(group)"
+                                                title="Shows what a scan would decide now, without recording it">
                                             Evaluate All
                                         </button>
                                         <div class="dropdown-divider"></div>
@@ -473,9 +502,10 @@
 
                         @if (expanded)
                         {
-                            @foreach (var item in group.Items)
+                            @for (var i = 0; i < group.Items.Count; i++)
                             {
-                                var childKey = GetItemKey(item);
+                                var item = group.Items[i];
+                                var childKey = $"child_{GetItemKey(item)}_{i}";
                                 var snapshot = GetSnapshot(item);
                                 var summary = GetSummary(item);
                                 var healthEvent = GetHealthEvent(item);
@@ -487,7 +517,7 @@
                                 <tr @key="childKey"
                                     class="queue-child-row @(IsServerDisabled(item.ServerId) ? "server-disabled" : "")">
                                     <td>
-                                        <div class="d-flex align-items-center" style="padding-left: 36px; gap: 10px;">
+                                        <div class="d-flex align-items-center" @onclick="() => _detailsModal.Open(item, item.ServerId, movie, series)" style="cursor: pointer; padding-left: 36px; gap: 10px;">
                                             @if (ShowHealthBadges)
                                             {
                                                 <span class="@GetScoreBadgeClass(snapshot?.VisibleScore)">@(snapshot?.VisibleScore ?? 0)</span>
@@ -572,8 +602,16 @@
                                                         @onclick="() => OpenSetScore(item, snapshot)">
                                                     Set Score
                                                 </button>
-                                                <button class="dropdown-item" @onclick="() => EvaluateItemAsync(item)">
+                                                <button class="dropdown-item"
+                                                        @onclick="() => EvaluateItemAsync(item)"
+                                                        title="Shows what a scan would decide now, without recording it">
                                                     Evaluate
+                                                </button>
+                                                @{ var isProtected = snapshot?.DownloadAttempt?.IsProtected == true; }
+                                                <button class="dropdown-item"
+                                                        title="@(isProtected ? "Allow Trackarr to remove this download again" : "Never remove this download automatically")"
+                                                        @onclick="() => SetProtectedAsync(item, !isProtected)">
+                                                    @(isProtected ? "Unprotect" : "Protect")
                                                 </button>
                                                 <button class="dropdown-item"
                                                         @onclick="() => _detailsModal.Open(item, item.ServerId, movie, series)">

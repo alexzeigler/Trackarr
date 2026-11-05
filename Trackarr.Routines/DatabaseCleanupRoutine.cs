@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Trackarr.Services.Diagnostics;
 using Trackarr.Core.Health;
 using Trackarr.Core.Routine;
 using Trackarr.Data;
@@ -22,7 +23,9 @@ public sealed class DatabaseCleanupRoutine(IDbContextFactory<AppDbContext> dbFac
 
     public override DateTimeOffset NextRun { get; set; } = DateTimeOffset.UtcNow.AddMinutes(5);
 
-    public override async Task<string> ExecuteAsync(CancellationToken cancellationToken)
+    private const int CrashReportRetentionDays = 90;
+
+    public override async Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken)
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
@@ -30,6 +33,8 @@ public sealed class DatabaseCleanupRoutine(IDbContextFactory<AppDbContext> dbFac
         var runRetention = settings.GetInt("Maintenance", "RoutineRunRetentionDays", 30);
         var logRetention = settings.GetInt("Maintenance", "LogEventRetentionDays", 14);
         var summaryRetention = settings.GetInt("Maintenance", "SourceSummaryRetentionDays", 90);
+        var serverEventRetention = settings.GetInt("Maintenance", "ServerHealthEventRetentionDays", 90);
+        var serverSampleRetention = settings.GetInt("Maintenance", "ServerStatusSampleRetentionDays", 14);
         var vacuumAfter = settings.GetBool("Maintenance", "VacuumAfterCleanup", true);
 
         var deduped = await DeduplicateHealthEventsAsync(db, cancellationToken);
@@ -38,16 +43,25 @@ public sealed class DatabaseCleanupRoutine(IDbContextFactory<AppDbContext> dbFac
         var oldLogs = await PruneOldLogEventsAsync(db, logRetention, cancellationToken);
         var orphanedSnapshots = await PruneOrphanedSnapshotsAsync(db, cancellationToken);
         var staleSummaries = await PruneStaleSummariesAsync(db, summaryRetention, cancellationToken);
+        var oldServerEvents = await PruneOldServerHealthEventsAsync(db, serverEventRetention, cancellationToken);
+        var oldServerSamples = await PruneOldServerStatusSamplesAsync(db, serverSampleRetention, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
 
         if (vacuumAfter)
             await VacuumAsync(db, cancellationToken);
 
-        LastRunSuccess = true;
+        // Log files follow the same retention as log events. Crash reports are rarer and worth keeping longer.
+        var oldLogFiles = AppPaths.DeleteFilesOlderThan(AppPaths.LogDirectory, "trackarr_*.log",
+            TimeSpan.FromDays(logRetention));
+        var oldCrashFiles = AppPaths.DeleteFilesOlderThan(AppPaths.CrashDirectory, "crash_*.log",
+            TimeSpan.FromDays(CrashReportRetentionDays));
+
         return $"Deduped {deduped} events, pruned {oldEvents} old events, " +
                $"{oldRuns} old runs, {oldLogs} old logs, " +
-               $"{orphanedSnapshots} orphaned snapshots, {staleSummaries} stale summaries.";
+               $"{orphanedSnapshots} orphaned snapshots, {staleSummaries} stale summaries, " +
+               $"{oldServerEvents} old server events, {oldServerSamples} old server samples, " +
+               $"{oldLogFiles} old log files, {oldCrashFiles} old crash reports.";
     }
 
     /// <summary>
@@ -56,7 +70,14 @@ public sealed class DatabaseCleanupRoutine(IDbContextFactory<AppDbContext> dbFac
     /// </summary>
     private static async Task<int> DeduplicateHealthEventsAsync(AppDbContext db, CancellationToken ct)
     {
-        var attemptIds = await db.HealthEvents.Select(e => e.DownloadAttemptId).Distinct().ToListAsync(ct);
+        // Only attempts with events since the last cleanup can have anything new to merge (P4). Everything older
+        // was deduped on an earlier run. The hour of margin covers a run that overlapped the previous one.
+        var lastCleanup = await db.Routines.AsNoTracking().Where(r => r.Key == "database-cleanup")
+            .Select(r => r.LastRun).FirstOrDefaultAsync(ct);
+        var since = lastCleanup?.AddHours(-1) ?? DateTime.MinValue;
+
+        var attemptIds = await db.HealthEvents.Where(e => e.OccurredAt >= since).Select(e => e.DownloadAttemptId)
+            .Distinct().ToListAsync(ct);
 
         var totalRemoved = 0;
 
@@ -78,6 +99,7 @@ public sealed class DatabaseCleanupRoutine(IDbContextFactory<AppDbContext> dbFac
                     curr.ConfidenceDelta == 0 && curr.RecoveryCreditDelta == 0)
                 {
                     prev.OccurredAt = curr.OccurredAt;
+                    prev.ScanCount += curr.ScanCount; // keep the rolling window counting scans, not events
                     toRemove.Add(curr);
                 }
                 else
@@ -145,6 +167,28 @@ public sealed class DatabaseCleanupRoutine(IDbContextFactory<AppDbContext> dbFac
         var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
 
         return await db.SourceHealthSummaries.Where(s => s.LastSeenAt < cutoff).ExecuteDeleteAsync(ct);
+    }
+
+    /// <summary>
+    ///     Remove server health events older than the retention window.
+    /// </summary>
+    private static async Task<int> PruneOldServerHealthEventsAsync(AppDbContext db, int retentionDays,
+        CancellationToken ct)
+    {
+        var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
+
+        return await db.ServerHealthEvents.Where(e => e.OccurredAt < cutoff).ExecuteDeleteAsync(ct);
+    }
+
+    /// <summary>
+    ///     Remove server ping/score samples older than the retention window.
+    /// </summary>
+    private static async Task<int> PruneOldServerStatusSamplesAsync(AppDbContext db, int retentionDays,
+        CancellationToken ct)
+    {
+        var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
+
+        return await db.ServerStatusSamples.Where(s => s.SampledAt < cutoff).ExecuteDeleteAsync(ct);
     }
 
     /// <summary>

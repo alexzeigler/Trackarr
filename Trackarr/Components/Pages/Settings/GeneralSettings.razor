@@ -46,13 +46,13 @@
     <div class="col-12 col-lg-4">
         <label class="form-label d-block"
                data-bs-toggle="tooltip"
-               title="Automatically start all background routines (queue monitoring, missing media search, etc.) when the application starts">
-            Startup
+               title="Run background routines (queue monitoring, missing media search, etc.) on their schedules. When off, routines only run when started by hand. Takes effect right away">
+            Scheduling
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
         <label class="form-check form-switch mt-2">
             <input class="form-check-input" type="checkbox" @bind="_autoStartRoutines" @bind:after="MarkDirty"/>
-            <span class="form-check-label">Auto-start routines on launch</span>
+            <span class="form-check-label">Run routines on schedule</span>
         </label>
     </div>
     <div class="col-12">
@@ -262,6 +262,7 @@
         LoadValues();
         Context.SaveAsync = SaveAsync;
         Context.DiscardAsync = DiscardAsync;
+        Context.NotifyChanged();
     }
 
     private void LoadValues()

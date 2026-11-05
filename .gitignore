@@ -34,3 +34,10 @@ Thumbs.db
 
 # Vendored coverage reports (triggers Unraid CA scanner false positives)
 **/coverage/clover.xml
+# Runtime logs and crash reports (written next to the database)
+logs/
+crashes/
+restart-error.log
+
+# ASP.NET data protection keys (written next to the database). Never commit.
+keys/

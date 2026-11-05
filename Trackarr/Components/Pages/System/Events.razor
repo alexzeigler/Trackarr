@@ -122,8 +122,8 @@
                             <td>
                                 <i class="@LevelIcon(log.LogLevel)" title="@log.LogLevel"></i>
                             </td>
-                            <td class="text-secondary" title="@log.TimeStamp.ToLocalTime().ToString("f")">
-                                @log.TimeStamp.ToLocalTime().ToString("MMM d, h:mm tt").ToLower()
+                            <td class="text-secondary" title="@Utils.ToLocal(log.TimeStamp).ToString("f")">
+                                @Utils.ToLocal(log.TimeStamp).ToString("MMM d, h:mm tt").ToLower()
                             </td>
                             <td>
                                 <span class="@LevelBadgeClass(log.LogLevel)">@log.LogLevel</span>
@@ -214,7 +214,7 @@
                                 <div class="card app-card">
                                     <div class="card-body">
                                         <div class="subheader">Time</div>
-                                        <div>@_selectedLog.TimeStamp.ToLocalTime().ToString("MMM d, yyyy h:mm:ss tt")</div>
+                                        <div>@Utils.ToLocal(_selectedLog.TimeStamp).ToString("MMM d, yyyy h:mm:ss tt")</div>
                                     </div>
                                 </div>
                             </div>

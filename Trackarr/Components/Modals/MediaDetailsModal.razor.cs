@@ -265,6 +265,25 @@ public partial class MediaDetailsModal : ComponentBase
         }
     }
 
+    private string? _previewMessage;
+
+    private bool IsQueueItemProtected => _queueItem is not null && _downloadAttempts.Any(a =>
+        a.Status == AttemptStatus.Active && a.IsProtected &&
+        a.DownloadId == Trackarr.Services.Media.HealthService.GetDownloadId(_queueItem));
+
+    private async Task ToggleProtected()
+    {
+        if (_queueItem is null) return;
+
+        if (!await HealthService.SetProtectedAsync(_queueItem, !IsQueueItemProtected))
+        {
+            _previewMessage = null;
+            return;
+        }
+
+        await RefreshAsync();
+    }
+
     private async Task EvaluateItem()
     {
         if (_queueItem == null)
@@ -274,10 +293,10 @@ public partial class MediaDetailsModal : ComponentBase
         StateHasChanged();
         try
         {
+            // Preview only: a click mustn't count as a scan and push the item toward removal (M13).
             var delay = Task.Delay(1000);
-            await HealthService.EvaluateAsync(_queueItem);
-            await LoadHealthDataAsync();
-            await BuildActiveContextsAsync();
+            var decision = await HealthService.PreviewAsync(_queueItem);
+            _previewMessage = Pages.Queue.DescribePreview(_queueItem, decision);
             await delay;
         }
         finally
@@ -412,6 +431,7 @@ public partial class MediaDetailsModal : ComponentBase
 
         if (_series is { ServerId: not null })
         {
+            await MediaServerService.SyncSeriesEpisodesAsync(_server, _series.RemoteId);
             _episodes = await MediaServerService.GetEpisodesBySeriesIdAsync(_series.ServerId.Value, _series.RemoteId);
             _episodes = _episodes.OrderBy(x => x.SeasonNumber).ThenBy(x => x.EpisodeNumber).ToList();
         }
@@ -422,7 +442,9 @@ public partial class MediaDetailsModal : ComponentBase
         _activeContexts = [];
         _activeContextIndex = 0;
 
-        var groups = _queueItems.Where(q => !string.IsNullOrEmpty(q.DownloadId)).GroupBy(q => q.DownloadId).ToList();
+        // Group by the same key attempts are stored under, so items with no download ID (pending releases)
+        // still show up and still match their health attempt.
+        var groups = _queueItems.GroupBy(Trackarr.Services.Media.HealthService.GetDownloadId).ToList();
 
         foreach (var group in groups)
         {
@@ -616,6 +638,7 @@ public partial class MediaDetailsModal : ComponentBase
 
     private void ResetModalState()
     {
+        _previewMessage = null;
         _activeTab = "overview";
         Item = null;
         _media = null;

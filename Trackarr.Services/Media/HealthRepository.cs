@@ -34,18 +34,24 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
 
         var mediaType = GetMediaType(item);
 
+        // Remote IDs restart at 1 on every Radarr/Sonarr instance, so they are only unique per server.
         var localMovieId = item.MovieId is > 0
-            ? await db.Movies.AsNoTracking().Where(e => e.RemoteId == item.MovieId).Select(e => (int?)e.Id)
-                .FirstOrDefaultAsync(cancellationToken)
+            ? await db.Movies.AsNoTracking().Where(e => e.ServerId == item.ServerId && e.RemoteId == item.MovieId)
+                .Select(e => (int?)e.Id).FirstOrDefaultAsync(cancellationToken)
             : null;
         var localSeriesId = item.SeriesId is > 0
-            ? await db.Series.AsNoTracking().Where(e => e.RemoteId == item.SeriesId).Select(e => (int?)e.Id)
-                .FirstOrDefaultAsync(cancellationToken)
+            ? await db.Series.AsNoTracking().Where(e => e.ServerId == item.ServerId && e.RemoteId == item.SeriesId)
+                .Select(e => (int?)e.Id).FirstOrDefaultAsync(cancellationToken)
             : null;
         var localEpisodeId = item.EpisodeId is > 0
-            ? await db.Episodes.AsNoTracking().Where(e => e.RemoteId == item.EpisodeId).Select(e => (int?)e.Id)
-                .FirstOrDefaultAsync(cancellationToken)
+            ? await db.Episodes.AsNoTracking().Where(e => e.ServerId == item.ServerId && e.RemoteId == item.EpisodeId)
+                .Select(e => (int?)e.Id).FirstOrDefaultAsync(cancellationToken)
             : null;
+
+        // Track Sonarr downloads per episode when the episode is known, so one bad episode doesn't put a failure
+        // (and the previous-failure penalty) on every other episode of the series.
+        if (mediaType == TrackedMediaType.Series && localEpisodeId is not null)
+            mediaType = TrackedMediaType.Episode;
 
         var replacementAttemptNumber = await GetReplacementAttemptNumberAsync(db, mediaType, localMovieId,
             localSeriesId, localEpisodeId, cancellationToken);
@@ -117,19 +123,34 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
 
     #region Summary Updates
 
-    public async Task<MediaHealthSummary?> GetMediaSummaryAsync(AppDbContext db, DownloadAttempt attempt,
+    public Task<MediaHealthSummary?> GetMediaSummaryAsync(AppDbContext db, DownloadAttempt attempt,
         CancellationToken cancellationToken)
     {
-        return attempt.MediaType switch
+        return FindSummaryAsync(db, attempt.MediaType, attempt.MovieId, attempt.SeriesId, attempt.EpisodeId,
+            cancellationToken);
+    }
+
+    private static async Task<MediaHealthSummary?> FindSummaryAsync(AppDbContext db, TrackedMediaType mediaType,
+        int? movieId, int? seriesId, int? episodeId, CancellationToken cancellationToken)
+    {
+        // Check the change tracker first: the episode and series roll-up can both be created in one SaveChanges.
+        var local = db.MediaHealthSummaries.Local.FirstOrDefault(e => e.MediaType == mediaType && mediaType switch
         {
-            TrackedMediaType.Movie when attempt.MovieId.HasValue => await db.MediaHealthSummaries.FirstOrDefaultAsync(
-                e => e.MediaType == TrackedMediaType.Movie && e.MovieId == attempt.MovieId, cancellationToken),
-            TrackedMediaType.Series when attempt.SeriesId.HasValue => await db.MediaHealthSummaries.FirstOrDefaultAsync(
-                e => e.MediaType == TrackedMediaType.Series && e.SeriesId == attempt.SeriesId, cancellationToken),
-            TrackedMediaType.Episode when attempt.EpisodeId.HasValue => await
-                db.MediaHealthSummaries.FirstOrDefaultAsync(
-                    e => e.MediaType == TrackedMediaType.Episode && e.EpisodeId == attempt.EpisodeId,
-                    cancellationToken),
+            TrackedMediaType.Movie => e.MovieId == movieId,
+            TrackedMediaType.Series => e.SeriesId == seriesId,
+            TrackedMediaType.Episode => e.EpisodeId == episodeId,
+            _ => false
+        });
+        if (local is not null) return local;
+
+        return mediaType switch
+        {
+            TrackedMediaType.Movie when movieId.HasValue => await db.MediaHealthSummaries.FirstOrDefaultAsync(
+                e => e.MediaType == TrackedMediaType.Movie && e.MovieId == movieId, cancellationToken),
+            TrackedMediaType.Series when seriesId.HasValue => await db.MediaHealthSummaries.FirstOrDefaultAsync(
+                e => e.MediaType == TrackedMediaType.Series && e.SeriesId == seriesId, cancellationToken),
+            TrackedMediaType.Episode when episodeId.HasValue => await db.MediaHealthSummaries.FirstOrDefaultAsync(
+                e => e.MediaType == TrackedMediaType.Episode && e.EpisodeId == episodeId, cancellationToken),
             _ => null
         };
     }
@@ -139,30 +160,48 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
     {
         if (attempt.MediaType == TrackedMediaType.Unknown) return;
 
-        var summary = await GetMediaSummaryAsync(db, attempt, cancellationToken);
+        await UpdateSummaryAsync(db, attempt.MediaType, attempt.MovieId, attempt.SeriesId, attempt.EpisodeId,
+            decision, now, cancellationToken);
+
+        // Episode attempts are scored against their own episode's summary, but series views still want the
+        // whole picture, so the series summary is kept as a roll-up of all its attempts.
+        if (attempt.MediaType == TrackedMediaType.Episode && attempt.SeriesId is not null)
+        {
+            await UpdateSummaryAsync(db, TrackedMediaType.Series, null, attempt.SeriesId, null, null, now,
+                cancellationToken);
+        }
+    }
+
+    private async Task UpdateSummaryAsync(AppDbContext db, TrackedMediaType mediaType, int? movieId, int? seriesId,
+        int? episodeId, HealthDecision? decision, DateTime now, CancellationToken cancellationToken)
+    {
+        var summary = await FindSummaryAsync(db, mediaType, movieId, seriesId, episodeId, cancellationToken);
 
         if (summary is null)
         {
             summary = new MediaHealthSummary
             {
-                MediaType = attempt.MediaType,
-                MovieId = attempt.MovieId,
-                SeriesId = attempt.SeriesId,
-                EpisodeId = attempt.EpisodeId,
+                MediaType = mediaType,
+                MovieId = movieId,
+                SeriesId = seriesId,
+                EpisodeId = episodeId,
                 CreatedAt = now
             };
 
             db.MediaHealthSummaries.Add(summary);
         }
 
-        var attempts = db.DownloadAttempts.Where(e => e.MediaType == attempt.MediaType);
-
-        attempts = attempt.MediaType switch
+        var attempts = mediaType switch
         {
-            TrackedMediaType.Movie => attempts.Where(e => e.MovieId == attempt.MovieId),
-            TrackedMediaType.Series => attempts.Where(e => e.SeriesId == attempt.SeriesId),
-            TrackedMediaType.Episode => attempts.Where(e => e.EpisodeId == attempt.EpisodeId),
-            _ => attempts.Where(e => false)
+            TrackedMediaType.Movie => db.DownloadAttempts.Where(e =>
+                e.MediaType == TrackedMediaType.Movie && e.MovieId == movieId),
+            // Any attempt for the series, whether tracked at series or episode level.
+            TrackedMediaType.Series => db.DownloadAttempts.Where(e =>
+                (e.MediaType == TrackedMediaType.Series || e.MediaType == TrackedMediaType.Episode) &&
+                e.SeriesId == seriesId),
+            TrackedMediaType.Episode => db.DownloadAttempts.Where(e =>
+                e.MediaType == TrackedMediaType.Episode && e.EpisodeId == episodeId),
+            _ => db.DownloadAttempts.Where(e => false)
         };
 
         summary.AttemptCount = await attempts.CountAsync(cancellationToken);
@@ -189,12 +228,8 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
         summary.LastReplacementAt = await attempts.Where(e => e.Status == AttemptStatus.Replaced)
             .MaxAsync(e => e.ReplacedAt, cancellationToken);
 
-        var activeSnapshots = await db.HealthSnapshots.Where(e => e.DownloadAttempt != null)
-            .Where(e => e.DownloadAttempt!.MediaType == attempt.MediaType)
-            .Where(e => e.DownloadAttempt!.Status == AttemptStatus.Active).Where(e =>
-                (attempt.MediaType == TrackedMediaType.Movie && e.DownloadAttempt!.MovieId == attempt.MovieId) ||
-                (attempt.MediaType == TrackedMediaType.Series && e.DownloadAttempt!.SeriesId == attempt.SeriesId) ||
-                (attempt.MediaType == TrackedMediaType.Episode && e.DownloadAttempt!.EpisodeId == attempt.EpisodeId))
+        var activeAttemptIds = attempts.Where(e => e.Status == AttemptStatus.Active).Select(e => e.Id);
+        var activeSnapshots = await db.HealthSnapshots.Where(e => activeAttemptIds.Contains(e.DownloadAttemptId))
             .ToListAsync(cancellationToken);
 
         summary.CurrentBestScore = activeSnapshots.Count == 0 ? 0 : activeSnapshots.Max(e => e.VisibleScore);
@@ -224,8 +259,9 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
         summary.UpdatedAt = now;
     }
 
+    /// <param name="becameRemovable">True only on the scan where the attempt first became eligible for removal.</param>
     public async Task UpdateSourceSummaryAsync(AppDbContext db, DownloadAttempt attempt, HealthSnapshot snapshot,
-        DownloadHealthEvent healthEvent, DateTime now, CancellationToken cancellationToken)
+        DownloadHealthEvent healthEvent, bool becameRemovable, DateTime now, CancellationToken cancellationToken)
     {
         var summary = await db.SourceHealthSummaries.FirstOrDefaultAsync(
             e => e.ServerId == attempt.ServerId && e.ServiceType == attempt.ServiceType &&
@@ -252,18 +288,23 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
             db.SourceHealthSummaries.Add(summary);
         }
 
-        summary.AttemptCount++;
-        summary.LastSeenAt = now;
-        summary.AverageScore = summary.AttemptCount == 1
-            ? snapshot.VisibleScore
-            : (summary.AverageScore * (summary.AttemptCount - 1) + snapshot.VisibleScore) / summary.AttemptCount;
+        // Count each attempt once per source + reason, not once per scan (the new event isn't saved yet, so any
+        // saved event with this reason means the attempt was already counted).
+        var alreadyCounted = attempt.Id != 0 && await db.HealthEvents.AnyAsync(
+            e => e.DownloadAttemptId == attempt.Id && e.ReasonKey == healthEvent.ReasonKey, cancellationToken);
 
-        summary.WorstScore = summary.AttemptCount == 1
-            ? snapshot.VisibleScore
-            : Math.Min(summary.WorstScore, snapshot.VisibleScore);
-        summary.BestScore = summary.AttemptCount == 1
-            ? snapshot.VisibleScore
-            : Math.Max(summary.BestScore, snapshot.VisibleScore);
+        if (!alreadyCounted)
+        {
+            summary.AttemptCount++;
+            summary.AverageScore = summary.AttemptCount == 1
+                ? snapshot.VisibleScore
+                : (summary.AverageScore * (summary.AttemptCount - 1) + snapshot.VisibleScore) / summary.AttemptCount;
+        }
+
+        var first = summary.AttemptCount <= 1 && !alreadyCounted;
+        summary.LastSeenAt = now;
+        summary.WorstScore = first ? snapshot.VisibleScore : Math.Min(summary.WorstScore, snapshot.VisibleScore);
+        summary.BestScore = first ? snapshot.VisibleScore : Math.Max(summary.BestScore, snapshot.VisibleScore);
 
         if (healthEvent.IsBadObservation)
         {
@@ -285,7 +326,8 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
             summary.ReputationScore = Math.Min(100, summary.ReputationScore + 2);
         }
 
-        if (snapshot.State == HealthState.Remove)
+        // Once per attempt, when it first becomes removable, not on every scan it stays that way.
+        if (becameRemovable)
         {
             summary.RemovalCount++;
             summary.ReputationScore = Math.Max(0, summary.ReputationScore - 5);

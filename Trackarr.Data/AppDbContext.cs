@@ -34,6 +34,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             entity.HasOne(e => e.FallbackProfile).WithMany().HasForeignKey(e => e.FallBackProfileId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.Property(e => e.UptimePercent).HasDefaultValue(100d);
         });
 
         modelBuilder.Entity<ServerMetadata>(entity =>
@@ -146,7 +148,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(e => e.CleanTitle);
 
             entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Series>(entity =>
@@ -183,7 +185,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(e => e.CleanTitle);
 
             entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Episode>(entity =>
@@ -207,7 +209,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(e => e.Series).WithMany().HasForeignKey(e => e.SeriesDbId).OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<DownloadAttempt>(entity =>
@@ -237,7 +239,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(e => e.FirstSeenAt);
             entity.HasIndex(e => e.LastSeenAt);
 
-            entity.HasOne(e => e.Server).WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(e => e.Server).WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne<Movie>().WithMany().HasForeignKey(e => e.MovieId).OnDelete(DeleteBehavior.SetNull);
 
@@ -363,14 +365,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(e => e.LastFailureAt);
             entity.HasIndex(e => e.LastSuccessAt);
 
-            entity.HasOne(e => e.Server).WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(e => e.Server).WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<QualityProfile>(entity =>
         {
             entity.HasKey(e => e.Id);
             entity.HasOne(e => e.ParentServer).WithMany().HasForeignKey(e => e.ServerId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<MissingMediaRecord>(entity =>
@@ -381,6 +383,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(e => e.SearchState).HasConversion<string>().HasMaxLength(50);
 
             entity.HasIndex(e => new { e.ServerId, e.RemoteId, e.EpisodeId }).IsUnique();
+            // SQLite treats NULLs as distinct, so the index above never stops duplicate movie/series rows
+            // (EpisodeId null). This one covers them.
+            entity.HasIndex(e => new { e.ServerId, e.RemoteId }).IsUnique().HasFilter("\"EpisodeId\" IS NULL");
             entity.HasIndex(e => e.ServerId);
 
             entity.HasOne<MediaServer>().WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
@@ -418,6 +423,30 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(e => e.Note).HasMaxLength(1000);
             entity.HasIndex(e => e.Type);
         });
+
+        modelBuilder.Entity<ServerHealthEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.EventType).HasConversion<string>().HasMaxLength(50);
+            entity.Property(e => e.Message).IsRequired().HasMaxLength(2000);
+            entity.Property(e => e.Source).HasMaxLength(100);
+
+            entity.HasIndex(e => e.ServerId);
+            entity.HasIndex(e => e.OccurredAt);
+            entity.HasIndex(e => e.EventType);
+
+            entity.HasOne<MediaServer>().WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ServerStatusSample>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.HasIndex(e => e.ServerId);
+            entity.HasIndex(e => e.SampledAt);
+
+            entity.HasOne<MediaServer>().WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     #endregion
@@ -444,6 +473,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<MissingSearchEvent> SearchEvents { get; set; }
     public DbSet<AppSetting> AppSettings { get; set; }
     public DbSet<BlacklistEntry> Blacklist { get; set; }
+    public DbSet<ServerHealthEvent> ServerHealthEvents { get; set; }
+    public DbSet<ServerStatusSample> ServerStatusSamples { get; set; }
 
     #endregion
 }

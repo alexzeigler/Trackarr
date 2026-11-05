@@ -14,7 +14,23 @@ public sealed class HealthService(
 {
     #region Evaluation
 
-    public async Task<HealthDecision> EvaluateAsync(DownloadItem item, CancellationToken cancellationToken = default)
+    /// <summary>Scores the item and records the scan: it counts toward removal.</summary>
+    public Task<HealthDecision> EvaluateAsync(DownloadItem item, CancellationToken cancellationToken = default)
+    {
+        return EvaluateCoreAsync(item, true, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Shows what a scan would decide right now without recording it (M13): nothing is saved, so clicking it
+    ///     repeatedly can't push a download toward removal. Uses exactly the same scoring as a real scan.
+    /// </summary>
+    public Task<HealthDecision> PreviewAsync(DownloadItem item, CancellationToken cancellationToken = default)
+    {
+        return EvaluateCoreAsync(item, false, cancellationToken);
+    }
+
+    private async Task<HealthDecision> EvaluateCoreAsync(DownloadItem item, bool persist,
+        CancellationToken cancellationToken)
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
@@ -27,9 +43,14 @@ public sealed class HealthService(
 
         var attempt = await _repository.GetOrCreateAttemptAsync(db, item, server, now, cancellationToken);
         var snapshot = await _repository.GetOrCreateSnapshotAsync(db, attempt, now, cancellationToken);
+        var exemption = HealthEvaluator.GetScoringExemption(item);
+        if (exemption != null)
+            return await RecordExemptAsync(db, item, attempt, snapshot, exemption, now, persist, cancellationToken);
+
         var mediaSummary = await _repository.GetMediaSummaryAsync(db, attempt, cancellationToken);
 
         var observation = HealthEvaluator.BuildObservation(item, attempt, snapshot, now);
+        HealthEvaluator.RecordObservation(snapshot, observation, now);
 
         var recentWindow = attempt.Id == 0
             ? []
@@ -37,14 +58,17 @@ public sealed class HealthService(
                 .Where(e => !TerminalEventTypes.Contains(e.EventType)).OrderByDescending(e => e.OccurredAt)
                 .Take(Math.Max(0, policy.RollingWindowSize - 1)).ToListAsync(cancellationToken);
 
-        var evaluation = evaluator.Evaluate(attempt, snapshot, mediaSummary, observation,
-            recentWindow.Count(e => e.IsBadObservation), recentWindow.Count(e => e.IsGoodObservation));
+        // The window is the last N-1 scans, not events: one merged no-change event can stand for many scans.
+        var (badInWindow, goodInWindow) = CountScansInWindow(recentWindow, Math.Max(0, policy.RollingWindowSize - 1));
+
+        var evaluation = evaluator.Evaluate(attempt, snapshot, mediaSummary, observation, badInWindow, goodInWindow);
 
         HealthStateBefore before = new(snapshot.RawScore, snapshot.Confidence, snapshot.RecoveryCredit);
 
         evaluator.ApplyEvaluation(snapshot, evaluation, now);
 
         attempt.LastSeenAt = now;
+        attempt.MissedScans = 0;
         attempt.Title = item.Title ?? attempt.Title;
         attempt.NormalizedTitle = HealthEvaluator.NormalizeTitle(item.Title ?? attempt.Title);
         attempt.DownloadClient = item.DownloadClient;
@@ -63,16 +87,43 @@ public sealed class HealthService(
         {
             var tracked = await db.HealthEvents.FindAsync([lastEvent!.Id], cancellationToken);
             if (tracked != null)
+            {
                 tracked.OccurredAt = now;
+                tracked.ScanCount++;
+            }
         }
         else
         {
             db.HealthEvents.Add(healthEvent);
         }
 
-        var decision = evaluator.BuildDecision(attempt, snapshot, evaluation, now);
+        // Scans since the last meaningful recovery: this one (unless it is the recovery) plus the earlier scans
+        // after it.
+        int? scansSinceRecovery = snapshot.LastMeaningfulRecoveryAt is { } recoveredAt
+            ? recentWindow.Where(e => e.OccurredAt > recoveredAt).Sum(e => e.ScanCount) + (recoveredAt < now ? 1 : 0)
+            : null;
 
+        var decision = evaluator.BuildDecision(attempt, snapshot, evaluation, now, scansSinceRecovery);
+
+        // Settings that block removal belong in the decision too, so nothing shows as "Remove" that won't be.
+        var settingsBlock = settings.IsPassiveMode() ? "Passive Mode is on."
+            : server is not null && !settings.ShouldAutoRemove(server) ? "Auto Remove is off for this server."
+            : null;
+        if (settingsBlock is not null)
+        {
+            decision.Restrictions.Add(settingsBlock);
+            if (decision.ShouldRemove)
+            {
+                decision.ShouldRemove = false;
+                decision.State = snapshot.State;
+                decision.ReasonKey = evaluation.ReasonKey;
+                decision.Message = evaluation.Message;
+            }
+        }
+
+        var becameRemovable = decision.ShouldRemove && !snapshot.IsEligibleForRemoval;
         snapshot.IsEligibleForRemoval = decision.ShouldRemove;
+        if (decision.ShouldRemove) snapshot.State = HealthState.Remove;
         snapshot.IsRemovalRestricted = decision.Restrictions.Count > 0;
         snapshot.RemovalRestrictionReason =
             decision.Restrictions.Count == 0 ? null : string.Join("; ", decision.Restrictions);
@@ -80,14 +131,52 @@ public sealed class HealthService(
         await _repository.UpdateMediaSummaryAsync(db, attempt, decision, now, cancellationToken);
 
         if (!isNoChange)
-            await _repository.UpdateSourceSummaryAsync(db, attempt, snapshot, healthEvent, now, cancellationToken);
+            await _repository.UpdateSourceSummaryAsync(db, attempt, snapshot, healthEvent, becameRemovable, now,
+                cancellationToken);
 
-        await db.SaveChangesAsync(cancellationToken);
-        changeBus.NotifyChanged();
+        if (persist)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            changeBus.NotifyChanged();
+        }
 
         decision.DownloadAttemptId = attempt.Id;
 
         return decision;
+    }
+
+    /// <summary>
+    ///     Items waiting on something outside the download (queued, paused, delay profile, import) are not
+    ///     scored: the score and streaks stay frozen and the item is never eligible for removal while waiting.
+    /// </summary>
+    private async Task<HealthDecision> RecordExemptAsync(AppDbContext db, DownloadItem item, DownloadAttempt attempt,
+        HealthSnapshot snapshot, string reason, DateTime now, bool persist, CancellationToken cancellationToken)
+    {
+        attempt.LastSeenAt = now;
+        attempt.MissedScans = 0;
+        attempt.Title = item.Title ?? attempt.Title;
+        attempt.RemoteId = item.RemoteId;
+
+        snapshot.IsEligibleForRemoval = false;
+        snapshot.IsRemovalRestricted = true;
+        snapshot.RemovalRestrictionReason = reason;
+        snapshot.UpdatedAt = now;
+
+        if (persist) await db.SaveChangesAsync(cancellationToken);
+
+        return new HealthDecision
+        {
+            DownloadAttemptId = attempt.Id,
+            ShouldRemove = false,
+            State = snapshot.State,
+            RawScore = snapshot.RawScore,
+            VisibleScore = snapshot.VisibleScore,
+            Confidence = snapshot.Confidence,
+            RecoveryCredit = snapshot.RecoveryCredit,
+            ReasonKey = "waiting",
+            Message = reason,
+            Restrictions = [reason]
+        };
     }
 
     #endregion
@@ -99,7 +188,8 @@ public sealed class HealthService(
         HealthEventType.QueueMissing,
         HealthEventType.RemovedByTrackarr,
         HealthEventType.ImportedSuccessfully,
-        HealthEventType.FailedExternally
+        HealthEventType.FailedExternally,
+        HealthEventType.RemovedByUser
     ];
 
     private HealthPolicy Policy => settings.GetHealthPolicy();
@@ -115,7 +205,8 @@ public sealed class HealthService(
 
     #region Lifecycle & Reconciliation
 
-    public async Task MarkImportedAsync(int attemptId, string? message = null,
+    // Test-only (nothing in the app calls it); internal so it isn't part of the service's API.
+    internal async Task MarkImportedAsync(int attemptId, string? message = null,
         CancellationToken cancellationToken = default)
     {
         await MarkTerminalAsync(attemptId, AttemptStatus.Imported, HealthEventType.ImportedSuccessfully,
@@ -142,11 +233,14 @@ public sealed class HealthService(
 
         if (attempt == 0) return;
 
-        await MarkTerminalAsync(attempt, AttemptStatus.RemovedByTrackarr, HealthEventType.RemovedByTrackarr,
+        // Your own removal isn't a Trackarr removal: it mustn't set WasRemovedByTrackarr or count toward the
+        // media's stuck flag.
+        await MarkTerminalAsync(attempt, AttemptStatus.RemovedExternally, HealthEventType.RemovedByUser,
             Severity.Info, "removed-by-user", "Manually removed from queue by user.", false, cancellationToken);
     }
 
-    public async Task MarkFailedAsync(int attemptId, string reasonKey, string message,
+    // Test-only (nothing in the app calls it); internal so it isn't part of the service's API.
+    internal async Task MarkFailedAsync(int attemptId, string reasonKey, string message,
         CancellationToken cancellationToken = default)
     {
         await MarkTerminalAsync(attemptId, AttemptStatus.Failed, HealthEventType.FailedExternally, Severity.Severe,
@@ -214,6 +308,11 @@ public sealed class HealthService(
             }
             else
             {
+                // One missed scan can be a glitch (a partial API response, a refresh caught mid-rewrite). Only
+                // call it Disappeared once it's been missing twice in a row; that status counts as a failure.
+                attempt.MissedScans++;
+                if (attempt.MissedScans < MissedScansBeforeDisappeared) continue;
+
                 attempt.Status = AttemptStatus.Disappeared;
                 attempt.FailedAt = now;
                 attempt.FinalReasonKey = "queue-missing";
@@ -252,7 +351,30 @@ public sealed class HealthService(
 
         await db.SaveChangesAsync(cancellationToken);
 
-        return missing;
+        // Only the attempts actually resolved this scan; ones on their first miss are still Active.
+        return missing.Where(e => e.Status != AttemptStatus.Active).ToList();
+    }
+
+    private const int MissedScansBeforeDisappeared = 2;
+
+    /// <summary>
+    ///     Bad and good scans among the most recent <paramref name="scans" /> scans, newest first. Each event
+    ///     stands for <see cref="DownloadHealthEvent.ScanCount" /> scans.
+    /// </summary>
+    public static (int Bad, int Good) CountScansInWindow(IEnumerable<DownloadHealthEvent> newestFirst, int scans)
+    {
+        int bad = 0, good = 0, remaining = scans;
+
+        foreach (var e in newestFirst)
+        {
+            if (remaining <= 0) break;
+            var n = Math.Min(Math.Max(1, e.ScanCount), remaining);
+            if (e.IsBadObservation) bad += n;
+            if (e.IsGoodObservation) good += n;
+            remaining -= n;
+        }
+
+        return (bad, good);
     }
 
     private async Task MarkTerminalAsync(int attemptId, AttemptStatus status, HealthEventType eventType,
@@ -297,6 +419,12 @@ public sealed class HealthService(
             snapshot.State = HealthState.Failed;
         }
 
+        if (status == AttemptStatus.RemovedExternally)
+            attempt.RemovedAt = now;
+
+        // A removal by the user says nothing about the download's health either way.
+        var neutral = status == AttemptStatus.RemovedExternally;
+
         snapshot.LastReasonKey = reasonKey;
         snapshot.LastReasonMessage = message;
         snapshot.UpdatedAt = now;
@@ -318,8 +446,8 @@ public sealed class HealthService(
             RecoveryCreditBefore = snapshot.RecoveryCredit,
             RecoveryCreditDelta = 0,
             RecoveryCreditAfter = snapshot.RecoveryCredit,
-            IsGoodObservation = success,
-            IsBadObservation = !success,
+            IsGoodObservation = success && !neutral,
+            IsBadObservation = !success && !neutral,
             IsMeaningfulRecovery = false,
             CountsTowardRemoval = false,
             Source = nameof(HealthService)
@@ -328,6 +456,63 @@ public sealed class HealthService(
         await _repository.UpdateMediaSummaryAsync(db, attempt, null, now, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    ///     Protects a download from automatic removal (or lifts that). A protected download is still scored and
+    ///     shown, but the decision always lists "Download is protected." and never removes it. Returns false if
+    ///     the item has no active attempt yet (it hasn't been scanned).
+    /// </summary>
+    public async Task<bool> SetProtectedAsync(DownloadItem item, bool isProtected,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+
+        var downloadId = GetDownloadId(item);
+        var attempt = await db.DownloadAttempts.Include(e => e.HealthSnapshot)
+            .Where(e => e.ServerId == item.ServerId && e.DownloadId == downloadId && e.Status == AttemptStatus.Active)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (attempt is null) return false;
+        if (attempt.IsProtected == isProtected) return true;
+
+        var now = DateTime.UtcNow;
+        attempt.IsProtected = isProtected;
+
+        if (attempt.HealthSnapshot is { } snapshot)
+        {
+            if (isProtected)
+            {
+                snapshot.IsEligibleForRemoval = false;
+                snapshot.IsRemovalRestricted = true;
+                snapshot.RemovalRestrictionReason = "Download is protected.";
+                if (snapshot.State == HealthState.Remove) snapshot.State = HealthState.Critical;
+            }
+
+            snapshot.UpdatedAt = now;
+        }
+
+        var message = isProtected ? "Protected from automatic removal by user." : "Protection removed by user.";
+        db.HealthEvents.Add(new DownloadHealthEvent
+        {
+            DownloadAttempt = attempt,
+            OccurredAt = now,
+            EventType = HealthEventType.ManualOverride,
+            Severity = Severity.Info,
+            ReasonKey = isProtected ? "protected-by-user" : "unprotected-by-user",
+            Message = message,
+            ScoreBefore = attempt.HealthSnapshot?.RawScore ?? 0,
+            ScoreAfter = attempt.HealthSnapshot?.RawScore ?? 0,
+            ConfidenceBefore = attempt.HealthSnapshot?.Confidence ?? 0,
+            ConfidenceAfter = attempt.HealthSnapshot?.Confidence ?? 0,
+            RecoveryCreditBefore = attempt.HealthSnapshot?.RecoveryCredit ?? 0,
+            RecoveryCreditAfter = attempt.HealthSnapshot?.RecoveryCredit ?? 0,
+            Source = nameof(HealthService)
+        });
+
+        await db.SaveChangesAsync(cancellationToken);
+        changeBus.NotifyChanged();
+        return true;
     }
 
     public async Task SetScoreAsync(DownloadItem item, int score, int confidence,
@@ -415,7 +600,8 @@ public sealed class HealthService(
             .OrderByDescending(e => e.OccurredAt).Take(take).ToListAsync(cancellationToken);
     }
 
-    public async Task<List<DownloadAttempt>> GetHistoryAsync(int take = 100,
+    // Test-only (nothing in the app calls it); internal so it isn't part of the service's API.
+    internal async Task<List<DownloadAttempt>> GetHistoryAsync(int take = 100,
         CancellationToken cancellationToken = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
@@ -424,7 +610,8 @@ public sealed class HealthService(
             .OrderByDescending(e => e.LastSeenAt).Take(take).ToListAsync(cancellationToken);
     }
 
-    public async Task<List<DownloadAttempt>> GetActiveAttemptsAsync(CancellationToken cancellationToken = default)
+    // Test-only (nothing in the app calls it); internal so it isn't part of the service's API.
+    internal async Task<List<DownloadAttempt>> GetActiveAttemptsAsync(CancellationToken cancellationToken = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
 
@@ -458,6 +645,100 @@ public sealed class HealthService(
 
         return await db.HealthEvents.AsNoTracking().Where(e => e.DownloadAttemptId == attemptId)
             .OrderByDescending(e => e.OccurredAt).Take(take).ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    ///     Health data for a whole page of queue items in one context and a handful of queries (P3), instead of
+    ///     three methods per item with their own contexts. Keyed by <paramref name="keyOf" />. Semantics match
+    ///     the per-item methods: the latest attempt's snapshot, the active attempt's latest event, and the movie's
+    ///     or series' summary (the series roll-up for Sonarr items).
+    /// </summary>
+    public async Task<(Dictionary<string, HealthSnapshot> Snapshots, Dictionary<string, MediaHealthSummary> Summaries,
+            Dictionary<string, DownloadHealthEvent> Events)>
+        GetQueueHealthAsync(IReadOnlyCollection<DownloadItem> items, Func<DownloadItem, string> keyOf,
+            CancellationToken cancellationToken = default)
+    {
+        var snapshots = new Dictionary<string, HealthSnapshot>();
+        var summaries = new Dictionary<string, MediaHealthSummary>();
+        var events = new Dictionary<string, DownloadHealthEvent>();
+        if (items.Count == 0) return (snapshots, summaries, events);
+
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+
+        var serverIds = items.Select(i => (int?)i.ServerId).Distinct().ToList();
+        var downloadIds = items.Select(GetDownloadId).Distinct().ToList();
+
+        var attempts = await db.DownloadAttempts.AsNoTracking().Include(e => e.HealthSnapshot)
+            .Where(e => serverIds.Contains(e.ServerId) && downloadIds.Contains(e.DownloadId))
+            .ToListAsync(cancellationToken);
+        var attemptsByKey = attempts.ToLookup(e => (e.ServerId, e.DownloadId));
+
+        var activeIds = attempts.Where(e => e.Status == AttemptStatus.Active).Select(e => e.Id).ToList();
+        var latestEvents = await db.HealthEvents.AsNoTracking()
+            .Where(e => activeIds.Contains(e.DownloadAttemptId))
+            .Where(e => e.Id == db.HealthEvents.Where(x => x.DownloadAttemptId == e.DownloadAttemptId)
+                .OrderByDescending(x => x.OccurredAt).Select(x => x.Id).First())
+            .ToDictionaryAsync(e => e.DownloadAttemptId, cancellationToken);
+
+        var movieRemoteIds = items.Where(i => i.MovieId > 0).Select(i => i.MovieId).Distinct().ToList();
+        var seriesRemoteIds = items.Where(i => i.MovieId <= 0 && i.SeriesId > 0).Select(i => i.SeriesId).Distinct()
+            .ToList();
+
+        var movieIds = await db.Movies.AsNoTracking()
+            .Where(e => serverIds.Contains(e.ServerId) && movieRemoteIds.Contains(e.RemoteId))
+            .Select(e => new { e.ServerId, e.RemoteId, e.Id }).ToListAsync(cancellationToken);
+        var seriesIds = await db.Series.AsNoTracking()
+            .Where(e => serverIds.Contains(e.ServerId) && seriesRemoteIds.Contains(e.RemoteId))
+            .Select(e => new { e.ServerId, e.RemoteId, e.Id }).ToListAsync(cancellationToken);
+
+        var localMovieIds = movieIds.Select(e => (int?)e.Id).ToList();
+        var localSeriesIds = seriesIds.Select(e => (int?)e.Id).ToList();
+        var movieSummaries = await db.MediaHealthSummaries.AsNoTracking()
+            .Where(e => e.MediaType == TrackedMediaType.Movie && localMovieIds.Contains(e.MovieId))
+            .ToListAsync(cancellationToken);
+        var seriesSummaries = await db.MediaHealthSummaries.AsNoTracking()
+            .Where(e => e.MediaType == TrackedMediaType.Series && localSeriesIds.Contains(e.SeriesId))
+            .ToListAsync(cancellationToken);
+
+        var movieIdByRemote = movieIds.GroupBy(e => (e.ServerId, e.RemoteId)).ToDictionary(g => g.Key, g => g.First().Id);
+        var seriesIdByRemote =
+            seriesIds.GroupBy(e => (e.ServerId, e.RemoteId)).ToDictionary(g => g.Key, g => g.First().Id);
+        var movieSummaryById = movieSummaries.GroupBy(e => e.MovieId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(e => e.CreatedAt).First());
+        var seriesSummaryById = seriesSummaries.GroupBy(e => e.SeriesId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(e => e.CreatedAt).First());
+
+        foreach (var item in items)
+        {
+            var key = keyOf(item);
+            var forItem = attemptsByKey[(item.ServerId, GetDownloadId(item))].ToList();
+
+            var latestAttempt = forItem.OrderByDescending(e => e.LastSeenAt).FirstOrDefault();
+            if (latestAttempt?.HealthSnapshot is { } snapshot)
+            {
+                snapshot.DownloadAttempt = latestAttempt; // so the page can show e.g. whether it's protected
+                snapshots[key] = snapshot;
+            }
+
+            var active = forItem.FirstOrDefault(e => e.Status == AttemptStatus.Active);
+            if (active is not null && latestEvents.TryGetValue(active.Id, out var latest))
+                events[key] = latest;
+
+            if (item.MovieId > 0)
+            {
+                if (movieIdByRemote.TryGetValue((item.ServerId, item.MovieId), out var movieId) &&
+                    movieSummaryById.TryGetValue(movieId, out var summary))
+                    summaries[key] = summary;
+            }
+            else if (item.SeriesId > 0 &&
+                     seriesIdByRemote.TryGetValue((item.ServerId, item.SeriesId), out var seriesId) &&
+                     seriesSummaryById.TryGetValue(seriesId, out var seriesSummary))
+            {
+                summaries[key] = seriesSummary;
+            }
+        }
+
+        return (snapshots, summaries, events);
     }
 
     public async Task<HealthSnapshot?> GetMostRecentSnapshotAsync(DownloadItem item,

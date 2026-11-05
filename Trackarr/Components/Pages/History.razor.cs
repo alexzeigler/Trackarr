@@ -72,7 +72,6 @@ public partial class History : ComponentBase
     private List<string> _statuses = [];
     private string? _statusFilter;
 
-    private bool _tableInitialized;
     private DateTime _toDate = DateTime.Today;
     private string? _typeFilter;
 
@@ -312,7 +311,7 @@ public partial class History : ComponentBase
 
     private static string FormatDate(DateTime value)
     {
-        return value.ToLocalTime().ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture);
+        return Utils.ToLocal(value).ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture);
     }
 
     private static string FormatNumber(int value)

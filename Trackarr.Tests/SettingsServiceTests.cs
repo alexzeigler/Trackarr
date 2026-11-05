@@ -17,6 +17,11 @@ public class SettingsServiceTests
         return new SettingsService(factory, NullLogger<SettingsService>.Instance, new DataChangeBus());
     }
 
+    private static SettingsService Create(SqliteFileFactory factory)
+    {
+        return new SettingsService(factory, NullLogger<SettingsService>.Instance, new DataChangeBus());
+    }
+
     #region InitializeAsync
 
     [Fact]
@@ -346,10 +351,12 @@ public class SettingsServiceTests
 
         var policy = service.GetMissingPolicy();
 
-        Assert.Equal(TimeSpan.FromMinutes(10), policy.SearchCooldown);
+        Assert.Equal(TimeSpan.FromHours(6), policy.SearchCooldown);
         Assert.Equal(3, policy.MaxFailedSearches);
         Assert.Equal(3, policy.MaxEpisodeCascade);
         Assert.Equal(5, policy.AbandonAfter);
+        Assert.Equal(10, policy.MaxSearchesPerRun);
+        Assert.Equal(TimeSpan.FromDays(30), policy.RetryAbandonedAfter);
     }
 
     #endregion
@@ -485,6 +492,61 @@ public class SettingsServiceTests
         await service.ResetDatabaseAsync();
 
         Assert.True(fired);
+    }
+
+    /// <summary>
+    ///     Regression test for a production-only bug: the real connection string sets "Foreign Keys=True",
+    ///     which Microsoft.Data.Sqlite re-applies on every connection open — including the implicit
+    ///     open/close ExecuteSqlRawAsync does per statement. That silently re-enabled FK enforcement
+    ///     mid-reset, so deletes could throw (or be skipped) depending on table order. SqliteInMemoryFactory
+    ///     doesn't reproduce this because it hands EF Core a single already-open connection whose connection
+    ///     string never enables FK enforcement, so this test uses a real pooled file connection instead,
+    ///     mirroring Program.cs, with rows wired together across FK relationships (including a Restrict FK
+    ///     via FallBackProfileId) so an order-dependent FK violation would surface here.
+    /// </summary>
+    [Fact]
+    public async Task ResetDatabase_ClearsAllDataTables_WithRealForeignKeyEnforcement()
+    {
+        using var factory = new SqliteFileFactory();
+        var service = Create(factory);
+        await service.InitializeAsync();
+
+        await using (var db = factory.CreateDbContext())
+        {
+            var server = new MediaServer
+            {
+                Name = "TestServer", Host = "localhost", Port = 7878, ServiceType = ServiceType.Radarr,
+                ApiKey = "test-key"
+            };
+            db.MediaServers.Add(server);
+            await db.SaveChangesAsync();
+
+            var profile = new QualityProfile { RemoteId = 1, Name = "HD", ServerId = server.Id };
+            db.QualityProfiles.Add(profile);
+            await db.SaveChangesAsync();
+
+            server.FallBackProfileId = profile.Id;
+
+            var movie = new Movie { RemoteId = 1, Title = "Test Movie", ServerId = server.Id };
+            db.Movies.Add(movie);
+
+            db.ServerHealthEvents.Add(new ServerHealthEvent
+            {
+                ServerId = server.Id, EventType = ServerHealthEventType.Down, Message = "down"
+            });
+            db.ServerStatusSamples.Add(new ServerStatusSample { ServerId = server.Id, Success = false });
+
+            await db.SaveChangesAsync();
+        }
+
+        await service.ResetDatabaseAsync();
+
+        await using var verifyDb = factory.CreateDbContext();
+        Assert.Equal(0, await verifyDb.MediaServers.CountAsync());
+        Assert.Equal(0, await verifyDb.QualityProfiles.CountAsync());
+        Assert.Equal(0, await verifyDb.Movies.CountAsync());
+        Assert.Equal(0, await verifyDb.ServerHealthEvents.CountAsync());
+        Assert.Equal(0, await verifyDb.ServerStatusSamples.CountAsync());
     }
 
     #endregion

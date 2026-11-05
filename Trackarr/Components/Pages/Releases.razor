@@ -96,7 +96,7 @@
                         {
                             <span class="badge bg-warning-lt text-warning ms-2">Pre-release</span>
                         }
-                        <span class="text-muted ms-auto small me-2">@release.PublishedAt.ToLocalTime().ToString("MMM d, yyyy")</span>
+                        <span class="text-muted ms-auto small me-2">@Utils.ToLocal(release.PublishedAt).ToString("MMM d, yyyy")</span>
                         <i class="ti @(isExpanded ? "ti-chevron-up" : "ti-chevron-down") text-muted"></i>
                     </div>
                 </div>

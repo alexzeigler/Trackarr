@@ -55,10 +55,8 @@ public class LogFileWriter
     private static readonly Lock _lock = new();
     private static readonly long MaxFileSizeBytes = 10 * 1024 * 1024;
 
-    private static readonly string LogDir =
-        Path.Combine(
-            Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Parent?.Parent?.Parent?.FullName ??
-            AppContext.BaseDirectory, "logs");
+    // Resolved on use, not once: Program.cs sets the data directory at startup.
+    private static string LogDir => AppPaths.LogDirectory;
 
     private string CurrentLogPath => Path.Combine(LogDir, $"trackarr_{DateTime.UtcNow:yyyyMMdd}.log");
 
