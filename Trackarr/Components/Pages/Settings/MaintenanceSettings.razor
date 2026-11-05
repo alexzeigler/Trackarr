@@ -5,7 +5,6 @@
 @layout SettingsLayout
 @inject SettingsService SettingsService
 @inject RoutineRunner RoutineRunner
-@inject RoutineService RoutineService
 
 <h2 class="mb-1">Maintenance</h2>
 <p class="text-muted mb-4">Data retention and database cleanup configuration.</p>
@@ -195,13 +194,7 @@
     // The routine definition holds the live interval; update it now so the change applies without a restart.
     private async Task ApplyCleanupIntervalAsync()
     {
-        var cleanup = RoutineRunner.GetDefinition("database-cleanup");
-        var seconds = Math.Max(1, _cleanupInterval) * 3600;
-        if (cleanup is null || cleanup.IntervalSeconds == seconds) return;
-
-        cleanup.IntervalSeconds = seconds;
-        if (cleanup.LastRun is { } lastRun) cleanup.NextRun = lastRun.AddSeconds(seconds);
-        await RoutineService.UpdateDefinitionAsync(cleanup);
+        await RoutineRunner.SetIntervalAsync("database-cleanup", Math.Max(1, _cleanupInterval) * 3600);
     }
 
     private Task DiscardAsync()
