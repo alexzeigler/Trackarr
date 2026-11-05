@@ -35,6 +35,15 @@ public class MediaServer
     public int Port { get; set; }
     public bool UseHttps { get; set; }
 
+    /// <summary>Path the server is served under, e.g. "/radarr" behind a reverse proxy. "" or null for none.</summary>
+    public string? UrlBase { get; set; }
+
+    /// <summary>
+    ///     Accept any TLS certificate, for self-signed certificates (e.g. Radarr/Sonarr's own SSL port). Only use
+    ///     on a network you trust: it turns off the check that you're talking to the real server.
+    /// </summary>
+    public bool SkipCertificateValidation { get; set; }
+
     public string? ApiKey { get; set; }
 
     public int? FallBackProfileId { get; set; }
@@ -72,7 +81,38 @@ public class MediaServer
 
     #region Computed
 
-    public string BaseUrl => $"{(UseHttps ? "https" : "http")}://{Host}:{Port}";
+    public string BaseUrl => $"{(UseHttps ? "https" : "http")}://{Host}:{Port}{NormalizePath(UrlBase)}";
+
+    /// <summary>
+    ///     Cleans up the address fields. If a full URL was pasted into Host ("https://example.com/radarr"), it's
+    ///     split into scheme, host, port and URL base. Trailing slashes are dropped from the URL base.
+    /// </summary>
+    public void NormalizeAddress()
+    {
+        var host = (Host ?? "").Trim();
+
+        if (host.Contains("://") && Uri.TryCreate(host, UriKind.Absolute, out var uri) &&
+            uri.Scheme is "http" or "https")
+        {
+            UseHttps = uri.Scheme == "https";
+            Host = uri.Host;
+            Port = uri.Port; // 80 / 443 when the URL has no port
+            var path = uri.AbsolutePath.Trim('/');
+            if (path.Length > 0) UrlBase = path;
+        }
+        else
+        {
+            Host = host.TrimEnd('/');
+        }
+
+        UrlBase = NormalizePath(UrlBase);
+    }
+
+    private static string NormalizePath(string? path)
+    {
+        var trimmed = (path ?? "").Trim().Trim('/');
+        return trimmed.Length == 0 ? "" : "/" + trimmed;
+    }
 
     // Relationships configured in AppDbContext (not [NotMapped]: fluent config maps them).
     public ServerMetadata? Metadata { get; set; }

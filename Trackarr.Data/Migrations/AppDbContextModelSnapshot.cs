@@ -1483,10 +1483,16 @@ namespace Trackarr.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("SkipCertificateValidation")
+                        .HasColumnType("INTEGER");
+
                     b.Property<double>("UptimePercent")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("REAL")
                         .HasDefaultValue(100.0);
+
+                    b.Property<string>("UrlBase")
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("UseHttps")
                         .HasColumnType("INTEGER");

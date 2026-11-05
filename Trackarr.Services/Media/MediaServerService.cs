@@ -29,6 +29,11 @@ public class MediaServerService(
 {
     private static readonly TimeSpan QueueCacheTtl = TimeSpan.FromSeconds(30);
 
+    /// <summary>Named HttpClients for Radarr/Sonarr, registered in Program.cs (outgoing proxy, TLS options).</summary>
+    public const string HttpClientName = "MediaServer";
+
+    public const string InsecureHttpClientName = "MediaServerInsecure";
+
     #region Media
 
     private static readonly TimeSpan ProfileCacheTtl = TimeSpan.FromSeconds(60);
@@ -731,6 +736,7 @@ public class MediaServerService(
 
     public async Task CreateServerAsync(MediaServer server)
     {
+        server.NormalizeAddress();
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var profiles = server.Profiles;
@@ -779,6 +785,7 @@ public class MediaServerService(
 
     public async Task UpdateServerAsync(MediaServer server)
     {
+        server.NormalizeAddress();
         await using var db = await dbFactory.CreateDbContextAsync();
 
         if (server.IsDefault)
@@ -857,7 +864,8 @@ public class MediaServerService(
     public async Task<(bool Success, long ElapsedMilliseconds, string? ReasonPhrase)> TestConnectionAsync(
         MediaServer server)
     {
-        logger.LogInformation("Testing connection to {name}", server.Name);
+        server.NormalizeAddress();
+        logger.LogInformation("Testing connection to {name} at {url}", server.Name, server.BaseUrl);
         var sw = Stopwatch.StartNew();
 
         try
@@ -1443,10 +1451,10 @@ public class MediaServerService(
         changeBus.NotifyChanged();
     }
 
-    private async Task TriggerSearchAsync(MediaServer server, string commandName, string paramName, object value)
+    private async Task TriggerSearchAsync(MediaServer? server, string commandName, string paramName, object value)
     {
-        if (string.IsNullOrWhiteSpace(server.ApiKey))
-            throw new MediaServerException($"{server.Name}: API key is required.");
+        if (string.IsNullOrWhiteSpace(server?.ApiKey))
+            throw new MediaServerException($"{server?.Name}: API key is required.");
 
         await ExecuteApiAsync(server, $"Error triggering {commandName}.", async () =>
         {
@@ -1463,17 +1471,17 @@ public class MediaServerService(
             if (!response.IsSuccessStatusCode)
                 throw new ApiException(server.Name, "/api/v3/command", (int)response.StatusCode);
 
-            logger.LogInformation("Triggered {cmd} on {name}", commandName, server.Name);
+            logger.LogInformation("Triggered {cmd} on {name}. Params: {params}. Object: {obj}", commandName, server.Name, paramName, value);
         });
     }
 
-    public Task TriggerMovieSearchAsync(MediaServer server, int movieId)
+    public Task TriggerMovieSearchAsync(MediaServer? server, int movieId)
     {
         return TriggerMoviesSearchAsync(server, [movieId]);
     }
 
     /// <summary>One MoviesSearch command for several movies, instead of one command each.</summary>
-    public Task TriggerMoviesSearchAsync(MediaServer server, IReadOnlyCollection<int> movieIds)
+    public Task TriggerMoviesSearchAsync(MediaServer? server, IReadOnlyCollection<int> movieIds)
     {
         return TriggerSearchAsync(server, "MoviesSearch", "movieIds", movieIds.ToArray());
     }
@@ -1484,7 +1492,7 @@ public class MediaServerService(
         return TriggerSearchAsync(server, "EpisodeSearch", "episodeIds", episodeIds.ToArray());
     }
 
-    public Task TriggerSeriesSearchAsync(MediaServer server, int seriesId)
+    public Task TriggerSeriesSearchAsync(MediaServer? server, int seriesId)
     {
         return TriggerSearchAsync(server, "SeriesSearch", "seriesId", seriesId);
     }
@@ -1556,7 +1564,7 @@ public class MediaServerService(
         // The server's own Request Timeout wins, then the global one (Settings > Servers).
         var timeoutSeconds = Math.Max(1, settings?.GetRequestTimeout(server) ?? fallbackSeconds);
 
-        var client = httpClientFactory.CreateClient("MediaServer");
+        var client = httpClientFactory.CreateClient(server.SkipCertificateValidation ? InsecureHttpClientName : HttpClientName);
         client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 
         if (!string.IsNullOrWhiteSpace(server.ApiKey))

@@ -1,6 +1,7 @@
 ﻿@using Trackarr.Services.Settings
 @inject IJSRuntime Js
 @inject SettingsService SettingsService
+@inject HostingOptions Hosting
 
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark" class="m-0">
@@ -8,7 +9,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <base href="/"/>
+    <base href="@Hosting.BaseHref"/>
     <title>@SettingsService.GetString("General", "AppName", "Trackarr")</title>
 
     <ResourcePreloader/>
@@ -25,10 +26,10 @@
 
     <ImportMap/>
 
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"/>
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png"/>
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png"/>
-    <link rel="manifest" href="/site.webmanifest"/>
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png"/>
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png"/>
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png"/>
+    <link rel="manifest" href="site.webmanifest"/>
 
     <HeadOutlet/>
 </head>
@@ -43,12 +44,12 @@
 <script src="@("https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/js/tabler.min.js")"></script>
 <script src="https://cdn.jsdelivr.net/npm/list.js@2.3.1/dist/list.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.4.3/dist/js/tom-select.complete.min.js"></script>
-<script src="/js/bootstrapHelper.js"></script>
-<script src="/js/trackarr-table-list.js"></script>
-<script src="/js/historyChart.js"></script>
-<script src="/js/queueChart.js"></script>
-<script src="/js/missingChart.js"></script>
-<script src="/js/uptimeChart.js"></script>
+<script src="js/bootstrapHelper.js"></script>
+<script src="js/trackarr-table-list.js"></script>
+<script src="js/historyChart.js"></script>
+<script src="js/queueChart.js"></script>
+<script src="js/missingChart.js"></script>
+<script src="js/uptimeChart.js"></script>
 
 <script>
 

@@ -106,16 +106,46 @@
                     <div class="input-group">
                         <span class="input-group-text text-secondary">@(Model.UseHttps ? "https://" : "http://")</span>
                         <input class="form-control @(string.IsNullOrWhiteSpace(Model.Host) ? "is-invalid" : "")"
-                               placeholder="hostname or IP"
-                               @bind="Model.Host"/>
+                               placeholder="hostname, IP, or paste a full URL"
+                               @bind="Model.Host"
+                               @bind:after="ParseAddress"/>
                         <span class="input-group-text">:</span>
                         <input type="number"
                                class="form-control @(Model.Port <= 0 ? "is-invalid" : "")"
                                style="max-width: 90px;"
                                @bind="Model.Port"/>
+                        <input class="form-control"
+                               style="max-width: 130px;"
+                               placeholder="/url-base"
+                               title="URL base, if @Model.ServiceType is served under a path (e.g. /radarr behind a reverse proxy)"
+                               @bind="Model.UrlBase"/>
                     </div>
-                    <div class="form-text">The full URL to your @Model.ServiceType instance.</div>
+                    <div class="form-text">
+                        @Model.BaseUrl &middot;
+                        @if (Model.UseHttps)
+                        {
+                            <span>@Model.ServiceType's own SSL port is 9898; a reverse proxy is usually 443.</span>
+                        }
+                        else
+                        {
+                            <span>Paste a full URL (e.g. https://example.com/radarr) to fill these in.</span>
+                        }
+                    </div>
                 </div>
+
+                @if (Model.UseHttps)
+                {
+                    <div class="mb-3">
+                        <label class="form-check form-switch form-switch-3">
+                            <input class="form-check-input" type="checkbox" @bind="Model.SkipCertificateValidation">
+                            <span class="form-check-label">Skip certificate validation</span>
+                        </label>
+                        <div class="form-text">
+                            For self-signed certificates, such as @Model.ServiceType's built-in SSL. Only on a network you
+                            trust: it stops Trackarr from checking it's talking to the real server.
+                        </div>
+                    </div>
+                }
 
                 <div class="mb-3">
                     <label class="form-label">API Key</label>

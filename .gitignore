@@ -38,3 +38,6 @@ Thumbs.db
 logs/
 crashes/
 restart-error.log
+
+# ASP.NET data protection keys (written next to the database). Never commit.
+keys/

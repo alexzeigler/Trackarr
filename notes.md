@@ -7,6 +7,8 @@
 - **Docker now runs as `PUID`/`PGID` instead of root** (default `99:100`, Unraid's nobody:users). Ownership of `/config` is fixed automatically on start. Set `PUID`/`PGID` if you use different IDs.
 - **Logs and crash reports move to `/config/logs` and `/config/crashes`** (next to the database). Before, they were written inside the container and lost on every update.
 - **Set `TZ`** (e.g. `America/New_York`) so times show in your time zone. The Unraid template has a new Time Zone field. Without it, times show in UTC.
+- **New default port: 8585** (was 8080 inside the container). The port now comes from Settings > Network, not Docker variables. Existing containers that still set `ASPNETCORE_URLS` keep their old port; remove it and update the port mapping (e.g. `8585:8585`) to switch.
+- **Fewer Docker variables.** `ASPNETCORE_ENVIRONMENT`, `DOTNET_ENVIRONMENT`, `ASPNETCORE_URLS`, `ConnectionStrings__DefaultConnection` and `DataProtection__KeysPath` are no longer needed and have been removed from the Unraid template. Leaving them set does no harm.
 - **Request Timeout is now actually used.** The default is 30 seconds, so an unreachable server takes longer to detect than before. Lower it under Settings > Servers if you want faster detection.
 
 ## New Features
@@ -17,6 +19,17 @@
 - New `/servers/uptime` page per server: shows current status, uptime % for the selected time window (24h / 7d / 30d), response time chart, and a paginated health events log.
 - Remote health messages from Radarr/Sonarr (`/api/v3/health`) are surfaced on the uptime page.
 - Status badge on the Servers table now shows a tooltip with the most recent health event.
+
+### Network Settings
+- New **Settings > Network** page with the port, bind address and **URL base** (serve Trackarr at e.g. `https://example.com/trackarr`). These apply after a restart, and the page says when one is pending.
+- **Reverse proxy support:** trust `X-Forwarded-For/Proto/Host/Prefix` headers from your proxy, limited to private networks by default or to the IPs/ranges you list.
+- **Outgoing proxy** for connections to Radarr/Sonarr (HTTP or SOCKS, credentials in the URL, optional bypass for local addresses).
+
+### HTTPS to Radarr/Sonarr
+- Servers have a **URL base** field, for Radarr/Sonarr behind a reverse proxy at a sub-path such as `/radarr`.
+- Paste a full URL (`https://example.com/radarr`) into the host field and it's split into SSL, host, port and URL base.
+- New **Skip certificate validation** option for self-signed certificates, such as Radarr/Sonarr's built-in SSL (port 9898).
+- Connection errors now say why they failed: certificate problem, connection refused, host not found, or timeout.
 
 ### Protect Downloads
 - New **Protect / Unprotect** action on queue rows and in the details modal. A protected download is still scored but is never removed automatically.
@@ -30,6 +43,7 @@
 ### Docker
 - New `/health` endpoint and a Docker `HEALTHCHECK`, so Docker and Unraid can show whether the app is up.
 - `PUID`, `PGID` and `TZ` settings (see Before You Upgrade).
+- The healthcheck follows the port set in Settings > Network.
 
 ## Improvements
 
@@ -122,3 +136,4 @@ New migrations, applied automatically on start:
 - `AddScanCountAndMissingIndex` — scan counts on health events; removes duplicate missing records and adds a unique index.
 - `CascadeServerDelete` — deleting a server deletes its data; cleans up leftovers from past deletions.
 - `RelabelMovieMissingTier` — movie missing records get a "Movie" tier instead of "Series".
+- `AddServerUrlBaseAndTlsOption` — URL base and "Skip certificate validation" on servers.

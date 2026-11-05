@@ -1,0 +1,236 @@
+@page "/settings/network"
+@using Trackarr.Core.UI
+@using Trackarr.Services.Settings
+@layout SettingsLayout
+@inject SettingsService SettingsService
+@inject HostingOptions Running
+
+<h2 class="mb-1">Network</h2>
+<p class="text-muted mb-4">How Trackarr is reached, and how it connects out to your servers.</p>
+
+@if (Running.UrlsOverride is not null)
+{
+    <div class="alert alert-info mb-4" role="status">
+        Trackarr is listening on <code>@Running.UrlsOverride</code> because <code>ASPNETCORE_URLS</code> is set, so
+        the port and bind address below are not used. Remove that variable (older Docker templates set it) to use
+        these settings.
+    </div>
+}
+
+@if (RestartNeeded)
+{
+    <div class="alert alert-warning mb-4" role="status">
+        Saved host settings take effect after Trackarr restarts. Running now on port @Running.Port
+        @(Running.UrlBase.Length > 0 ? $"with URL base {Running.UrlBase}" : "with no URL base").
+    </div>
+}
+
+<h3 class="settings-section-title">Host</h3>
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Port the web interface listens on. In Docker, change the container side of the port mapping to match. Applies after a restart">
+            Port
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <input type="number" class="form-control @(PortValid ? "" : "is-invalid")" min="1" max="65535"
+               @bind="_port" @bind:after="MarkDirty"/>
+        <div class="form-text">Default @HostingOptions.DefaultPort.</div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Address to listen on. * means every network interface; 127.0.0.1 means this machine only. Applies after a restart">
+            Bind Address
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <input class="form-control" placeholder="*" @bind="_bindAddress" @bind:after="MarkDirty"/>
+        <div class="form-text">* for all interfaces.</div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Path Trackarr is served under, for reverse proxies that host it at a sub-path, e.g. https://example.com/trackarr. Applies after a restart">
+            URL Base
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <input class="form-control @(UrlBaseValid ? "" : "is-invalid")" placeholder="/trackarr"
+               @bind="_urlBase" @bind:after="MarkDirty"/>
+        <div class="form-text">Leave empty when Trackarr is at the root of its address.</div>
+    </div>
+</div>
+
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Reverse Proxy</h3>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-4">
+        <label class="form-label d-block"
+               data-bs-toggle="tooltip"
+               title="Trust X-Forwarded-For/Proto/Host/Prefix headers from your proxy, so Trackarr sees the real client address and https. Applies after a restart">
+            Behind a Reverse Proxy
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <label class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" @bind="_reverseProxy" @bind:after="MarkDirty"/>
+            <span class="form-check-label">Trust forwarded headers</span>
+        </label>
+    </div>
+    <div class="col-12 col-lg-8">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="IP addresses or CIDR ranges of your reverse proxy, comma separated. Empty trusts this machine and private networks (Docker, LAN)">
+            Trusted Proxies
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <input class="form-control @(_invalidProxies.Count == 0 ? "" : "is-invalid")"
+               placeholder="e.g. 172.18.0.0/16, 192.168.1.10"
+               disabled="@(!_reverseProxy)"
+               @bind="_trustedProxies" @bind:after="MarkDirty"/>
+        @if (_invalidProxies.Count > 0)
+        {
+            <div class="invalid-feedback d-block">Not an IP or range: @string.Join(", ", _invalidProxies)</div>
+        }
+        else
+        {
+            <div class="form-text">Empty trusts loopback and private networks.</div>
+        }
+    </div>
+</div>
+
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Outgoing Proxy</h3>
+<p class="text-muted small mb-3">For reaching Radarr/Sonarr through an HTTP or SOCKS proxy. Applies within a couple of
+    minutes, no restart needed. Request timeouts are under Settings &gt; Servers.</p>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-8">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Proxy for connections to your servers, e.g. http://proxy:3128 or socks5://proxy:1080. Credentials can go in the URL: http://user:pass@proxy:3128">
+            Proxy URL
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <input class="form-control @(ProxyUrlValid ? "" : "is-invalid")" placeholder="No proxy"
+               @bind="_proxyUrl" @bind:after="MarkDirty"/>
+    </div>
+    <div class="col-12 col-lg-4">
+        <label class="form-label d-block"
+               data-bs-toggle="tooltip"
+               title="Connect directly to servers on this network instead of through the proxy">
+            Local Addresses
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <label class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" disabled="@string.IsNullOrWhiteSpace(_proxyUrl)"
+                   @bind="_proxyBypassLocal" @bind:after="MarkDirty"/>
+            <span class="form-check-label">Bypass proxy for local addresses</span>
+        </label>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private SettingsPageContext Context { get; set; } = null!;
+
+    private int _port;
+    private string _bindAddress = "";
+    private string _urlBase = "";
+    private bool _reverseProxy;
+    private string _trustedProxies = "";
+    private string _proxyUrl = "";
+    private bool _proxyBypassLocal;
+
+    private (int, string, string, bool, string, string, bool) _orig;
+    private List<string> _invalidProxies = [];
+
+    private bool PortValid => _port is > 0 and <= 65535;
+    private bool UrlBaseValid => !_urlBase.Contains(' ') && !_urlBase.Contains('?') && !_urlBase.Contains('#');
+
+    private bool ProxyUrlValid => string.IsNullOrWhiteSpace(_proxyUrl) ||
+                                  (Uri.TryCreate(_proxyUrl.Trim(), UriKind.Absolute, out var uri) &&
+                                   uri.Scheme is "http" or "https" or "socks4" or "socks4a" or "socks5");
+
+    private bool RestartNeeded => SavedHostDiffersFromRunning();
+
+    // Saved host settings that differ from what this process started with.
+    private bool SavedHostDiffersFromRunning()
+    {
+        var bind = SettingsService.GetString("Network", "BindAddress", "*");
+        bind = string.IsNullOrWhiteSpace(bind) ? "*" : bind.Trim();
+
+        // Port and bind address don't matter while ASPNETCORE_URLS overrides them.
+        var listenChanged = Running.UrlsOverride is null &&
+                            (SettingsService.GetInt("Network", "Port", HostingOptions.DefaultPort) != Running.Port ||
+                             bind != Running.BindAddress);
+
+        return listenChanged ||
+               HostingOptions.NormalizeUrlBase(SettingsService.GetString("Network", "UrlBase", "")) != Running.UrlBase ||
+               SettingsService.GetBool("Network", "ReverseProxy", false) != Running.ReverseProxy ||
+               SettingsService.GetString("Network", "TrustedProxies", "") != Running.TrustedProxies;
+    }
+
+    private bool AllValid => PortValid && UrlBaseValid && ProxyUrlValid && _invalidProxies.Count == 0;
+
+    protected override void OnInitialized()
+    {
+        LoadValues();
+        Context.SaveAsync = SaveAsync;
+        Context.DiscardAsync = DiscardAsync;
+        Context.NotifyChanged();
+    }
+
+    private void LoadValues()
+    {
+        _port = SettingsService.GetInt("Network", "Port", HostingOptions.DefaultPort);
+        _bindAddress = SettingsService.GetString("Network", "BindAddress", "*");
+        _urlBase = SettingsService.GetString("Network", "UrlBase", "");
+        _reverseProxy = SettingsService.GetBool("Network", "ReverseProxy", false);
+        _trustedProxies = SettingsService.GetString("Network", "TrustedProxies", "");
+        _proxyUrl = SettingsService.GetString("Network", "ProxyUrl", "");
+        _proxyBypassLocal = SettingsService.GetBool("Network", "ProxyBypassLocal", true);
+        _orig = Snapshot();
+        Validate();
+    }
+
+    private (int, string, string, bool, string, string, bool) Snapshot()
+    {
+        return (_port, _bindAddress, _urlBase, _reverseProxy, _trustedProxies, _proxyUrl, _proxyBypassLocal);
+    }
+
+    private void Validate()
+    {
+        HostingOptions.ParseTrustedProxies(_trustedProxies, out _invalidProxies);
+    }
+
+    private void MarkDirty()
+    {
+        Validate();
+        // Invalid fields are marked red and keep the Save bar hidden until they're fixed.
+        Context.HasChanges = Snapshot() != _orig && AllValid;
+        Context.NotifyChanged();
+    }
+
+    private async Task SaveAsync()
+    {
+        Validate();
+        if (!AllValid) return;
+
+        await SettingsService.SaveCategoryAsync("Network", new Dictionary<string, string>
+        {
+            ["Port"] = _port.ToString(),
+            ["BindAddress"] = string.IsNullOrWhiteSpace(_bindAddress) ? "*" : _bindAddress.Trim(),
+            ["UrlBase"] = HostingOptions.NormalizeUrlBase(_urlBase),
+            ["ReverseProxy"] = _reverseProxy.ToString(),
+            ["TrustedProxies"] = _trustedProxies.Trim(),
+            ["ProxyUrl"] = _proxyUrl.Trim(),
+            ["ProxyBypassLocal"] = _proxyBypassLocal.ToString()
+        });
+        LoadValues();
+    }
+
+    private Task DiscardAsync()
+    {
+        LoadValues();
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+}

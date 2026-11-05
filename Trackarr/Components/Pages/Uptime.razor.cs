@@ -230,7 +230,7 @@ public partial class Uptime : ComponentBase, IAsyncDisposable
     {
         await MediaServerService.DeleteServerAsync(id);
         await Js.InvokeVoidAsync("modalHelper.hide", "confirmationModal");
-        Nav.NavigateTo("/servers");
+        Nav.NavigateTo("servers");
     }
 
     private async Task RefreshAsync()

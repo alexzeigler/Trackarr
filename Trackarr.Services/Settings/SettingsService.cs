@@ -34,6 +34,16 @@ public class SettingsService(
         [("Servers", "SearchMissing")] = ("true", "bool"),
         [("Servers", "RequestTimeoutSeconds")] = ("30", "int"),
 
+        // Network. Host settings (port, bind address, URL base, reverse proxy) are read at startup, so changes
+        // apply after a restart. Outgoing proxy settings apply within a couple of minutes.
+        [("Network", "Port")] = ("8585", "int"),
+        [("Network", "BindAddress")] = ("*", "string"),
+        [("Network", "UrlBase")] = ("", "string"),
+        [("Network", "ReverseProxy")] = ("false", "bool"),
+        [("Network", "TrustedProxies")] = ("", "string"),
+        [("Network", "ProxyUrl")] = ("", "string"),
+        [("Network", "ProxyBypassLocal")] = ("true", "bool"),
+
         // Display
         [("Display", "DateFormat")] = ("MMM d, yyyy h:mm tt", "string"),
         [("Display", "UseTimeAgo")] = ("true", "bool"),

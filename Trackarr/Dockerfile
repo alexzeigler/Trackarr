@@ -1,9 +1,9 @@
 ﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
-EXPOSE 8080
-ENV ASPNETCORE_URLS=http://+:8080
-ENV ASPNETCORE_ENVIRONMENT=Production
-ENV DOTNET_ENVIRONMENT=Production
+# Default web port; change it in Settings > Network (and the container side of your port mapping).
+EXPOSE 8585
+# The port comes from Settings > Network. Clear the base image default so it can't compete.
+ENV ASPNETCORE_HTTP_PORTS=
 # Time zone for times shown in the UI; override with -e TZ=America/New_York.
 ENV TZ=Etc/UTC
 # User/group the app runs as (Unraid default nobody:users). See docker-entrypoint.sh.
@@ -38,6 +38,6 @@ COPY Trackarr/docker-entrypoint.sh /docker-entrypoint.sh
 RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD curl -fsS http://localhost:8080/health || exit 1
+    CMD curl -fsS "$(cat /tmp/trackarr-health-url 2>/dev/null || echo http://localhost:8585/health)" || exit 1
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

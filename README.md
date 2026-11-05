@@ -29,22 +29,20 @@ services:
     image: confinedfish/trackarr:latest
     restart: unless-stopped
     ports:
-      - "5264:8080"
+      - "8585:8585"
     volumes:
       - ./docker-data/trackarr:/config
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      DOTNET_ENVIRONMENT: Production
-      ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: "Data Source=/config/trackarr.db"
-      DataProtection__KeysPath: "/config/keys"
+      TZ: America/New_York   # your time zone
+      PUID: 1000             # optional: user/group that owns /config (default 99:100)
+      PGID: 1000
 ```
 
 ```bash
 docker compose up -d
 ```
 
-Trackarr will be available at `http://localhost:5264`. The database and configuration are persisted to `./docker-data/trackarr/`.
+Trackarr will be available at `http://localhost:8585`. The database, settings, logs and crash reports are stored in `./docker-data/trackarr/`.
 
 ### Docker CLI
 
@@ -52,13 +50,9 @@ Trackarr will be available at `http://localhost:5264`. The database and configur
 docker run -d \
   --name trackarr \
   --restart unless-stopped \
-  -p 5264:8080 \
+  -p 8585:8585 \
   -v /path/to/config:/config \
-  -e ASPNETCORE_ENVIRONMENT=Production \
-  -e DOTNET_ENVIRONMENT=Production \
-  -e ASPNETCORE_URLS=http://+:8080 \
-  -e "ConnectionStrings__DefaultConnection=Data Source=/config/trackarr.db" \
-  -e DataProtection__KeysPath=/config/keys \
+  -e TZ=America/New_York \
   confinedfish/trackarr:latest
 ```
 
@@ -67,10 +61,31 @@ docker run -d \
 1. In the Unraid Docker tab, click **Add Container**
 2. Set **Repository** to `confinedfish/trackarr:latest`
 3. Under **Template**, you can use the [Unraid template XML](deploy/unraid/trackarr.xml) from this repo
-4. Configure the port (default `5264`) and appdata path (default `/mnt/user/appdata/trackarr`)
+4. Check the port (default `8585`), appdata path (default `/mnt/user/appdata/trackarr`) and time zone
 5. Click **Apply**
 
 Unraid will automatically detect when a new image is available on Docker Hub and offer to update the container.
+
+### Port, URL base and reverse proxies
+
+The port, bind address, URL base (e.g. `/trackarr`) and reverse proxy settings live in **Settings > Network**, like
+Radarr and Sonarr, not in Docker variables. They apply after a restart. If you change the port, change the container
+side of the port mapping to match.
+
+Behind a reverse proxy, turn on **Trust forwarded headers**. Leave **Trusted Proxies** empty to trust proxies on
+private networks (the usual Docker or LAN setup), or list your proxy's IP or range.
+
+Upgrading from an older template that set `ASPNETCORE_URLS`? It still works and overrides the port setting. Remove it
+(and update the port mapping) to use the Network settings.
+
+### Connecting to Radarr/Sonarr over HTTPS
+
+- **Through a reverse proxy** (e.g. `https://example.com/radarr`): paste the full URL into the host field and Trackarr
+  fills in HTTPS, port 443 and the URL base.
+- **Radarr/Sonarr's own SSL** (Settings > General > Use SSL, port 9898 by default): turn on **Use SSL**, set the port,
+  and turn on **Skip certificate validation**, since that certificate is self-signed.
+
+If a connection fails, the error now says why (certificate problem, connection refused, host not found, timeout).
 
 ### Updating
 
@@ -92,7 +107,8 @@ Trackarr stores its settings in the database and exposes them through the UI. Ke
 
 | Category | Examples |
 |---|---|
-| **General** | App name, auto-start routines, default server type |
+| **General** | App name, routine scheduling, default server type |
+| **Network** | Port, bind address, URL base, reverse proxy trust, outgoing proxy |
 | **Server defaults** | Queue monitoring, auto-remove failed downloads, missing media search, request timeout |
 | **Health policy** | Starting score, penalty/reward weights, removal thresholds, grace periods |
 | **Missing policy** | Search cooldown, max failed searches, cascade limit, abandonment threshold |

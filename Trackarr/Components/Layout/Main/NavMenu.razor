@@ -66,7 +66,7 @@
                             @foreach (var child in item.Children)
                             {
                                 <li class="nav-item">
-                                    <a class="nav-link @(IsChildActive(child.Href) ? "active" : "")" href="@child.Href">
+                                    <a class="nav-link @(IsChildActive(child.Href) ? "active" : "")" href="@Utils.AppHref(child.Href)">
                                         @child.Label
                                         @if (child.Badge is { } childBadge)
                                         {
@@ -82,7 +82,7 @@
             else
             {
                 <li class="nav-item @(active ? "active-group" : "inactive-group")">
-                    <a class="nav-link @(active ? "active" : "")  px-3" href="@item.Href">
+                    <a class="nav-link @(active ? "active" : "")  px-3" href="@Utils.AppHref(item.Href)">
                         <span class="nav-link-icon d-md-none d-lg-inline-block">
                             <i class="@item.Icon"></i>
                         </span>

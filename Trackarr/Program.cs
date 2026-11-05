@@ -1,4 +1,6 @@
+using System.Net;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Trackarr;
@@ -17,18 +19,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddInMemoryCollection();
 
-var dataProtectionPath = builder.Configuration["DataProtection:KeysPath"] ?? "/config/keys";
-
-Directory.CreateDirectory(dataProtectionPath);
-
-builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath))
-    .SetApplicationName("Trackarr");
-
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 var connectionString = ResolveConnectionString(builder);
 
-// Logs and crash reports live next to the database (/config in Docker) so they survive image updates.
+// Logs, crash reports and keys live next to the database (/config in Docker) so they survive image updates.
 AppPaths.DataDirectory = ResolveDataDirectory(connectionString, builder.Environment.ContentRootPath);
 
 static string ResolveDataDirectory(string connectionString, string contentRootPath)
@@ -39,6 +34,19 @@ static string ResolveDataDirectory(string connectionString, string contentRootPa
         : Path.GetDirectoryName(dataSource);
     return directory ?? Path.Combine(contentRootPath, "data");
 }
+
+var dataProtectionPath = builder.Configuration["DataProtection:KeysPath"] ??
+                         Path.Combine(AppPaths.DataDirectory, "keys");
+Directory.CreateDirectory(dataProtectionPath);
+builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath))
+    .SetApplicationName("Trackarr");
+
+// Port, bind address, URL base and reverse proxy trust come from Settings > Network (read once here, so changes
+// apply after a restart). ASPNETCORE_URLS / --urls still wins when set, so Rider launch profiles and older
+// Docker templates keep working.
+var hosting = HostingOptions.Load(connectionString, builder.Configuration["urls"]);
+builder.WebHost.UseUrls(hosting.ListenUrls);
+builder.Services.AddSingleton(hosting);
 
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
 {
@@ -73,6 +81,41 @@ builder.Services.AddScoped<AppStateService>();
 
 builder.Services.AddHttpClient();
 
+// Clients for Radarr/Sonarr. Both honour the outgoing proxy from Settings > Network (handlers are recycled every
+// couple of minutes, which is when a proxy change takes effect). The "insecure" one accepts any TLS certificate,
+// for servers with "Skip certificate validation" on (self-signed certificates on Radarr/Sonarr's own SSL port).
+builder.Services.AddHttpClient(MediaServerService.HttpClientName)
+    .ConfigurePrimaryHttpMessageHandler(sp => CreateMediaServerHandler(sp, false));
+builder.Services.AddHttpClient(MediaServerService.InsecureHttpClientName)
+    .ConfigurePrimaryHttpMessageHandler(sp => CreateMediaServerHandler(sp, true));
+
+static SocketsHttpHandler CreateMediaServerHandler(IServiceProvider sp, bool acceptAnyCertificate)
+{
+    var settings = sp.GetRequiredService<SettingsService>();
+    var handler = new SocketsHttpHandler();
+
+    var proxyUrl = settings.GetString("Network", "ProxyUrl", "").Trim();
+    if (Uri.TryCreate(proxyUrl, UriKind.Absolute, out var proxyUri))
+    {
+        var proxy = new WebProxy(proxyUri) { BypassProxyOnLocal = settings.GetBool("Network", "ProxyBypassLocal", true) };
+
+        // http://user:pass@proxy:3128 style credentials.
+        if (!string.IsNullOrEmpty(proxyUri.UserInfo))
+        {
+            var parts = Uri.UnescapeDataString(proxyUri.UserInfo).Split(':', 2);
+            proxy.Credentials = new NetworkCredential(parts[0], parts.Length > 1 ? parts[1] : "");
+        }
+
+        handler.Proxy = proxy;
+        handler.UseProxy = true;
+    }
+
+    if (acceptAnyCertificate)
+        handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+
+    return handler;
+}
+
 AppDomain.CurrentDomain.UnhandledException += (_, e) =>
 {
     if (e.ExceptionObject is Exception ex)
@@ -86,6 +129,31 @@ TaskScheduler.UnobservedTaskException += (_, e) =>
 };
 
 var app = builder.Build();
+
+// Behind a reverse proxy: take the client IP, scheme, host and path prefix from X-Forwarded-* headers, but only
+// from trusted proxies (by default loopback and private networks, where Docker and LAN proxies live).
+if (hosting.ReverseProxy)
+{
+    var forwarded = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto |
+                           ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedPrefix
+    };
+    forwarded.KnownIPNetworks.Clear();
+    forwarded.KnownProxies.Clear();
+    var trusted = HostingOptions.ParseTrustedProxies(hosting.TrustedProxies, out var invalid);
+    foreach (var network in trusted)
+        forwarded.KnownIPNetworks.Add(network);
+    foreach (var entry in invalid)
+        app.Logger.LogWarning("Ignoring invalid trusted proxy '{Entry}' in Settings > Network", entry);
+
+    app.UseForwardedHeaders(forwarded);
+}
+
+// URL base, e.g. /trackarr when served at https://example.com/trackarr. Requests without the prefix still work
+// (the healthcheck uses that).
+if (hosting.UrlBase.Length > 0)
+    app.UsePathBase(hosting.UrlBase);
 
 app.UseExceptionHandler("/Error", true);
 if (!app.Environment.IsDevelopment()) app.UseHsts();
@@ -135,6 +203,18 @@ app.MapGet("/health", async (IDbContextFactory<AppDbContext> dbFactory, Cancella
 
 if (CrashReporter.LastError is not null)
     Console.Error.WriteLine($"[CrashReporter] {CrashReporter.LastError}");
+
+// The Docker HEALTHCHECK reads this, so it still finds the app after the port is changed in settings.
+try
+{
+    File.WriteAllText(Path.Combine(Path.GetTempPath(), "trackarr-health-url"), hosting.LocalHealthUrl);
+}
+catch (IOException)
+{
+}
+
+app.Logger.LogInformation("Listening on {Urls}{Base}", hosting.ListenUrls,
+    hosting.UrlBase.Length > 0 ? $" with URL base {hosting.UrlBase}" : "");
 
 app.Run();
 return;
