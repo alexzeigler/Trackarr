@@ -152,7 +152,7 @@ public sealed class QueueEvaluationRoutine(
         }
     }
 
-    private static bool IsBlacklisted(DownloadItem download, List<BlacklistEntry> blacklist)
+    private bool IsBlacklisted(DownloadItem download, List<BlacklistEntry> blacklist)
     {
         if (blacklist.Count == 0) return false;
 
@@ -174,9 +174,10 @@ public sealed class QueueEvaluationRoutine(
                 {
                     if (Regex.IsMatch(target, entry.Pattern, RegexOptions.IgnoreCase)) return true;
                 }
-                catch
+                catch (ArgumentException ex)
                 {
-                    /* invalid regex, skip */
+                    // An invalid blacklist pattern is your config, not a bug: say so, then skip the entry.
+                    logger.LogWarning(ex, "Blacklist pattern {Pattern} is not a valid regex; skipping it", entry.Pattern);
                 }
             }
             else

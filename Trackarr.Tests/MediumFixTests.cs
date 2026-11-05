@@ -305,6 +305,30 @@ public class MediumFixTests
         }
     }
 
+    [Fact]
+    public async Task Protect_BlocksRemoval_AndUnprotectLiftsIt()
+    {
+        var (factory, service, _, serverId) = await CreateAsync();
+        using var _ = factory;
+        var item = MovieItem(serverId);
+
+        Assert.False(await service.SetProtectedAsync(item, true)); // not scanned yet: nothing to protect
+
+        await service.EvaluateAsync(item);
+        Assert.True(await service.SetProtectedAsync(item, true));
+
+        var decision = await service.EvaluateAsync(item);
+        Assert.False(decision.ShouldRemove);
+        Assert.Contains("Download is protected.", decision.Restrictions);
+
+        Assert.True(await service.SetProtectedAsync(item, false));
+        decision = await service.EvaluateAsync(item);
+        Assert.DoesNotContain("Download is protected.", decision.Restrictions);
+
+        await using var db = factory.CreateDbContext();
+        Assert.Equal(2, await db.HealthEvents.CountAsync(e => e.EventType == HealthEventType.ManualOverride));
+    }
+
     private sealed class NoHttp : HttpMessageHandler, IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => new(this, false);

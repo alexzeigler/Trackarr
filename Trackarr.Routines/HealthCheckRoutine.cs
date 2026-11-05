@@ -153,9 +153,10 @@ public sealed class HealthCheckRoutine(
                 });
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Non-critical — skip if we can't check
+            // Non-critical: skip if we can't check.
+            logger.LogDebug(ex, "Disk space check failed");
         }
     }
 

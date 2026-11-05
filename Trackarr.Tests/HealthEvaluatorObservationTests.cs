@@ -540,7 +540,9 @@ public class BuildObservationTests
         var snapshot = FreshSnapshot();
         var item = new DownloadItem { Size = 1000, SizeLeft = 500, Status = "downloading" };
 
-        HealthEvaluator.BuildObservation(item, NewAttempt(), snapshot, DateTime.UtcNow);
+        var now = DateTime.UtcNow;
+        var obs = HealthEvaluator.BuildObservation(item, NewAttempt(), snapshot, now);
+        HealthEvaluator.RecordObservation(snapshot, obs, now);
 
         Assert.Equal(50m, snapshot.LastProgress);
         Assert.Equal(500, snapshot.LastSizeLeft);

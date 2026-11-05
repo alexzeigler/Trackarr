@@ -12,7 +12,6 @@ using Trackarr.Services.Routines;
 using Trackarr.Services.Settings;
 using Trackarr.Services.SystemInfo;
 using Trackarr.Services.UI;
-using _Imports = Trackarr.Client._Imports;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -88,15 +87,8 @@ TaskScheduler.UnobservedTaskException += (_, e) =>
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Error", true);
-}
-else
-{
-    app.UseExceptionHandler("/Error", true);
-    app.UseHsts();
-}
+app.UseExceptionHandler("/Error", true);
+if (!app.Environment.IsDevelopment()) app.UseHsts();
 
 using (var scope = app.Services.CreateScope())
 {
@@ -132,7 +124,14 @@ app.UseAntiforgery();
 app.UseStaticFiles();
 app.MapStaticAssets();
 
-app.MapRazorComponents<App>().AddInteractiveServerRenderMode().AddAdditionalAssemblies(typeof(_Imports).Assembly);
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+
+// For the Docker HEALTHCHECK: healthy when the app is up and the database opens.
+app.MapGet("/health", async (IDbContextFactory<AppDbContext> dbFactory, CancellationToken ct) =>
+{
+    await using var db = await dbFactory.CreateDbContextAsync(ct);
+    return await db.Database.CanConnectAsync(ct) ? Results.Text("Healthy") : Results.StatusCode(503);
+}).ExcludeFromDescription();
 
 if (CrashReporter.LastError is not null)
     Console.Error.WriteLine($"[CrashReporter] {CrashReporter.LastError}");

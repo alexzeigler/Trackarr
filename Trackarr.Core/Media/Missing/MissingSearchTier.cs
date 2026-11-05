@@ -3,5 +3,6 @@
 public enum MissingSearchTier
 {
     Series,
-    Episode
+    Episode,
+    Movie
 }

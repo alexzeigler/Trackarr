@@ -417,6 +417,18 @@ public partial class Queue : ComponentBase
     // Raised from a background thread: run on the component's dispatcher so state isn't changed off-thread,
     // and skip entirely if a refresh is already in flight (charts included, not just the data).
     private string? _previewMessage;
+    private string? _noticeMessage;
+
+    private async Task SetProtectedAsync(DownloadItem item, bool isProtected)
+    {
+        if (!await HealthService.SetProtectedAsync(item, isProtected))
+        {
+            _noticeMessage = $"{item.Title} hasn't been scanned yet, so it can't be protected until the next scan.";
+            return;
+        }
+
+        await RefreshAsync();
+    }
 
     public static string DescribePreview(DownloadItem item, HealthDecision decision)
     {

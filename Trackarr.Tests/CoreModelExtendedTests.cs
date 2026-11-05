@@ -658,8 +658,6 @@ public class HealthDecisionDefaultTests
     {
         var decision = new HealthDecision();
         Assert.False(decision.ShouldRemove);
-        Assert.False(decision.ShouldReplace);
-        Assert.False(decision.ShouldProtect);
     }
 }
 

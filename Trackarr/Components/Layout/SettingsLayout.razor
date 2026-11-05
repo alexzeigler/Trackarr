@@ -1,5 +1,6 @@
 @using Trackarr.Core.UI
 @inherits LayoutComponentBase
+@implements IDisposable
 @layout MainLayout
 @inject NavigationManager Nav
 @inject IJSRuntime Js
@@ -111,15 +112,39 @@
     private string? _successMessage;
     private CancellationTokenSource? _messageCts;
 
+    // Tooltips only need rebuilding when the page content changes, not on every render.
+    private bool _tooltipsStale = true;
+
     protected override void OnInitialized()
     {
-        _context.OnStateChanged += () => InvokeAsync(StateHasChanged);
-        Nav.LocationChanged += (_, _) => InvokeAsync(StateHasChanged);
+        _context.OnStateChanged += OnContextChanged;
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnContextChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _tooltipsStale = true;
+        _ = InvokeAsync(StateHasChanged);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await Js.InvokeVoidAsync("eval", "document.querySelectorAll('[data-bs-toggle=tooltip]').forEach(el => { bootstrap.Tooltip.getInstance(el)?.dispose(); new bootstrap.Tooltip(el); })");
+        if (!firstRender && !_tooltipsStale) return;
+        _tooltipsStale = false;
+        await Js.InvokeVoidAsync("refreshSettingsTooltips");
+    }
+
+    public void Dispose()
+    {
+        _context.OnStateChanged -= OnContextChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+        _messageCts?.Cancel();
+        _messageCts?.Dispose();
     }
 
     private string ActiveCss(string href)

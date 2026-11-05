@@ -120,3 +120,10 @@ window.sidebarHelper = {
 
 dropdownPortal.init();
 window.initTooltips();
+// Settings pages: rebuild plain Bootstrap tooltips after the page content changes.
+window.refreshSettingsTooltips = () => {
+    document.querySelectorAll('[data-bs-toggle=tooltip]').forEach(el => {
+        bootstrap.Tooltip.getInstance(el)?.dispose();
+        new bootstrap.Tooltip(el);
+    });
+};

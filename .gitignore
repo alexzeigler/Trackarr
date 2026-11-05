@@ -37,3 +37,4 @@ Thumbs.db
 # Runtime logs and crash reports (written next to the database)
 logs/
 crashes/
+restart-error.log

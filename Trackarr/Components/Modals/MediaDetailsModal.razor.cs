@@ -267,6 +267,23 @@ public partial class MediaDetailsModal : ComponentBase
 
     private string? _previewMessage;
 
+    private bool IsQueueItemProtected => _queueItem is not null && _downloadAttempts.Any(a =>
+        a.Status == AttemptStatus.Active && a.IsProtected &&
+        a.DownloadId == Trackarr.Services.Media.HealthService.GetDownloadId(_queueItem));
+
+    private async Task ToggleProtected()
+    {
+        if (_queueItem is null) return;
+
+        if (!await HealthService.SetProtectedAsync(_queueItem, !IsQueueItemProtected))
+        {
+            _previewMessage = null;
+            return;
+        }
+
+        await RefreshAsync();
+    }
+
     private async Task EvaluateItem()
     {
         if (_queueItem == null)

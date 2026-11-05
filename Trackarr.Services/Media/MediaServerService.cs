@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -233,7 +232,9 @@ public class MediaServerService(
 
             if (!forceRefresh)
             {
-                var cached = await db.Movies.Where(m => m.ServerId == server.Id).ToListAsync();
+                // Only the missing ones: the Movies table also holds every movie seen in the queue.
+                var cached = await db.Movies.Where(m => m.ServerId == server.Id && m.Monitored && !m.HasFile)
+                    .ToListAsync();
 
                 if (cached.Count != 0)
                 {
@@ -635,54 +636,6 @@ public class MediaServerService(
             .ThenBy(e => e.EpisodeNumber).ToListAsync();
     }
 
-    private async Task GetEpisodeByIdAsync(MediaServer server, int sonarrEpisodeId)
-    {
-        if (server.ServiceType is not ServiceType.Sonarr)
-            throw new MediaServerException($"{server.Name}: Episode fetching not supported for {server.ServiceType}.");
-
-        await using var db = await dbFactory.CreateDbContextAsync();
-
-        var existing =
-            await db.Episodes.FirstOrDefaultAsync(e => e.ServerId == server.Id && e.RemoteId == sonarrEpisodeId);
-
-        await ExecuteApiAsync(server, $"Unexpected error fetching episode {sonarrEpisodeId}.", async () =>
-        {
-            var client = CreateClient(server, 10);
-            var url = $"{server.BaseUrl}/api/v3/episode/{sonarrEpisodeId}";
-
-            using var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, $"/api/v3/episode/{sonarrEpisodeId}", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var x = JsonSerializer.Deserialize<EpisodeRecord>(json, _jsonOptions);
-
-            if (x is null)
-                return existing;
-
-            var episode = x.ToEntity(server.Id);
-
-            var series = await db.Series.FirstOrDefaultAsync(s => s.ServerId == server.Id && s.RemoteId == x.SeriesId);
-
-            if (series is not null)
-                episode.SeriesDbId = series.Id;
-
-            if (existing is null)
-            {
-                db.Episodes.Add(episode);
-            }
-            else
-            {
-                episode.Id = existing.Id;
-                db.Entry(existing).CurrentValues.SetValues(episode);
-            }
-
-            await db.SaveChangesAsync();
-            return existing ?? episode;
-        });
-    }
-
     public async Task SyncSeriesEpisodesAsync(MediaServer server, int seriesId)
     {
         if (string.IsNullOrWhiteSpace(server.ApiKey))
@@ -937,7 +890,7 @@ public class MediaServerService(
                 });
             }
 
-            return (true, sw.ElapsedMilliseconds, response.ReasonPhrase);
+            return (true, sw.ElapsedMilliseconds, response);
         }
         catch (ConnectionException ex)
         {
@@ -1003,17 +956,19 @@ public class MediaServerService(
         }
     }
 
-    private static async Task<HttpResponseMessage> TestArrAsync(HttpClient client, MediaServer server)
+    /// <summary>Calls the status endpoint and returns its reason phrase. The response is disposed here.</summary>
+    private static async Task<string?> TestArrAsync(HttpClient client, MediaServer server)
     {
         if (string.IsNullOrWhiteSpace(server.ApiKey))
             throw new MediaServerException($"{server.Name}: API key is required.");
 
         var url = $"{server.BaseUrl}/api/v3/system/status";
-        var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+        using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
 
-        return !response.IsSuccessStatusCode
-            ? throw new ApiException(server.Name, "/api/v3/system/status", (int)response.StatusCode)
-            : response;
+        if (!response.IsSuccessStatusCode)
+            throw new ApiException(server.Name, "/api/v3/system/status", (int)response.StatusCode);
+
+        return response.ReasonPhrase;
     }
 
     private async Task<ServerMetadata> GetSystemStatusAsync(MediaServer server)
@@ -1601,7 +1556,7 @@ public class MediaServerService(
         // The server's own Request Timeout wins, then the global one (Settings > Servers).
         var timeoutSeconds = Math.Max(1, settings?.GetRequestTimeout(server) ?? fallbackSeconds);
 
-        var client = httpClientFactory.CreateClient("MediaServerTest");
+        var client = httpClientFactory.CreateClient("MediaServer");
         client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 
         if (!string.IsNullOrWhiteSpace(server.ApiKey))

@@ -74,10 +74,11 @@ public class MediaServer
 
     public string BaseUrl => $"{(UseHttps ? "https" : "http")}://{Host}:{Port}";
 
-    [NotMapped] public ServerMetadata? Metadata { get; set; }
+    // Relationships configured in AppDbContext (not [NotMapped]: fluent config maps them).
+    public ServerMetadata? Metadata { get; set; }
     [NotMapped] public List<QualityProfile>? Profiles { get; set; }
     [NotMapped] public List<DownloadItem>? Queue { get; set; }
-    [NotMapped] public QualityProfile? FallbackProfile { get; set; }
+    public QualityProfile? FallbackProfile { get; set; }
 
     #endregion
 }

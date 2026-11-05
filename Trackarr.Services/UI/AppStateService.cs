@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Trackarr.Services.Settings;
 
 namespace Trackarr.Services.UI;
@@ -27,14 +28,16 @@ public sealed class AppStateService : IAsyncDisposable
     ];
 
     private readonly DataChangeBus _bus;
+    private readonly ILogger<AppStateService>? _logger;
     private readonly SettingsService _settings;
     private readonly CancellationTokenSource _timerCts = new();
     private Task? _timerTask;
 
-    public AppStateService(SettingsService settings, DataChangeBus bus)
+    public AppStateService(SettingsService settings, DataChangeBus bus, ILogger<AppStateService>? logger = null)
     {
         _settings = settings;
         _bus = bus;
+        _logger = logger;
         _bus.OnChanged += OnBusChanged;
     }
 
@@ -144,8 +147,10 @@ public sealed class AppStateService : IAsyncDisposable
             {
                 await d();
             }
-            catch
+            catch (Exception ex)
             {
+                // One page's failed refresh mustn't stop the others; it'll try again next time.
+                _logger?.LogDebug(ex, "Auto-refresh handler failed");
             }
         }
     }

@@ -45,7 +45,6 @@ public class BuildDecisionTests
             DateTime.UtcNow);
 
         Assert.True(decision.ShouldRemove);
-        Assert.True(decision.ShouldReplace);
         Assert.Empty(decision.Restrictions);
         Assert.Equal(HealthState.Remove, decision.State);
         Assert.Equal("eligible-for-removal", decision.ReasonKey);
@@ -244,28 +243,6 @@ public class BuildDecisionTests
             scansSinceRecovery: 1);
 
         Assert.Contains(decision.Restrictions, r => r.Contains("meaningful recovery"));
-    }
-
-    [Fact]
-    public void ShouldProtect_WhenRecoveryCreditExists()
-    {
-        var snapshot = EligibleSnapshot();
-        snapshot.RecoveryCredit = 5;
-
-        var decision = _evaluator.BuildDecision(EligibleAttempt(), snapshot, DefaultEvaluation(), DateTime.UtcNow);
-
-        Assert.True(decision.ShouldProtect);
-    }
-
-    [Fact]
-    public void ShouldNotProtect_WhenNoRecoveryCredit()
-    {
-        var snapshot = EligibleSnapshot();
-        snapshot.RecoveryCredit = 0;
-
-        var decision = _evaluator.BuildDecision(EligibleAttempt(), snapshot, DefaultEvaluation(), DateTime.UtcNow);
-
-        Assert.False(decision.ShouldProtect);
     }
 
     [Fact]

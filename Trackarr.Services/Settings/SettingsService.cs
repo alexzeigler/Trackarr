@@ -286,9 +286,10 @@ public class SettingsService(
                 {
                     await db.Database.ExecuteSqlRawAsync("VACUUM");
                 }
-                catch
+                catch (Exception ex)
                 {
-                    /* VACUUM may fail inside a transaction in some SQLite modes */
+                    // VACUUM may fail inside a transaction in some SQLite modes; the reset itself worked.
+                    logger.LogDebug(ex, "VACUUM after database reset failed");
                 }
             }
             finally

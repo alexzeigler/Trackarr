@@ -171,7 +171,7 @@ public sealed class MissingService(
         foreach (var item in missing)
         {
             var rec = records.FirstOrDefault(r => r.RemoteId == item.RemoteId && r.EpisodeId == null) ?? AddRecord(db,
-                records, server.Id, item.RemoteId, null, MissingSearchTier.Series, now);
+                records, server.Id, item.RemoteId, null, MissingSearchTier.Movie, now);
 
             var inQueue = queue.Any(q => q.MovieId == item.RemoteId);
             var isSearching = active.MovieIds.Contains(item.RemoteId);

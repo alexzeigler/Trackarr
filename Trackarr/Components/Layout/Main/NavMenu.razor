@@ -1,6 +1,7 @@
 @inject NavigationManager Nav
 @inject SystemStatusService StatusService
 @inject MediaServerService MediaServerService
+@inject ILogger<NavMenu> Logger
 @using Trackarr.Core.SystemInfo
 @using Trackarr.Services.Media
 @using Trackarr.Services.SystemInfo
@@ -166,9 +167,9 @@
                 await RefreshBadgeAsync();
                 await InvokeAsync(StateHasChanged);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                //ignore
+                Logger.LogDebug(ex, "Nav badge refresh failed");
             }
         }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
     }
@@ -238,9 +239,9 @@
                 GetItem("/system").Badge = null;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Clear all badges on error
+            Logger.LogDebug(ex, "Nav badges could not be loaded; clearing them");
             foreach (var item in _navItems)
             {
                 item.Badge = null;

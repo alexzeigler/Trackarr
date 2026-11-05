@@ -72,7 +72,6 @@ public partial class History : ComponentBase
     private List<string> _statuses = [];
     private string? _statusFilter;
 
-    private bool _tableInitialized;
     private DateTime _toDate = DateTime.Today;
     private string? _typeFilter;
 

@@ -1,18 +1,16 @@
 ﻿namespace Trackarr.Core.Routine;
 
+/// <summary>
+///     A background routine's code-owned defaults and work. Run state (last run, running, paused, history) lives
+///     on <see cref="RoutineDefinition" />, which the runner reads and the UI shows.
+/// </summary>
 public interface IRoutine
 {
-    int Id { get; set; }
     string Key { get; }
     string Name { get; set; }
     string Description { get; set; }
     bool Enabled { get; set; }
-    int LastRunTime { get; set; }
     int IntervalSeconds { get; set; }
-    DateTime LastRun { get; set; }
     DateTimeOffset NextRun { get; set; }
-    bool IsRunning { get; set; }
-    bool IsPaused { get; set; }
-    IEnumerable<RoutineRun>? Runs { get; set; }
     Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken);
 }

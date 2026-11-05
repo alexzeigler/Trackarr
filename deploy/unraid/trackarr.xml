@@ -35,6 +35,10 @@
 
   <Config Name="Config Path" Target="/config" Default="/mnt/user/appdata/trackarr" Mode="rw" Description="Path to store Trackarr configuration and database." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/trackarr</Config>
 
+  <Config Name="PUID" Target="PUID" Default="99" Description="User ID Trackarr runs as; files in /config are owned by it. 99 = nobody on Unraid." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+
+  <Config Name="PGID" Target="PGID" Default="100" Description="Group ID Trackarr runs as. 100 = users on Unraid." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+
   <Config Name="Time Zone" Target="TZ" Default="Etc/UTC" Description="Time zone for times shown in the UI, e.g. America/New_York. Use the same value as your other containers." Type="Variable" Display="always" Required="false" Mask="false">Etc/UTC</Config>
 
   <Config Name="ASPNETCORE_ENVIRONMENT" Target="ASPNETCORE_ENVIRONMENT" Default="Production" Description="Application environment. Leave as Production." Type="Variable" Display="advanced" Required="false" Mask="false">Production</Config>

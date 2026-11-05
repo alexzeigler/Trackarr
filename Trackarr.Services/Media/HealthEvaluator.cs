@@ -82,17 +82,6 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
                                                 or HealthState.Critical);
         var sustainedProgress = isGood && snapshot.ConsecutiveGoodScans >= 3;
 
-        snapshot.LastProgress = progress;
-        snapshot.LastSizeLeft = item.SizeLeft;
-        snapshot.LastSize = item.Size;
-        snapshot.LastStatus = item.Status;
-        snapshot.LastTrackedDownloadStatus = item.TrackedDownloadStatus;
-        snapshot.LastTrackedDownloadState = item.TrackedDownloadState;
-        snapshot.LastErrorKey = errorKey;
-        snapshot.LastErrorMessage = isFetchingMetadata ? null : item.ErrorMessage;
-
-        if (isActivelyProgressing) snapshot.LastByteProgressAt = now;
-
         return new HealthObservation
         {
             DownloadAttemptId = attempt.Id,
@@ -126,6 +115,24 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
             IsBadObservation = isBad,
             HasSustainedProgress = sustainedProgress
         };
+    }
+
+    /// <summary>
+    ///     Stores what this scan saw on the snapshot, so the next scan can compare against it. Kept separate from
+    ///     <see cref="BuildObservation" /> so building an observation has no side effects; call it right after.
+    /// </summary>
+    public static void RecordObservation(HealthSnapshot snapshot, HealthObservation observation, DateTime now)
+    {
+        snapshot.LastProgress = observation.Progress;
+        snapshot.LastSizeLeft = observation.SizeLeft;
+        snapshot.LastSize = observation.Size;
+        snapshot.LastStatus = observation.Status;
+        snapshot.LastTrackedDownloadStatus = observation.TrackedDownloadStatus;
+        snapshot.LastTrackedDownloadState = observation.TrackedDownloadState;
+        snapshot.LastErrorKey = observation.ErrorKey;
+        snapshot.LastErrorMessage = observation.IsFetchingMetadata ? null : observation.ErrorMessage;
+
+        if (observation.HasPositiveSpeed) snapshot.LastByteProgressAt = now;
     }
 
     #endregion
@@ -431,8 +438,6 @@ public sealed class HealthEvaluator(HealthPolicy? policy = null)
         {
             DownloadAttemptId = attempt.Id,
             ShouldRemove = shouldRemove,
-            ShouldReplace = shouldRemove,
-            ShouldProtect = snapshot.RecoveryCredit > 0,
             State = shouldRemove ? HealthState.Remove : snapshot.State,
             RawScore = snapshot.RawScore,
             VisibleScore = snapshot.VisibleScore,

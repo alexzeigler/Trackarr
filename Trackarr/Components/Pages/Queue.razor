@@ -22,6 +22,14 @@
         <div class="alert alert-danger mb-0">@_loadError</div>
     }
 
+    @if (_noticeMessage != null)
+    {
+        <div class="alert alert-warning alert-dismissible mb-0" role="status">
+            @_noticeMessage
+            <button type="button" class="btn-close" aria-label="Dismiss" @onclick="() => _noticeMessage = null"></button>
+        </div>
+    }
+
     @if (_previewMessage != null)
     {
         <div class="alert alert-info alert-dismissible mb-0" role="status">
@@ -588,6 +596,12 @@
                                                 </button>
                                                 <button class="dropdown-item" @onclick="() => EvaluateItemAsync(item)" title="Shows what a scan would decide now, without recording it">
                                                     Evaluate
+                                                </button>
+                                                @{ var isProtected = snapshot?.DownloadAttempt?.IsProtected == true; }
+                                                <button class="dropdown-item"
+                                                        title="@(isProtected ? "Allow Trackarr to remove this download again" : "Never remove this download automatically")"
+                                                        @onclick="() => SetProtectedAsync(item, !isProtected)">
+                                                    @(isProtected ? "Unprotect" : "Protect")
                                                 </button>
                                                 <button class="dropdown-item"
                                                         @onclick="() => _detailsModal.Open(item, item.ServerId, movie, series)">

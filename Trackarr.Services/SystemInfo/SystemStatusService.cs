@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System.Data;
 using System.Diagnostics;
 using System.Globalization;
@@ -9,7 +10,9 @@ using Trackarr.Data;
 
 namespace Trackarr.Services.SystemInfo;
 
-public sealed class SystemStatusService(IDbContextFactory<AppDbContext> dbFactory)
+public sealed class SystemStatusService(
+    IDbContextFactory<AppDbContext> dbFactory,
+    ILogger<SystemStatusService>? logger = null)
 {
     private AppInfo? _cachedAppInfo;
     private List<SystemStatusMessage>? _healthCheckMessages;
@@ -43,9 +46,10 @@ public sealed class SystemStatusService(IDbContextFactory<AppDbContext> dbFactor
                 if (opened) await conn.CloseAsync();
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // non-critical
+            // Non-critical: the SQLite version is only shown on the Status page.
+            logger?.LogDebug(ex, "Could not read the SQLite version");
         }
 
         var migrationCount = (await db.Database.GetAppliedMigrationsAsync()).Count();
@@ -200,9 +204,10 @@ public sealed class SystemStatusService(IDbContextFactory<AppDbContext> dbFactor
                     Location = path, FreeBytes = drive.AvailableFreeSpace, TotalBytes = drive.TotalSize
                 });
             }
-            catch
+            catch (Exception ex)
             {
-                // skip inaccessible paths
+                // Skip inaccessible paths.
+                logger?.LogDebug(ex, "Could not read disk space for {Path}", path);
             }
         }
 

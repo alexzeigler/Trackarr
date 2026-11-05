@@ -166,6 +166,12 @@
                                         </button>
                                     </li>
                                     <li>
+                                        <button type="button" class="dropdown-item" @onclick="ToggleProtected"
+                                                title="@(IsQueueItemProtected ? "Allow Trackarr to remove this download again" : "Never remove this download automatically")">
+                                            @(IsQueueItemProtected ? "Unprotect" : "Protect")
+                                        </button>
+                                    </li>
+                                    <li>
                                         <button type="button" class="dropdown-item" @onclick="ForceRecheck">Force
                                             recheck
                                         </button>
