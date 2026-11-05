@@ -2,19 +2,33 @@
 
 A self-hosted companion app for [Radarr](https://radarr.video/) and [Sonarr](https://sonarr.tv/) that gives you a unified view of your media automation — downloads, queue health, missing media, and what needs your attention.
 
-> **Alpha software** — Trackarr is in early development (v5.x-alpha). Expect breaking changes, incomplete features, and rough edges. It connects to live Radarr/Sonarr instances and there is no read-only mode yet. Use at your own risk.
+> **Alpha software** — Trackarr is in early development (v5.x-alpha). Expect breaking changes, incomplete features, and
+> rough edges. It connects to live Radarr/Sonarr instances and can remove downloads and change quality profiles. Turn
+> on **Passive Mode** (Settings > Servers) to watch without it changing anything. Use at your own risk.
 
 ## Features
 
-**Queue monitoring** — See active downloads across all your Radarr and Sonarr instances in one place. Track download progress, status changes, and stalled or failing items.
+**Queue monitoring** — See active downloads across all your Radarr and Sonarr instances in one place. Track download
+progress, status changes, and stalled or failing items.
 
-**Health scoring** — Every download gets a health score (0–100) based on its lifecycle. Stalls, errors, and lack of progress reduce the score; recoveries and steady progress improve it. Configurable thresholds can automatically flag or remove unhealthy downloads.
+**Health scoring** — Every download gets a health score (0–100) based on how it's behaving. Stalls, errors and lack of
+progress lower it; recoveries and steady progress raise it. Downloads that are just waiting (queued, paused, waiting to
+import) aren't penalised. Configurable thresholds can flag or automatically remove unhealthy downloads, and you can
+**protect** any download so it's never removed.
 
-**Missing media tracking** — Automatically detects movies and episodes that are missing from your library. Tracks search state, manages cooldowns between searches, and abandons items that repeatedly fail to find results.
+**Missing media tracking** — Finds movies and episodes missing from your library and searches for them at a pace your
+indexers can handle: a limited number per run, longer waits after each unsuccessful search, and a fresh try later for
+items it gave up on. It can drop to a fallback quality profile to find something, and restores your original profile
+once the item downloads.
 
-**Multi-server support** — Connect multiple Radarr and Sonarr instances. Each server gets independent health checks, queue monitoring, and configuration.
+**Multi-server support** — Connect multiple Radarr and Sonarr instances, over HTTP or HTTPS, directly or through a
+reverse proxy. Each server gets its own health checks, uptime history and settings.
 
-**Background routines** — Scheduled jobs handle heartbeat checks, queue refreshes, health evaluations, missing media detection, and database cleanup. Each routine tracks its own run history and can be individually configured.
+**Server health and uptime** — Heartbeat checks track each server's response time and uptime, surface Radarr/Sonarr's
+own health warnings, and automatically pause and resume servers that go offline.
+
+**Background routines** — Scheduled jobs handle heartbeats, queue refreshes, health checks, missing media searches and
+database cleanup. Each routine keeps its own run history and can be paused, run by hand or rescheduled.
 
 **Download history** — Browse past download attempts with event-level detail to understand what happened and why.
 
@@ -109,10 +123,13 @@ Trackarr stores its settings in the database and exposes them through the UI. Ke
 |---|---|
 | **General** | App name, routine scheduling, default server type |
 | **Network** | Port, bind address, URL base, reverse proxy trust, outgoing proxy |
-| **Server defaults** | Queue monitoring, auto-remove failed downloads, missing media search, request timeout |
-| **Health policy** | Starting score, penalty/reward weights, removal thresholds, grace periods |
-| **Missing policy** | Search cooldown, max failed searches, cascade limit, abandonment threshold |
+| **Server defaults** | Queue monitoring, auto-remove, Passive Mode, missing media search, connection timeout |
+| **Health policy** | Starting score, penalty/reward weights, removal thresholds, grace periods, recovery protection |
+| **Missing policy** | Search cooldown, searches per run, failed searches before a fallback profile, episode cascade, abandon and retry |
 | **Display** | Date/time format, table page sizes, chart visibility, table density |
+
+Each server can also override the defaults (timeout, queue monitoring, auto-remove, missing search) and has its own
+fallback quality profile, URL base and HTTPS options.
 
 ## Development
 
@@ -124,7 +141,9 @@ cd Trackarr
 dotnet run --project Trackarr/Trackarr.csproj
 ```
 
-The app starts at `http://localhost:5264`. The database is created automatically on first run.
+The development launch profile starts the app at `http://localhost:5264` (it sets `ASPNETCORE_URLS`, which overrides
+the port in Settings > Network). Without it, Trackarr listens on port 8585. The database is created automatically on
+first run, in `Trackarr.Data/` during development.
 
 **Running tests:**
 
@@ -132,29 +151,49 @@ The app starts at `http://localhost:5264`. The database is created automatically
 dotnet test
 ```
 
+**Mock server:** `Trackarr.MockServer` imitates Radarr and Sonarr with a live queue, so you can try Trackarr without real
+servers. Start it with `run-mockserver.ps1`.
+
 ### Project structure
 
 ```
-Trackarr/              Web app — Blazor Server UI, startup, middleware
-Trackarr.Core/         Domain models — media, health, queue, settings
+Trackarr/              Web app: Blazor Server UI, startup, hosting and network settings
+Trackarr.Core/         Domain models: media, health, queue, routines, settings
 Trackarr.Data/         EF Core DbContext and migrations (SQLite)
-Trackarr.Services/     Business logic — API clients, health scoring, search
-Trackarr.Routines/     Background job implementations
-Trackarr.Client/       Blazor WebAssembly client components
+Trackarr.Services/     Business logic: Radarr/Sonarr API client, health scoring, missing search
+Trackarr.Routines/     Background jobs (heartbeat, queue, evaluation, missing media, cleanup)
+Trackarr.MockServer/   Fake Radarr/Sonarr for local testing
 Trackarr.Tests/        Unit and integration tests (xUnit)
+deploy/unraid/         Unraid container template
 ```
 
 ### Tech stack
 
 - .NET 10 / ASP.NET Core / Blazor Server
 - SQLite via Entity Framework Core
-- Blazor Bootstrap / Bootstrap
+- Tabler and Bootstrap for the UI, ApexCharts for charts
 - xUnit for testing
 
 ## Contributing
 
-Trackarr is not yet set up for outside contributions. Once the first alpha builds are more stable, bug reports, testing feedback, and setup experience reports will be the most useful.
+Trackarr is not yet set up for outside contributions. Once the first alpha builds are more stable, bug reports, testing
+feedback, and setup experience reports will be the most useful.
+
+## Built with AI
+
+Trackarr is developed with heavy use of AI. A large share of the code — including most of the v5.2 reliability fixes,
+the network and HTTPS work, the cleanup, and many of the tests — was written by Claude, an AI model made by Anthropic,
+working in Claude Code. The maintainer decides what gets built, directs and reviews the changes, tests them against real
+Radarr and Sonarr setups, and makes every release.
+
+That shapes how much you should trust it:
+
+- AI-written code can contain mistakes that look correct. There's an automated test suite (around 570 tests), but tests
+  only cover what someone thought to check.
+- Trackarr can remove downloads, blocklist releases and change quality profiles on your Radarr and Sonarr. Start with
+  **Passive Mode** on and watch what it would do before letting it act.
+- If something looks wrong, please open an issue. Reports from real setups are what catch the problems tests miss.
 
 ## Disclaimer
 
-Trackarr is an independent project, not affiliated with Radarr, Sonarr, or any download client.
+Trackarr is an independent project, not affiliated with Radarr, Sonarr, Anthropic, or any download client.
