@@ -200,6 +200,24 @@ public partial class Queue : ComponentBase
             _searchTerm = InitialSearch;
     }
 
+    // Hidden charts are torn down; charts shown again get new elements, so they're drawn on the next render.
+    private async Task OnChartsToggled(bool visible)
+    {
+        if (visible)
+        {
+            _chartsPending = true;
+            return;
+        }
+
+        try
+        {
+            await Js.InvokeVoidAsync("trackarrQueueCharts.destroyAll");
+        }
+        catch (JSException)
+        {
+        }
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!_chartsPending) return;

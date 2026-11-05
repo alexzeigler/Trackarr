@@ -1,0 +1,168 @@
+@inject MediaServerService MediaServerService
+@inject RoutineRunner RoutineRunner
+@inject SettingsService Settings
+@inject AppStateService AppState
+@using Trackarr.Core.Routine
+@using Trackarr.Core.Server
+@using Trackarr.Services.Media
+@using Trackarr.Services.Routines
+@using Trackarr.Services.Settings
+@implements IAsyncDisposable
+
+@* At-a-glance status for the whole app: servers, what's waiting, what the routines are doing, Passive Mode. *@
+<div class="topbar-status d-none d-md-flex">
+    @if (_servers.Count > 0)
+    {
+        <a href="servers" class="topbar-chip" title="@ServersTooltip">
+            @foreach (var server in _servers)
+            {
+                <span class="topbar-dot topbar-dot-@(GetColor(server))"></span>
+            }
+            <span class="topbar-chip-text">@OnlineCount/@_servers.Count online</span>
+        </a>
+
+        <a href="" class="topbar-chip d-none d-lg-inline-flex" title="Downloads in the queue across all servers">
+            <i class="ti ti-download"></i>
+            <span class="topbar-chip-text">@QueueCount queued</span>
+        </a>
+
+        <a href="missing"
+           class="topbar-chip d-none d-lg-inline-flex"
+           title="Missing movies and episodes across all servers">
+            <i class="ti ti-search"></i>
+            <span class="topbar-chip-text">@MissingCount missing</span>
+        </a>
+    }
+
+    <a href="system/routines" class="topbar-chip d-none d-xl-inline-flex" title="@RoutineTooltip">
+        @if (_running is not null)
+        {
+            <span class="spinner-border spinner-border-sm topbar-spinner"></span>
+            <span class="topbar-chip-text">@_running.Name</span>
+        }
+        else
+        {
+            <i class="ti ti-clock-play"></i>
+            <span class="topbar-chip-text">@RoutineIdleText</span>
+        }
+    </a>
+
+    @if (_passiveMode)
+    {
+        <a href="settings/services"
+           class="topbar-chip topbar-chip-warning"
+           title="Passive Mode is on: Trackarr watches but removes nothing, searches nothing and changes no profiles">
+            <i class="ti ti-eye"></i>
+            <span class="topbar-chip-text">Passive</span>
+        </a>
+    }
+</div>
+
+@code {
+    private List<MediaServer> _servers = [];
+    private bool _passiveMode;
+    private RoutineDefinition? _running;
+    private RoutineDefinition? _next;
+    private CancellationTokenSource? _cts;
+
+    private int OnlineCount => _servers.Count(s => s.IsOnline);
+    private int QueueCount => _servers.Sum(s => s.LastQueueCount ?? 0);
+    private int MissingCount => _servers.Sum(s => s.LastMissingCount ?? 0);
+
+    private string ServersTooltip => string.Join("\n", _servers.Select(s => s.IsOnline ? $"{s.Name}: {(s.LastPingMs is { } ms ? $"{ms} ms" : "online")}" : $"{s.Name}: {(string.IsNullOrWhiteSpace(s.LastError) ? "offline" : s.LastError)}"));
+
+    private string RoutineIdleText => _next?.NextRun is { } at ? $"Next: {_next.Name} {Until(at)}" : "Routines idle";
+
+    private string RoutineTooltip => _running is not null ? $"Running {_running.Name} now" : _next is not null ? $"Next routine: {_next.Name}" : "No routine is scheduled";
+
+    protected override async Task OnInitializedAsync()
+    {
+        AppState.OnRefreshRequested += RefreshAsync;
+        Settings.OnSettingsChanged += OnSettingsChanged;
+        await LoadAsync();
+
+        // The routine status changes between data refreshes, so tick it on its own every few seconds.
+        _cts = new CancellationTokenSource();
+        _ = TickAsync(_cts.Token);
+    }
+
+    private async Task TickAsync(CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+                await InvokeAsync(() =>
+                {
+                    LoadRoutines();
+                    StateHasChanged();
+                });
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    // Raised from a background thread: load and render on the dispatcher.
+    private Task RefreshAsync()
+    {
+        return InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    private void OnSettingsChanged()
+    {
+        _ = InvokeAsync(() =>
+        {
+            _passiveMode = Settings.IsPassiveMode();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadAsync()
+    {
+        _servers = (await MediaServerService.GetAllServersAsync()).Where(s => s.IsEnabled).ToList();
+        _passiveMode = Settings.IsPassiveMode();
+        LoadRoutines();
+    }
+
+    private void LoadRoutines()
+    {
+        var routines = RoutineRunner.Definitions;
+        _running = routines.FirstOrDefault(r => r.IsRunning);
+        _next = routines.Where(r => r.Enabled && !r.IsPaused && r.NextRun.HasValue).MinBy(r => r.NextRun);
+    }
+
+    private static string GetColor(MediaServer server)
+    {
+        if (!server.IsOnline) return "red";
+        return server.LastPingMs is > 500 ? "yellow" : "green";
+    }
+
+    private static string Until(DateTime at)
+    {
+        // Times loaded from the database come back with no Kind; they are stored as UTC.
+        var utc = at.Kind == DateTimeKind.Local ? at.ToUniversalTime() : DateTime.SpecifyKind(at, DateTimeKind.Utc);
+        var left = utc - DateTime.UtcNow;
+        if (left <= TimeSpan.FromSeconds(5)) return "now";
+        if (left < TimeSpan.FromMinutes(1)) return $"in {(int)left.TotalSeconds}s";
+        if (left < TimeSpan.FromHours(1)) return $"in {(int)left.TotalMinutes}m";
+        return left < TimeSpan.FromDays(1) ? $"in {(int)left.TotalHours}h" : $"in {(int)left.TotalDays}d";
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        AppState.OnRefreshRequested -= RefreshAsync;
+        Settings.OnSettingsChanged -= OnSettingsChanged;
+        _cts?.Cancel();
+        _cts?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
+}

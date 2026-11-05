@@ -88,6 +88,8 @@
         </div>
     </div>
 
+    <ChartsToggle SettingKey="ShowMissingCharts" OnChanged="OnChartsToggled"/>
+
     @if (Settings.GetBool("Display", "ShowMissingCharts", true))
     {
         <div class="row row-cards mb-3">

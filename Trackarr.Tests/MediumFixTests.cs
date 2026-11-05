@@ -15,32 +15,6 @@ namespace Trackarr.Tests;
 /// <summary>Regression guards for the Medium findings (M1-M9) of the November health report.</summary>
 public class MediumFixTests
 {
-    #region Setup
-
-    private static async Task<(SqliteInMemoryFactory, HealthService, SettingsService, int)> CreateAsync(
-        ServiceType type = ServiceType.Radarr)
-    {
-        var factory = new SqliteInMemoryFactory();
-        var bus = new DataChangeBus();
-        var settings = new SettingsService(factory, NullLogger<SettingsService>.Instance, bus);
-        await settings.InitializeAsync();
-
-        await using var db = factory.CreateDbContext();
-        var server = new MediaServer { Name = "Server", ServiceType = type, Host = "localhost", Port = 1 };
-        db.MediaServers.Add(server);
-        await db.SaveChangesAsync();
-
-        return (factory, new HealthService(factory, settings, bus), settings, server.Id);
-    }
-
-    private static DownloadItem MovieItem(int serverId, string downloadId = "dl-1") => new()
-    {
-        ServerId = serverId, RemoteId = 1, MovieId = 10, DownloadId = downloadId, Title = "Movie",
-        Size = 2000, SizeLeft = 1000, Protocol = "torrent", Indexer = "Idx", DownloadClient = "qbit"
-    };
-
-    #endregion
-
     [Fact]
     public async Task M1_SonarrDownload_IsTrackedPerEpisode_AndRolledUpToSeries()
     {
@@ -62,8 +36,15 @@ public class MediumFixTests
 
         var item = new DownloadItem
         {
-            ServerId = serverId, RemoteId = 1, SeriesId = 5, EpisodeId = 50, DownloadId = "dl-ep",
-            Title = "Show.S01E01", Size = 2000, SizeLeft = 1000, Protocol = "torrent"
+            ServerId = serverId,
+            RemoteId = 1,
+            SeriesId = 5,
+            EpisodeId = 50,
+            DownloadId = "dl-ep",
+            Title = "Show.S01E01",
+            Size = 2000,
+            SizeLeft = 1000,
+            Protocol = "torrent"
         };
         // Summary counts come from saved attempts, so the new attempt shows up from the second scan.
         await service.EvaluateAsync(item);
@@ -78,6 +59,48 @@ public class MediumFixTests
         var seriesSummary = await check.MediaHealthSummaries.SingleAsync(s => s.MediaType == TrackedMediaType.Series);
         Assert.Equal(1, seriesSummary.AttemptCount); // the episode attempt is rolled up to the series
         Assert.Single(check.MediaHealthSummaries.Where(s => s.MediaType == TrackedMediaType.Episode));
+    }
+
+    [Fact]
+    public async Task TwoEpisodesOfOneSeries_EachGetTheirOwnSummary()
+    {
+        // Regression: episode summaries also stored their SeriesId, and (MediaType, SeriesId) is unique, so the
+        // second episode of a series failed with a UNIQUE constraint and the whole queue refresh failed.
+        var (factory, service, _, serverId) = await CreateAsync(ServiceType.Sonarr);
+        using var _ = factory;
+
+        await using (var db = factory.CreateDbContext())
+        {
+            db.Series.Add(new Series { RemoteId = 5, Title = "Show", ServerId = serverId });
+            db.Episodes.Add(new Episode { RemoteId = 50, RemoteSeriesId = 5, ServerId = serverId });
+            db.Episodes.Add(new Episode { RemoteId = 51, RemoteSeriesId = 5, ServerId = serverId });
+            await db.SaveChangesAsync();
+        }
+
+        DownloadItem Episode(int episodeId, string downloadId)
+        {
+            return new DownloadItem
+            {
+                ServerId = serverId,
+                RemoteId = episodeId,
+                SeriesId = 5,
+                EpisodeId = episodeId,
+                DownloadId = downloadId,
+                Title = $"Show.E{episodeId}",
+                Size = 2000,
+                SizeLeft = 1000,
+                Protocol = "torrent"
+            };
+        }
+
+        await service.EvaluateAsync(Episode(50, "dl-50"));
+        await service.EvaluateAsync(Episode(51, "dl-51"));
+        await service.EvaluateAsync(Episode(51, "dl-51"));
+
+        await using var check = factory.CreateDbContext();
+        Assert.Equal(2, await check.MediaHealthSummaries.CountAsync(s => s.MediaType == TrackedMediaType.Episode));
+        var seriesSummary = await check.MediaHealthSummaries.SingleAsync(s => s.MediaType == TrackedMediaType.Series);
+        Assert.Equal(2, seriesSummary.AttemptCount);
     }
 
     [Fact]
@@ -195,7 +218,11 @@ public class MediumFixTests
 
         var server = new MediaServer
         {
-            Name = "Radarr", ServiceType = ServiceType.Radarr, Host = "radarr.test", Port = 1, ApiKey = "k",
+            Name = "Radarr",
+            ServiceType = ServiceType.Radarr,
+            Host = "radarr.test",
+            Port = 1,
+            ApiKey = "k",
             IsEnabled = true
         };
         await using (var db = factory.CreateDbContext())
@@ -231,8 +258,8 @@ public class MediumFixTests
         await service.EvaluateAsync(MovieItem(serverId));
 
         var bus = new DataChangeBus();
-        var media = new MediaServerService(factory, new NoHttp(), NullLogger<MediaServerService>.Instance, bus,
-            service, settings);
+        var media = new MediaServerService(factory, new NoHttp(), NullLogger<MediaServerService>.Instance, bus, service,
+            settings);
         await media.DeleteServerAsync(serverId);
 
         await using var check = factory.CreateDbContext();
@@ -334,6 +361,46 @@ public class MediumFixTests
         public HttpClient CreateClient(string name) => new(this, false);
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
-            CancellationToken cancellationToken) => throw new HttpRequestException("offline");
+            CancellationToken cancellationToken)
+        {
+            throw new HttpRequestException("offline");
+        }
     }
+
+    #region Setup
+
+    private static async Task<(SqliteInMemoryFactory, HealthService, SettingsService, int)> CreateAsync(
+        ServiceType type = ServiceType.Radarr)
+    {
+        var factory = new SqliteInMemoryFactory();
+        var bus = new DataChangeBus();
+        var settings = new SettingsService(factory, NullLogger<SettingsService>.Instance, bus);
+        await settings.InitializeAsync();
+
+        await using var db = factory.CreateDbContext();
+        var server = new MediaServer { Name = "Server", ServiceType = type, Host = "localhost", Port = 1 };
+        db.MediaServers.Add(server);
+        await db.SaveChangesAsync();
+
+        return (factory, new HealthService(factory, settings, bus), settings, server.Id);
+    }
+
+    private static DownloadItem MovieItem(int serverId, string downloadId = "dl-1")
+    {
+        return new DownloadItem
+        {
+            ServerId = serverId,
+            RemoteId = 1,
+            MovieId = 10,
+            DownloadId = downloadId,
+            Title = "Movie",
+            Size = 2000,
+            SizeLeft = 1000,
+            Protocol = "torrent",
+            Indexer = "Idx",
+            DownloadClient = "qbit"
+        };
+    }
+
+    #endregion
 }

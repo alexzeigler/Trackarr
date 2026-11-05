@@ -136,6 +136,8 @@
         </div>
     </div>
 
+    <ChartsToggle SettingKey="ShowQueueCharts" OnChanged="OnChartsToggled"/>
+
     @if (Settings.GetBool("Display", "ShowQueueCharts", true))
     {
         <div class="row row-cards mb-3">
@@ -520,7 +522,8 @@
                                         <div class="d-flex align-items-center" @onclick="() => _detailsModal.Open(item, item.ServerId, movie, series)" style="cursor: pointer; padding-left: 36px; gap: 10px;">
                                             @if (ShowHealthBadges)
                                             {
-                                                <span class="@GetScoreBadgeClass(snapshot?.VisibleScore)">@(snapshot?.VisibleScore ?? 0)</span>
+                                                <span class="@GetScoreBadgeClass(ScoreOf(snapshot))"
+                                                      title="@(ScoreOf(snapshot) is null ? "Not scored yet: it hasn't started downloading" : null)">@(ScoreOf(snapshot)?.ToString() ?? "–")</span>
                                             }
                                             <div>
                                                 <span class="item-title">@GetChildLabel(item)</span>

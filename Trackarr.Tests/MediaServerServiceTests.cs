@@ -123,6 +123,33 @@ public class MediaServerServiceTests
     }
 
     [Fact]
+    public async Task GetQueueAsync_FreshFetch_ScoresNewDownloadsOnce()
+    {
+        // Whoever fetches the queue (Queue page, routine, sync), a new download is scored right away, and only
+        // once: fetching again doesn't add scans for downloads already being tracked.
+        using var factory = new SqliteInMemoryFactory();
+        var service = Create(factory);
+        var server = new MediaServer
+        {
+            Name = "Radarr",
+            Host = "localhost",
+            Port = 7878,
+            ApiKey = "test-key",
+            ServiceType = ServiceType.Radarr,
+            IsEnabled = true,
+            CreatedAt = DateTime.UtcNow
+        };
+        await service.CreateServerAsync(server);
+
+        await service.GetQueueAsync(server, true);
+        await service.GetQueueAsync(server, true);
+
+        await using var db = await factory.CreateDbContextAsync();
+        var attempt = await db.DownloadAttempts.SingleAsync(a => a.ServerId == server.Id);
+        Assert.Equal(1, await db.HealthEvents.Where(e => e.DownloadAttemptId == attempt.Id).SumAsync(e => e.ScanCount));
+    }
+
+    [Fact]
     public async Task CreateServer_NoFallbackProfile_LeavesIdNull()
     {
         using var factory = new SqliteInMemoryFactory();
@@ -221,8 +248,10 @@ public class MediaServerServiceTests
 
             if (path.EndsWith("/api/v3/wanted/missing"))
             {
-                var body = JsonSerializer.Serialize(
-                    new { page = 1, pageSize = 100, totalRecords = 0, records = Array.Empty<object>() });
+                var body = JsonSerializer.Serialize(new
+                {
+                    page = 1, pageSize = 100, totalRecords = 0, records = Array.Empty<object>()
+                });
 
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
                 {

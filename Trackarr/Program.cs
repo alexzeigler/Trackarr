@@ -67,6 +67,7 @@ builder.Services.AddSingleton<RoutineRunner>();
 builder.Services.AddSingleton<RoutineService>();
 builder.Services.AddSingleton<MediaServerService>();
 builder.Services.AddSingleton<MissingService>();
+builder.Services.AddSingleton<ServerSyncService>();
 builder.Services.AddSingleton<HealthService>();
 builder.Services.AddSingleton<HistoryService>();
 builder.Services.AddSingleton<QueueStatsService>();
@@ -97,7 +98,10 @@ static SocketsHttpHandler CreateMediaServerHandler(IServiceProvider sp, bool acc
     var proxyUrl = settings.GetString("Network", "ProxyUrl", "").Trim();
     if (Uri.TryCreate(proxyUrl, UriKind.Absolute, out var proxyUri))
     {
-        var proxy = new WebProxy(proxyUri) { BypassProxyOnLocal = settings.GetBool("Network", "ProxyBypassLocal", true) };
+        var proxy = new WebProxy(proxyUri)
+        {
+            BypassProxyOnLocal = settings.GetBool("Network", "ProxyBypassLocal", true)
+        };
 
         // http://user:pass@proxy:3128 style credentials.
         if (!string.IsNullOrEmpty(proxyUri.UserInfo))

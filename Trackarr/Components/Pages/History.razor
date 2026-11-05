@@ -198,6 +198,9 @@
 </div>
 
 
+<ChartsToggle SettingKey="ShowHistoryCharts" OnChanged="OnChartsToggled"/>
+@if (Settings.GetBool("Display", "ShowHistoryCharts", true))
+{
 <div class="row row-cards mb-3">
     <div class="col-lg-4">
         <div class="card app-card h-100">
@@ -274,6 +277,7 @@
         </div>
     </div>
 </div>
+}
 <div id="history-table" class="card app-card">
     <div class="card-header">
         <ul class="nav nav-tabs card-header-tabs">

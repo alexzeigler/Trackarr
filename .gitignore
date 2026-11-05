@@ -41,3 +41,6 @@ restart-error.log
 
 # ASP.NET data protection keys (written next to the database). Never commit.
 keys/
+
+# MockServer API key (generated on first run)
+mockserver-settings.json

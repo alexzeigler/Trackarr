@@ -267,6 +267,105 @@ h1:focus {
     font-weight: 600;
 }
 
+/* Status strip: servers, counts, routine activity, Passive Mode. The topbar is always dark. */
+.topbar-status {
+    align-items: center;
+    gap: .4rem;
+}
+
+.topbar-chip {
+    align-items: center;
+    background: rgba(255, 255, 255, .05);
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 999px;
+    color: rgba(255, 255, 255, .8);
+    display: inline-flex;
+    font-size: .75rem;
+    font-weight: 600;
+    gap: .35rem;
+    height: 28px;
+    padding: 0 .7rem;
+    text-decoration: none;
+    transition: background .15s ease, border-color .15s ease;
+    white-space: nowrap;
+}
+
+.topbar-chip:hover {
+    background: rgba(255, 255, 255, .1);
+    border-color: rgba(255, 255, 255, .2);
+    color: #fff;
+    text-decoration: none;
+}
+
+.topbar-chip .ti {
+    font-size: .95rem;
+    opacity: .75;
+}
+
+.topbar-chip-text {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.topbar-chip-warning {
+    background: rgba(247, 103, 7, .15);
+    border-color: rgba(247, 103, 7, .45);
+    color: #ffa94d;
+}
+
+.topbar-chip-warning:hover {
+    background: rgba(247, 103, 7, .25);
+    border-color: rgba(247, 103, 7, .6);
+    color: #ffc078;
+}
+
+.topbar-dot {
+    border-radius: 50%;
+    display: inline-block;
+    height: 8px;
+    width: 8px;
+}
+
+.topbar-dot-green {
+    background: #2fb344;
+    box-shadow: 0 0 0 3px rgba(47, 179, 68, .2);
+}
+
+.topbar-dot-yellow {
+    background: #f59f00;
+    box-shadow: 0 0 0 3px rgba(245, 159, 0, .2);
+}
+
+.topbar-dot-red {
+    animation: topbar-pulse 1.6s ease-in-out infinite;
+    background: #d63939;
+    box-shadow: 0 0 0 3px rgba(214, 57, 57, .25);
+}
+
+@keyframes topbar-pulse {
+    50% {
+        opacity: .45;
+    }
+}
+
+.topbar-spinner {
+    border-width: .15em;
+    height: .85rem;
+    width: .85rem;
+}
+
+.topbar-icon-badge {
+    background: #2fb344;
+    border: 2px solid #111a29;
+    border-radius: 50%;
+    height: 10px;
+    position: absolute;
+    right: 4px;
+    top: 4px;
+    width: 10px;
+}
+
 .topbar-search-input {
     border-color: rgba(255, 255, 255, .12) !important;
     min-width: 180px;

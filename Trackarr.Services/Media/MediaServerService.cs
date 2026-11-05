@@ -1,8 +1,10 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Trackarr.Core.Exception;
@@ -14,6 +16,7 @@ using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Data;
+using Trackarr.Services.Diagnostics;
 using Trackarr.Services.Settings;
 using Trackarr.Services.UI;
 
@@ -25,14 +28,14 @@ public class MediaServerService(
     ILogger<MediaServerService> logger,
     DataChangeBus changeBus,
     HealthService healthService,
-    SettingsService? settings = null)
+    SettingsService? settings = null,
+    EventService? eventService = null)
 {
-    private static readonly TimeSpan QueueCacheTtl = TimeSpan.FromSeconds(30);
-
     /// <summary>Named HttpClients for Radarr/Sonarr, registered in Program.cs (outgoing proxy, TLS options).</summary>
     public const string HttpClientName = "MediaServer";
 
     public const string InsecureHttpClientName = "MediaServerInsecure";
+    private static readonly TimeSpan QueueCacheTtl = TimeSpan.FromSeconds(30);
 
     #region Media
 
@@ -307,8 +310,8 @@ public class MediaServerService(
 
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        var movies = await db.Movies.AsNoTracking().Where(movie => movie.ServerId == serverId && movieIds.Contains(movie.RemoteId))
-            .ToListAsync();
+        var movies = await db.Movies.AsNoTracking()
+            .Where(movie => movie.ServerId == serverId && movieIds.Contains(movie.RemoteId)).ToListAsync();
 
         // Read only (P3): the queue refresh already creates these summaries when it stores the queue.
 
@@ -491,8 +494,8 @@ public class MediaServerService(
 
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        var series = await db.Series.AsNoTracking().Where(item => item.ServerId == serverId && seriesIds.Contains(item.RemoteId))
-            .ToListAsync();
+        var series = await db.Series.AsNoTracking()
+            .Where(item => item.ServerId == serverId && seriesIds.Contains(item.RemoteId)).ToListAsync();
 
         // Read only (P3): the queue refresh already creates these summaries when it stores the queue.
 
@@ -603,8 +606,7 @@ public class MediaServerService(
 
         // One query for the existing rows instead of one per series (P2).
         var seriesRemoteIds = groups.Select(g => g.Key).ToList();
-        var existingSeries = await db.Series
-            .Where(s => s.ServerId == serverId && seriesRemoteIds.Contains(s.RemoteId))
+        var existingSeries = await db.Series.Where(s => s.ServerId == serverId && seriesRemoteIds.Contains(s.RemoteId))
             .ToDictionaryAsync(s => s.RemoteId);
 
         foreach (var group in groups)
@@ -666,8 +668,7 @@ public class MediaServerService(
 
             // One query for the existing rows instead of one per episode (P2).
             var remoteIds = records.Select(r => r.Id).Distinct().ToList();
-            var existingById = await db.Episodes
-                .Where(e => e.ServerId == server.Id && remoteIds.Contains(e.RemoteId))
+            var existingById = await db.Episodes.Where(e => e.ServerId == server.Id && remoteIds.Contains(e.RemoteId))
                 .ToDictionaryAsync(e => e.RemoteId);
 
             foreach (var record in records)
@@ -816,8 +817,7 @@ public class MediaServerService(
         }
         catch (MediaServerException ex)
         {
-            logger.LogWarning("Could not refresh metadata for {name} after update: {message}", server.Name,
-                ex.Message);
+            logger.LogWarning("Could not refresh metadata for {name} after update: {message}", server.Name, ex.Message);
         }
 
         logger.LogInformation("Updated server: {name}", server.Name);
@@ -825,16 +825,16 @@ public class MediaServerService(
     }
 
     /// <summary>
-    ///     Full per-server sync: metadata, queue, health evaluation of every queued item, and missing media.
+    ///     Full per-server sync: metadata, queue (scoring any download not seen before), and missing media.
     ///     Shared by the "Sync Now" UI action and the heartbeat's recovery path.
     /// </summary>
     public async Task SyncServerAsync(MediaServer server)
     {
         await UpdateServerAsync(server);
 
-        var items = await GetQueueAsync(server, true);
-        foreach (var item in items)
-            await healthService.EvaluateAsync(item);
+        // A fresh fetch scores every download it hasn't seen before (see GetQueueAsync). Scoring the ones it
+        // already knows again here would count an extra scan seconds after the last one.
+        await GetQueueAsync(server, true);
 
         if (server.ServiceType == ServiceType.Sonarr)
             await GetMissingEpisodesAsync(server, true);
@@ -1083,10 +1083,7 @@ public class MediaServerService(
 
         db.ServerHealthEvents.Add(new ServerHealthEvent
         {
-            ServerId = serverId,
-            EventType = type,
-            Message = message,
-            Source = source
+            ServerId = serverId, EventType = type, Message = message, Source = source
         });
 
         await db.SaveChangesAsync();
@@ -1150,7 +1147,27 @@ public class MediaServerService(
         await queueLock.WaitAsync();
         try
         {
-            return await FetchAndStoreQueueAsync(server, forceRefresh);
+            var (items, fresh) = await FetchAndStoreQueueAsync(server, forceRefresh);
+
+            // Every download is scored the moment it first shows up, whoever fetched the queue (a routine, the
+            // Queue page, a sync). Done inside the lock so two overlapping fetches can't both score a new item.
+            // Only on a fresh fetch: cached rows can include downloads already removed or imported.
+            if (fresh && (settings?.ShouldMonitorQueue(server) ?? true))
+            {
+                try
+                {
+                    var evaluated = await healthService.EvaluateNewItemsAsync(items);
+                    if (evaluated > 0)
+                        logger.LogInformation("Evaluated {count} new queue item(s) on {name}", evaluated, server.Name);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // The fetch itself worked; the next refresh retries anything left unscored.
+                    logger.LogError(ex, "Could not evaluate new queue items on {name}", server.Name);
+                }
+            }
+
+            return items;
         }
         finally
         {
@@ -1170,9 +1187,10 @@ public class MediaServerService(
         nameof(MediaServer.UptimePercent), nameof(MediaServer.DownloadsProcessed), nameof(MediaServer.CreatedAt)
     ];
 
-    private async Task<List<DownloadItem>> FetchAndStoreQueueAsync(MediaServer server, bool forceRefresh)
+    private async Task<(List<DownloadItem> Items, bool Fresh)> FetchAndStoreQueueAsync(MediaServer server,
+        bool forceRefresh)
     {
-        return await ExecuteApiAsync(server, "Unexpected error fetching queue.", async () =>
+        return await ExecuteApiAsync<(List<DownloadItem>, bool)>(server, "Unexpected error fetching queue.", async () =>
         {
             await using var db = await dbFactory.CreateDbContextAsync();
 
@@ -1187,7 +1205,7 @@ public class MediaServerService(
                     await EnsureQueueParentMediaSummariesAsync(db, server.Id, cached, DateTime.UtcNow);
                     await db.SaveChangesAsync();
                     server.Queue = cached;
-                    return cached;
+                    return (cached, false);
                 }
             }
 
@@ -1253,7 +1271,7 @@ public class MediaServerService(
 
             logger.LogInformation("Fetched {count} queue items for {name}", items.Count, server.Name);
 
-            return items;
+            return (items, true);
         });
     }
 
@@ -1322,13 +1340,9 @@ public class MediaServerService(
 
     private static async Task UpsertEmbeddedMoviesAsync(AppDbContext db, int serverId, IEnumerable<QueueRecord> records)
     {
-        var movieRecords = records
-            .Where(r => r.Movie is { ValueKind: JsonValueKind.Object })
+        var movieRecords = records.Where(r => r.Movie is { ValueKind: JsonValueKind.Object })
             .Select(r => JsonSerializer.Deserialize<MovieRecord>(r.Movie!.Value.GetRawText(), _jsonOptions))
-            .Where(m => m is not null)
-            .Select(m => m!)
-            .DistinctBy(m => m.Id)
-            .ToList();
+            .Where(m => m is not null).Select(m => m!).DistinctBy(m => m.Id).ToList();
 
         if (movieRecords.Count == 0) return;
 
@@ -1356,13 +1370,9 @@ public class MediaServerService(
 
     private static async Task UpsertEmbeddedSeriesAsync(AppDbContext db, int serverId, IEnumerable<QueueRecord> records)
     {
-        var seriesRecords = records
-            .Where(r => r.Series is { ValueKind: JsonValueKind.Object })
+        var seriesRecords = records.Where(r => r.Series is { ValueKind: JsonValueKind.Object })
             .Select(r => JsonSerializer.Deserialize<SeriesRecord>(r.Series!.Value.GetRawText(), _jsonOptions))
-            .Where(s => s is not null)
-            .Select(s => s!)
-            .DistinctBy(s => s.Id)
-            .ToList();
+            .Where(s => s is not null).Select(s => s!).DistinctBy(s => s.Id).ToList();
 
         if (seriesRecords.Count == 0) return;
 
@@ -1388,15 +1398,12 @@ public class MediaServerService(
         await db.SaveChangesAsync();
     }
 
-    private static async Task UpsertEmbeddedEpisodesAsync(AppDbContext db, int serverId, IEnumerable<QueueRecord> records)
+    private static async Task UpsertEmbeddedEpisodesAsync(AppDbContext db, int serverId,
+        IEnumerable<QueueRecord> records)
     {
-        var episodeRecords = records
-            .Where(r => r.Episode is { ValueKind: JsonValueKind.Object })
+        var episodeRecords = records.Where(r => r.Episode is { ValueKind: JsonValueKind.Object })
             .Select(r => JsonSerializer.Deserialize<EpisodeRecord>(r.Episode!.Value.GetRawText(), _jsonOptions))
-            .Where(e => e is not null)
-            .Select(e => e!)
-            .DistinctBy(e => e.Id)
-            .ToList();
+            .Where(e => e is not null).Select(e => e!).DistinctBy(e => e.Id).ToList();
 
         if (episodeRecords.Count == 0) return;
 
@@ -1456,7 +1463,14 @@ public class MediaServerService(
         if (string.IsNullOrWhiteSpace(server?.ApiKey))
             throw new MediaServerException($"{server?.Name}: API key is required.");
 
-        await ExecuteApiAsync(server, $"Error triggering {commandName}.", async () =>
+        var ids = value switch
+        {
+            int single => [single],
+            IEnumerable<int> many => many.ToArray(),
+            _ => Array.Empty<int>()
+        };
+
+        var commandId = await ExecuteApiAsync(server, $"Error triggering {commandName}.", async () =>
         {
             var client = CreateClient(server, 15);
             var url = $"{server.BaseUrl}/api/v3/command";
@@ -1471,8 +1485,144 @@ public class MediaServerService(
             if (!response.IsSuccessStatusCode)
                 throw new ApiException(server.Name, "/api/v3/command", (int)response.StatusCode);
 
-            logger.LogInformation("Triggered {cmd} on {name}. Params: {params}. Object: {obj}", commandName, server.Name, paramName, value);
+            var body = await response.Content.ReadAsStringAsync();
+            var id = TryReadCommand(body)?.Id;
+
+            logger.LogInformation("Triggered {cmd} (command {commandId}) on {name} for {param} {ids}", commandName, id,
+                server.Name, paramName, string.Join(", ", ids));
+            return id;
         });
+
+        // Following the search up (does the item exist, did it find anything) can take minutes, so it runs on
+        // its own and never holds up the routine or page that asked for the search.
+        _ = Task.Run(() => FollowSearchAsync(server, commandName, paramName, ids, commandId));
+    }
+
+    private static readonly TimeSpan SearchFollowTimeout = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan SearchPollInterval = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    ///     Reports what came of a search pushed to Radarr/Sonarr: (a) whether every item we asked about exists on
+    ///     the server, and (b) once the command finishes, whether it found and grabbed a release. The result goes
+    ///     to the Events page and the log.
+    /// </summary>
+    private async Task FollowSearchAsync(MediaServer server, string commandName, string paramName,
+        IReadOnlyList<int> ids, int? commandId)
+    {
+        var label = $"{commandName} on {server.Name}";
+        try
+        {
+            var resource = paramName switch
+            {
+                "movieIds" => "movie",
+                "episodeIds" => "episode",
+                "seriesId" => "series",
+                _ => null
+            };
+
+            if (resource is not null && ids.Count > 0)
+            {
+                var notFound = new List<int>();
+                var client = CreateClient(server, 15);
+                foreach (var id in ids)
+                {
+                    using var response = await client.GetAsync($"{server.BaseUrl}/api/v3/{resource}/{id}");
+                    if (response.StatusCode == HttpStatusCode.NotFound) notFound.Add(id);
+                }
+
+                if (notFound.Count > 0)
+                {
+                    await ReportSearchAsync(LogLevel.Warning,
+                        $"{label}: {notFound.Count} of {ids.Count} {resource}(s) we searched for don't exist on the server " +
+                        $"(IDs {string.Join(", ", notFound)}). They may have been deleted in {server.ServiceType}.");
+                }
+            }
+
+            if (commandId is null)
+            {
+                await ReportSearchAsync(LogLevel.Warning,
+                    $"{label}: the server accepted the search but didn't return a command ID, so its result can't be checked.");
+                return;
+            }
+
+            var deadline = DateTime.UtcNow + SearchFollowTimeout;
+            SearchCommandStatus? command = null;
+            while (DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(SearchPollInterval);
+
+                var client = CreateClient(server, 15);
+                using var response = await client.GetAsync($"{server.BaseUrl}/api/v3/command/{commandId}");
+                if (!response.IsSuccessStatusCode) continue;
+
+                command = TryReadCommand(await response.Content.ReadAsStringAsync());
+                if (command?.IsFinished == true) break;
+            }
+
+            var what = $"{ids.Count} item(s)";
+            if (command?.IsFinished != true)
+            {
+                await ReportSearchAsync(LogLevel.Warning,
+                    $"{label}: still not finished after {SearchFollowTimeout.TotalMinutes:0} minutes (status: {command?.Status ?? "unknown"}).");
+                return;
+            }
+
+            if (!string.Equals(command.Status, "completed", StringComparison.OrdinalIgnoreCase))
+            {
+                await ReportSearchAsync(LogLevel.Warning,
+                    $"{label}: search for {what} {command.Status}. {command.Message}".TrimEnd());
+                return;
+            }
+
+            var grabbed = command.ReportsDownloaded;
+            var message = grabbed switch
+            {
+                > 0 => $"{label}: search for {what} found and grabbed {grabbed} release(s).",
+                0 => $"{label}: search for {what} finished but found nothing to grab.",
+                _ =>
+                    $"{label}: search for {what} finished. {command.Message ?? "The server didn't say whether it found anything."}"
+            };
+            await ReportSearchAsync(grabbed == 0 ? LogLevel.Warning : LogLevel.Information, message);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not follow up {label}", label);
+        }
+    }
+
+    private async Task ReportSearchAsync(LogLevel level, string message)
+    {
+        if (eventService is not null)
+            await eventService.LogAsync(message, "Search", level, null);
+        else
+            logger.Log(level, "{message}", message);
+    }
+
+    private static SearchCommandStatus? TryReadCommand(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<SearchCommandStatus>(json, _jsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private sealed record SearchCommandStatus(int Id, string? Status, string? Message)
+    {
+        public bool IsFinished => Status?.ToLowerInvariant() is "completed" or "failed" or "aborted" or "cancelled";
+
+        /// <summary>
+        ///     Radarr/Sonarr finish a search with a message like "Movie search completed. 1 reports downloaded.";
+        ///     null when the message doesn't say.
+        /// </summary>
+        public int? ReportsDownloaded =>
+            Message is not null && Regex.Match(Message, @"(\d+)\s+reports?\s+downloaded", RegexOptions.IgnoreCase) is
+                { Success: true } m
+                ? int.Parse(m.Groups[1].Value)
+                : null;
     }
 
     public Task TriggerMovieSearchAsync(MediaServer? server, int movieId)
@@ -1564,7 +1714,8 @@ public class MediaServerService(
         // The server's own Request Timeout wins, then the global one (Settings > Servers).
         var timeoutSeconds = Math.Max(1, settings?.GetRequestTimeout(server) ?? fallbackSeconds);
 
-        var client = httpClientFactory.CreateClient(server.SkipCertificateValidation ? InsecureHttpClientName : HttpClientName);
+        var client =
+            httpClientFactory.CreateClient(server.SkipCertificateValidation ? InsecureHttpClientName : HttpClientName);
         client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 
         if (!string.IsNullOrWhiteSpace(server.ApiKey))

@@ -1,11 +1,13 @@
 ﻿using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
+using Trackarr.Core.Health;
 using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Routine;
 using Trackarr.Core.Server;
 using Trackarr.Data;
+using Trackarr.Services.Media;
 using Trackarr.Services.Settings;
 
 namespace Trackarr;
@@ -127,6 +129,12 @@ public static class Utils
         return $"(S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2})";
     }
 
+    /// <summary>The score to show, or null ("–") while the download has only ever been waiting.</summary>
+    public static int? ScoreOf(HealthSnapshot? snapshot)
+    {
+        return HealthEvaluator.HasBeenScored(snapshot) ? snapshot!.VisibleScore : null;
+    }
+
     public static string GetScoreBadgeClass(int? score)
     {
         switch (score)
@@ -156,7 +164,8 @@ public static class Utils
 
     public static string GetStatusText(DownloadItem item)
     {
-        var status = string.IsNullOrWhiteSpace(item.Status) ? "Unknown" : item.Status;
+        var display = HealthEvaluator.GetDisplayStatus(item);
+        var status = string.IsNullOrWhiteSpace(display) ? "Unknown" : display;
         return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(status.ToLower());
     }
 

@@ -55,6 +55,25 @@ public class QueueRoutineIsolationTests
     }
 
     [Fact]
+    public async Task Evaluation_NewDownloads_AreScannedOnce()
+    {
+        // The fresh fetch scores downloads it hasn't seen; the routine must not scan them a second time in the
+        // same run (a second scan seconds later reads as "no progress").
+        var ctx = await CreateAsync();
+        using var _ = ctx.Factory;
+
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings,
+            NullLogger<QueueEvaluationRoutine>.Instance);
+        await routine.ExecuteAsync(CancellationToken.None);
+
+        await using var db = ctx.Factory.CreateDbContext();
+        var scansPerAttempt = await db.HealthEvents.GroupBy(e => e.DownloadAttemptId)
+            .Select(g => g.Sum(e => e.ScanCount)).ToListAsync();
+        Assert.Equal(2, scansPerAttempt.Count);
+        Assert.All(scansPerAttempt, scans => Assert.Equal(1, scans));
+    }
+
+    [Fact]
     public async Task Evaluation_FailedRemoval_DoesNotStopTheRestOfTheQueue()
     {
         var ctx = await CreateAsync();
@@ -117,15 +136,6 @@ public class QueueRoutineIsolationTests
         await db.SaveChangesAsync();
     }
 
-    private sealed record Context(
-        SqliteInMemoryFactory Factory,
-        MediaServerService Media,
-        HealthService Health,
-        SettingsService Settings,
-        BlacklistService Blacklist,
-        FakeServers Fake,
-        int UpServerId);
-
     private static async Task<Context> CreateAsync()
     {
         var factory = new SqliteInMemoryFactory();
@@ -152,10 +162,25 @@ public class QueueRoutineIsolationTests
     {
         return new MediaServer
         {
-            Name = name, Host = host, Port = 7878, ApiKey = "test-key", ServiceType = ServiceType.Radarr,
-            IsEnabled = true, Priority = priority, CreatedAt = DateTime.UtcNow
+            Name = name,
+            Host = host,
+            Port = 7878,
+            ApiKey = "test-key",
+            ServiceType = ServiceType.Radarr,
+            IsEnabled = true,
+            Priority = priority,
+            CreatedAt = DateTime.UtcNow
         };
     }
+
+    private sealed record Context(
+        SqliteInMemoryFactory Factory,
+        MediaServerService Media,
+        HealthService Health,
+        SettingsService Settings,
+        BlacklistService Blacklist,
+        FakeServers Fake,
+        int UpServerId);
 
     /// <summary>The "down" host throws like an unreachable server; the "up" host serves a two-item queue.</summary>
     private sealed class FakeServers : HttpMessageHandler, IHttpClientFactory
@@ -198,10 +223,21 @@ public class QueueRoutineIsolationTests
         {
             return new
             {
-                id, movieId = 100 + id, title, downloadId = $"dl-{id}", size = 2000, sizeLeft = 1000,
-                status = "downloading", trackedDownloadStatus = "ok", trackedDownloadState = "downloading",
-                protocol = "torrent", downloadClient = "qBittorrent", indexer = "Indexer",
-                languages = Array.Empty<object>(), quality = new { }, customFormats = Array.Empty<object>(),
+                id,
+                movieId = 100 + id,
+                title,
+                downloadId = $"dl-{id}",
+                size = 2000,
+                sizeLeft = 1000,
+                status = "downloading",
+                trackedDownloadStatus = "ok",
+                trackedDownloadState = "downloading",
+                protocol = "torrent",
+                downloadClient = "qBittorrent",
+                indexer = "Indexer",
+                languages = Array.Empty<object>(),
+                quality = new { },
+                customFormats = Array.Empty<object>(),
                 statusMessages = Array.Empty<object>()
             };
         }

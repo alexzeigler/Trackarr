@@ -5,7 +5,6 @@ using Trackarr.Core.Exception;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
 using Trackarr.Services.Routines;
-using static Trackarr.Utils;
 
 namespace Trackarr.Components.Pages;
 
@@ -20,10 +19,33 @@ public partial class Uptime : ComponentBase, IAsyncDisposable
 
     #endregion
 
+    #region Data Loading
+
+    private async Task LoadAsync()
+    {
+        if (_selectedServerId == 0)
+        {
+            _samples = [];
+            _events = [];
+            _remoteHealth = [];
+            return;
+        }
+
+        var since = DateTime.UtcNow.AddHours(-_periodHours);
+        _samples = await MediaServerService.GetStatusSamplesAsync(_selectedServerId, since);
+        _events = await MediaServerService.GetRecentHealthEventsAsync(_selectedServerId, 500);
+        _remoteHealth = SelectedServer is { } server ? await MediaServerService.GetRemoteHealthAsync(server) : [];
+        _currentPage = 1;
+        _chartsPending = true;
+    }
+
+    #endregion
+
     #region Injected Services
 
     [Inject] private IJSRuntime Js { get; set; } = null!;
     [Inject] private RoutineRunner RoutineRunner { get; set; } = null!;
+    [Inject] private ServerSyncService ServerSync { get; set; } = null!;
     [Inject] private NavigationManager Nav { get; set; } = null!;
 
     #endregion
@@ -48,8 +70,7 @@ public partial class Uptime : ComponentBase, IAsyncDisposable
 
     private MediaServer? SelectedServer => _servers.FirstOrDefault(s => s.Id == _selectedServerId);
 
-    private List<ServerHealthEvent> PagedEvents =>
-        _events.Skip((_currentPage - 1) * PageSize).Take(PageSize).ToList();
+    private List<ServerHealthEvent> PagedEvents => _events.Skip((_currentPage - 1) * PageSize).Take(PageSize).ToList();
 
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(_events.Count / (double)PageSize));
 
@@ -103,28 +124,6 @@ public partial class Uptime : ComponentBase, IAsyncDisposable
         }
 
         _ref?.Dispose();
-    }
-
-    #endregion
-
-    #region Data Loading
-
-    private async Task LoadAsync()
-    {
-        if (_selectedServerId == 0)
-        {
-            _samples = [];
-            _events = [];
-            _remoteHealth = [];
-            return;
-        }
-
-        var since = DateTime.UtcNow.AddHours(-_periodHours);
-        _samples = await MediaServerService.GetStatusSamplesAsync(_selectedServerId, since);
-        _events = await MediaServerService.GetRecentHealthEventsAsync(_selectedServerId, 500);
-        _remoteHealth = SelectedServer is { } server ? await MediaServerService.GetRemoteHealthAsync(server) : [];
-        _currentPage = 1;
-        _chartsPending = true;
     }
 
     #endregion
@@ -191,9 +190,9 @@ public partial class Uptime : ComponentBase, IAsyncDisposable
 
         try
         {
-            await MediaServerService.SyncServerAsync(server);
+            await ServerSync.SyncAsync(server);
         }
-        catch (MediaServerException ex)
+        catch (Exception ex) // the missing pass can fail with more than an API error
         {
             _actionError = ex.Message;
         }
@@ -320,7 +319,9 @@ public partial class Uptime : ComponentBase, IAsyncDisposable
 
     private static string StatusPillClass(MediaServer server)
     {
-        return !server.IsEnabled || !server.IsOnline ? "badge bg-danger-lt text-danger" : "badge bg-success-lt text-success";
+        return !server.IsEnabled || !server.IsOnline
+            ? "badge bg-danger-lt text-danger"
+            : "badge bg-success-lt text-success";
     }
 
     private static string StatusPillText(MediaServer server)

@@ -13,13 +13,6 @@ namespace Trackarr.Tests;
 /// </summary>
 public class RoutineRunnerResultTests
 {
-    private sealed class ResultRoutine(RoutineResult result) : Routine
-    {
-        public override string Key { get; set; } = "result-routine";
-        public override string Name { get; set; } = "Result Routine";
-        public override Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken) => Task.FromResult(result);
-    }
-
     [Theory]
     [InlineData(true, RoutineState.Success)]
     [InlineData(false, RoutineState.Failed)]
@@ -80,21 +73,6 @@ public class RoutineRunnerResultTests
         Assert.Equal(1, handler.Runs);
     }
 
-    private sealed class CountingRoutine : Routine
-    {
-        public int Runs { get; private set; }
-        public override string Key { get; set; } = "counting-routine";
-        public override string Name { get; set; } = "Counting Routine";
-        public override int IntervalSeconds { get; set; } = 60;
-        public override DateTimeOffset NextRun { get; set; } = DateTimeOffset.UtcNow.AddMinutes(-1); // due now
-
-        public override Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken)
-        {
-            Runs++;
-            return Task.FromResult<RoutineResult>("ok");
-        }
-    }
-
     private static async Task<(RoutineRunner, CountingRoutine)> CreateRunnerAsync()
     {
         var factory = new SqliteInMemoryFactory();
@@ -145,6 +123,39 @@ public class RoutineRunnerResultTests
         Assert.Equal(7200, (await routineService.GetByKeyAsync(handler.Key))!.IntervalSeconds);
     }
 
+    [Fact]
+    public async Task Reset_ReloadsDefinitionsSoLaterRunsSave()
+    {
+        // Wiping the database used to leave the runner holding definitions whose rows were gone, so every
+        // later run failed with a concurrency error and a FOREIGN KEY failure until a restart.
+        using var factory = new SqliteInMemoryFactory();
+        var routineService = new RoutineService(factory);
+        var handler = new CountingRoutine();
+        await routineService.RegisterRoutineInDbAsync(handler);
+        var runner = new RoutineRunner([handler], routineService,
+            new EventService(factory, NullLogger<EventService>.Instance, new DataChangeBus()),
+            NullLogger<RoutineRunner>.Instance);
+        runner.Load(await routineService.GetAllAsync());
+
+        await runner.ResetAsync(async () =>
+        {
+            await using var wipeDb = factory.CreateDbContext();
+            await wipeDb.Database.ExecuteSqlRawAsync("DELETE FROM \"RoutineRuns\"");
+            await wipeDb.Database.ExecuteSqlRawAsync("DELETE FROM \"Routines\"");
+        });
+
+        runner.RunAsync(handler.Key);
+        await runner.TickAsync(CancellationToken.None);
+
+        Assert.Equal(1, handler.Runs);
+        await using var db = factory.CreateDbContext();
+        var row = await db.Routines.SingleAsync(r => r.Key == handler.Key);
+        Assert.NotNull(row.LastRun);
+        Assert.Equal(row.Id, runner.GetDefinition(handler.Key)!.Id);
+        var run = Assert.Single(await db.RoutineRuns.ToListAsync());
+        Assert.Equal(row.Id, run.RoutineDefinitionId);
+    }
+
     [Theory]
     [InlineData(1, RoutineRunner.MinIntervalSeconds)]
     [InlineData(int.MaxValue, RoutineRunner.MaxIntervalSeconds)]
@@ -172,5 +183,31 @@ public class RoutineRunnerResultTests
         RoutineResult result = "done";
         Assert.True(result.Success);
         Assert.Equal("done", result.Message);
+    }
+
+    private sealed class ResultRoutine(RoutineResult result) : Routine
+    {
+        public override string Key { get; set; } = "result-routine";
+        public override string Name { get; set; } = "Result Routine";
+
+        public override Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(result);
+        }
+    }
+
+    private sealed class CountingRoutine : Routine
+    {
+        public int Runs { get; private set; }
+        public override string Key { get; set; } = "counting-routine";
+        public override string Name { get; set; } = "Counting Routine";
+        public override int IntervalSeconds { get; set; } = 60;
+        public override DateTimeOffset NextRun { get; set; } = DateTimeOffset.UtcNow.AddMinutes(-1); // due now
+
+        public override Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken)
+        {
+            Runs++;
+            return Task.FromResult<RoutineResult>("ok");
+        }
     }
 }

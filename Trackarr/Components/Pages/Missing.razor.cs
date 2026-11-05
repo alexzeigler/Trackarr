@@ -159,6 +159,24 @@ public partial class Missing : ComponentBase, IAsyncDisposable
         }
     }
 
+    // Hidden charts are torn down; charts shown again get new elements, so they're drawn on the next render.
+    private async Task OnChartsToggled(bool visible)
+    {
+        if (visible)
+        {
+            _chartsPending = true;
+            return;
+        }
+
+        try
+        {
+            await Js.InvokeVoidAsync("trackarrMissingCharts.destroyAll");
+        }
+        catch (JSException)
+        {
+        }
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!_chartsPending) return;

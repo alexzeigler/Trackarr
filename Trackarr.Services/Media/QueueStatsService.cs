@@ -12,12 +12,12 @@ public sealed class QueueStatsService(IDbContextFactory<AppDbContext> dbFactory)
     {
         var data = new QueuePageData();
 
-        var scores = downloads.Select(d => snapshots.GetValueOrDefault(keyFunc(d))).Where(s => s != null)
+        var scores = downloads.Select(d => snapshots.GetValueOrDefault(keyFunc(d))).Where(HealthEvaluator.HasBeenScored)
             .Select(s => s!.VisibleScore).ToList();
 
         var downloading = downloads.Count(d =>
-            d.DownloadPercent is > 0 and < 100 ||
-            d.Status?.Contains("download", StringComparison.OrdinalIgnoreCase) == true);
+            d.DownloadPercent is > 0 and < 100 || HealthEvaluator.GetDisplayStatus(d)
+                ?.Contains("download", StringComparison.OrdinalIgnoreCase) == true);
 
         var atRisk = downloads.Count(d =>
         {
@@ -150,7 +150,8 @@ public sealed class QueueStatsService(IDbContextFactory<AppDbContext> dbFactory)
     {
         if (downloads.Count == 0) return [];
 
-        var buckets = downloads.GroupBy(d => GetStatusBucket(d.Status)).Where(g => !string.IsNullOrEmpty(g.Key))
+        var buckets = downloads.GroupBy(d => GetStatusBucket(HealthEvaluator.GetDisplayStatus(d)))
+            .Where(g => !string.IsNullOrEmpty(g.Key))
             .Select(g => new QueueStatusBreakdown
             {
                 Label = g.Key,

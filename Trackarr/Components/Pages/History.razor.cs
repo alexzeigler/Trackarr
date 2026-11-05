@@ -150,6 +150,12 @@ public partial class History : ComponentBase
         await LoadAsync();
     }
 
+    // Charts shown again get new elements, so draw them on the next render.
+    private void OnChartsToggled(bool visible)
+    {
+        if (visible) _chartsPending = true;
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!_chartsPending) return;
@@ -311,7 +317,7 @@ public partial class History : ComponentBase
 
     private static string FormatDate(DateTime value)
     {
-        return Utils.ToLocal(value).ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture);
+        return ToLocal(value).ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture);
     }
 
     private static string FormatNumber(int value)

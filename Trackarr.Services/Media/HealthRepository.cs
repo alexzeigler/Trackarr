@@ -160,8 +160,11 @@ public sealed class HealthRepository(HealthPolicy? policy = null)
     {
         if (attempt.MediaType == TrackedMediaType.Unknown) return;
 
-        await UpdateSummaryAsync(db, attempt.MediaType, attempt.MovieId, attempt.SeriesId, attempt.EpisodeId,
-            decision, now, cancellationToken);
+        // Each summary carries only its own media's ID. The unique indexes are (MediaType, SeriesId) etc., so an
+        // episode summary that also stored its SeriesId would allow just one episode summary per series.
+        var isEpisode = attempt.MediaType == TrackedMediaType.Episode;
+        await UpdateSummaryAsync(db, attempt.MediaType, isEpisode ? null : attempt.MovieId,
+            isEpisode ? null : attempt.SeriesId, attempt.EpisodeId, decision, now, cancellationToken);
 
         // Episode attempts are scored against their own episode's summary, but series views still want the
         // whole picture, so the series summary is kept as a roll-up of all its attempts.

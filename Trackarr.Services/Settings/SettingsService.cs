@@ -54,6 +54,7 @@ public class SettingsService(
         [("Display", "EventsPageSize")] = ("50", "int"),
         [("Display", "ShowQueueCharts")] = ("true", "bool"),
         [("Display", "ShowMissingCharts")] = ("true", "bool"),
+        [("Display", "ShowHistoryCharts")] = ("true", "bool"),
         [("Display", "ShowPosterImages")] = ("true", "bool"),
         [("Display", "DefaultQueueGrouping")] = ("mediaTitle", "string"),
         [("Display", "ExpandQueueGroupsByDefault")] = ("true", "bool"),

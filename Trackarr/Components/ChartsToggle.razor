@@ -1,0 +1,34 @@
+@using Trackarr.Services.Settings
+@inject SettingsService Settings
+
+@* Shows or hides a page's charts right from the page. Saved to the same Display setting as Settings > Display. *@
+<div class="d-flex justify-content-end mb-2">
+    <button type="button"
+            class="btn btn-sm btn-app-ghost"
+            title="@(Visible ? "Hide the charts on this page" : "Show the charts on this page")"
+            @onclick="ToggleAsync">
+        <i class="ti @(Visible ? "ti-chart-bar-off" : "ti-chart-bar") me-1"></i>
+        @(Visible ? "Hide charts" : "Show charts")
+    </button>
+</div>
+
+@code {
+
+    /// <summary>The Display setting that stores this page's chart visibility, e.g. "ShowQueueCharts".</summary>
+    [Parameter][EditorRequired]
+    public string SettingKey { get; set; } = "";
+
+    /// <summary>Raised after the setting is saved, with the new visibility.</summary>
+    [Parameter]
+    public EventCallback<bool> OnChanged { get; set; }
+
+    private bool Visible => Settings.GetBool("Display", SettingKey, true);
+
+    private async Task ToggleAsync()
+    {
+        var show = !Visible;
+        await Settings.SaveCategoryAsync("Display", new Dictionary<string, string> { [SettingKey] = show.ToString() });
+        await OnChanged.InvokeAsync(show);
+    }
+
+}

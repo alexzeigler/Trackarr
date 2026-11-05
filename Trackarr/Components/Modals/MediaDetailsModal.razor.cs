@@ -3,12 +3,14 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using Trackarr.Components.Pages;
 using Trackarr.Core.Health;
 using Trackarr.Core.Media;
 using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
+using Trackarr.Services.Media;
 using static Trackarr.Utils;
 
 namespace Trackarr.Components.Modals;
@@ -83,7 +85,7 @@ public partial class MediaDetailsModal : ComponentBase
 
     private bool IsDownloading => _queueItems.Count > 0 || _queueItem != null;
 
-    private string StatusText => IsDownloading ? TextDisplay(_queueItem?.Status) : "Not downloading";
+    private string StatusText => IsDownloading && _queueItem != null ? GetStatusText(_queueItem) : "Not downloading";
 
     private string QueueStateText => IsDownloading ? EnumDisplay(_queueItem?.State) : "Not in queue";
 
@@ -157,8 +159,7 @@ public partial class MediaDetailsModal : ComponentBase
 
     private int ActiveConfidencePercent => ActiveSnapshot?.Confidence is { } c ? Math.Clamp(c, 0, 100) : 0;
 
-    private string ActiveStatusText =>
-        ActiveQueueItem != null ? TextDisplay(ActiveQueueItem.Status) : "Not downloading";
+    private string ActiveStatusText => ActiveQueueItem != null ? GetStatusText(ActiveQueueItem) : "Not downloading";
 
     private int ServerId => _server?.Id ?? _movie?.ServerId ?? _series?.ServerId ?? _episode?.ServerId ?? 0;
     private int? MovieRemoteId => _movie?.RemoteId;
@@ -267,9 +268,10 @@ public partial class MediaDetailsModal : ComponentBase
 
     private string? _previewMessage;
 
-    private bool IsQueueItemProtected => _queueItem is not null && _downloadAttempts.Any(a =>
-        a.Status == AttemptStatus.Active && a.IsProtected &&
-        a.DownloadId == Trackarr.Services.Media.HealthService.GetDownloadId(_queueItem));
+    private bool IsQueueItemProtected =>
+        _queueItem is not null && _downloadAttempts.Any(a =>
+            a.Status == AttemptStatus.Active && a.IsProtected &&
+            a.DownloadId == HealthService.GetDownloadId(_queueItem));
 
     private async Task ToggleProtected()
     {
@@ -296,7 +298,7 @@ public partial class MediaDetailsModal : ComponentBase
             // Preview only: a click mustn't count as a scan and push the item toward removal (M13).
             var delay = Task.Delay(1000);
             var decision = await HealthService.PreviewAsync(_queueItem);
-            _previewMessage = Pages.Queue.DescribePreview(_queueItem, decision);
+            _previewMessage = Queue.DescribePreview(_queueItem, decision);
             await delay;
         }
         finally
@@ -444,7 +446,7 @@ public partial class MediaDetailsModal : ComponentBase
 
         // Group by the same key attempts are stored under, so items with no download ID (pending releases)
         // still show up and still match their health attempt.
-        var groups = _queueItems.GroupBy(Trackarr.Services.Media.HealthService.GetDownloadId).ToList();
+        var groups = _queueItems.GroupBy(HealthService.GetDownloadId).ToList();
 
         foreach (var group in groups)
         {

@@ -178,6 +178,14 @@
                                                                                                          })"/>
                 <span class="form-check-label">Missing Charts</span>
             </label>
+            <label class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" checked="@_showHistoryCharts" @onchange="@(e =>
+                                                                                                         {
+                                                                                                             _showHistoryCharts = (bool)e.Value!;
+                                                                                                             MarkDirty();
+                                                                                                         })"/>
+                <span class="form-check-label">History Charts</span>
+            </label>
         </div>
     </div>
 </div>
@@ -244,6 +252,7 @@
     private string _tableDensity = "";
     private bool _showQueueCharts;
     private bool _showMissingCharts;
+    private bool _showHistoryCharts;
     private bool _showPosterImages;
     private string _defaultGrouping = "";
     private bool _expandGroups;
@@ -259,6 +268,7 @@
     private string _origTableDensity = "";
     private bool _origShowQueueCharts;
     private bool _origShowMissingCharts;
+    private bool _origShowHistoryCharts;
     private bool _origShowPosterImages;
     private string _origDefaultGrouping = "";
     private bool _origExpandGroups;
@@ -284,6 +294,7 @@
         _tableDensity = SettingsService.GetString("Display", "TableDensity", "normal");
         _showQueueCharts = SettingsService.GetBool("Display", "ShowQueueCharts", true);
         _showMissingCharts = SettingsService.GetBool("Display", "ShowMissingCharts", true);
+        _showHistoryCharts = SettingsService.GetBool("Display", "ShowHistoryCharts", true);
         _showPosterImages = SettingsService.GetBool("Display", "ShowPosterImages", true);
         _defaultGrouping = SettingsService.GetString("Display", "DefaultQueueGrouping", "mediaTitle");
         _expandGroups = SettingsService.GetBool("Display", "ExpandQueueGroupsByDefault", true);
@@ -299,6 +310,7 @@
         _origTableDensity = _tableDensity;
         _origShowQueueCharts = _showQueueCharts;
         _origShowMissingCharts = _showMissingCharts;
+        _origShowHistoryCharts = _showHistoryCharts;
         _origShowPosterImages = _showPosterImages;
         _origDefaultGrouping = _defaultGrouping;
         _origExpandGroups = _expandGroups;
@@ -313,7 +325,7 @@
 
     private void MarkDirty()
     {
-        Context.HasChanges = _dateFormat != _origDateFormat || _useTimeAgo != _origUseTimeAgo || _timeAgoThreshold != _origTimeAgoThreshold || _queuePageSize != _origQueuePageSize || _missingPageSize != _origMissingPageSize || _historyPageSize != _origHistoryPageSize || _eventsPageSize != _origEventsPageSize || _tableDensity != _origTableDensity || _showQueueCharts != _origShowQueueCharts || _showMissingCharts != _origShowMissingCharts || _showPosterImages != _origShowPosterImages || _defaultGrouping != _origDefaultGrouping || _expandGroups != _origExpandGroups || _queueRefreshInterval != _origQueueRefreshInterval;
+        Context.HasChanges = _dateFormat != _origDateFormat || _useTimeAgo != _origUseTimeAgo || _timeAgoThreshold != _origTimeAgoThreshold || _queuePageSize != _origQueuePageSize || _missingPageSize != _origMissingPageSize || _historyPageSize != _origHistoryPageSize || _eventsPageSize != _origEventsPageSize || _tableDensity != _origTableDensity || _showQueueCharts != _origShowQueueCharts || _showMissingCharts != _origShowMissingCharts || _showHistoryCharts != _origShowHistoryCharts || _showPosterImages != _origShowPosterImages || _defaultGrouping != _origDefaultGrouping || _expandGroups != _origExpandGroups || _queueRefreshInterval != _origQueueRefreshInterval;
         Context.NotifyChanged();
     }
 
@@ -331,6 +343,7 @@
             ["TableDensity"] = _tableDensity,
             ["ShowQueueCharts"] = _showQueueCharts.ToString(),
             ["ShowMissingCharts"] = _showMissingCharts.ToString(),
+            ["ShowHistoryCharts"] = _showHistoryCharts.ToString(),
             ["ShowPosterImages"] = _showPosterImages.ToString(),
             ["DefaultQueueGrouping"] = _defaultGrouping,
             ["ExpandQueueGroupsByDefault"] = _expandGroups.ToString(),
@@ -351,6 +364,7 @@
         _tableDensity = _origTableDensity;
         _showQueueCharts = _origShowQueueCharts;
         _showMissingCharts = _origShowMissingCharts;
+        _showHistoryCharts = _origShowHistoryCharts;
         _showPosterImages = _origShowPosterImages;
         _defaultGrouping = _origDefaultGrouping;
         _expandGroups = _origExpandGroups;

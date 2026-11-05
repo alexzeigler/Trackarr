@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Trackarr.Core.Exception;
 using Trackarr.Core.Health;
 using Trackarr.Core.Media.Missing;
 using Trackarr.Core.Media.Movies;
@@ -420,7 +421,7 @@ public sealed class MissingService(
                 var before = await media.SetQualityProfileAsync(server, rec.RemoteId, original, fallback.RemoteId);
                 if (before == fallback.RemoteId) AddEvent(db, rec, MissingEventType.ProfileRestored);
             }
-            catch (Trackarr.Core.Exception.MediaServerException)
+            catch (MediaServerException)
             {
                 return false;
             }
@@ -441,14 +442,13 @@ public sealed class MissingService(
     }
 
     /// <summary>When each currently-abandoned item on this server was last abandoned, from its search events.</summary>
-    private static async Task<Dictionary<(int RemoteId, int? EpisodeId), DateTime>> GetAbandonedAtAsync(
-        AppDbContext db, int serverId, CancellationToken ct)
+    private static async Task<Dictionary<(int RemoteId, int? EpisodeId), DateTime>> GetAbandonedAtAsync(AppDbContext db,
+        int serverId, CancellationToken ct)
     {
         var rows = await db.SearchEvents.AsNoTracking()
             .Where(e => e.ServerId == serverId && e.EventType == MissingEventType.Abandoned)
             .GroupBy(e => new { e.RemoteId, e.EpisodeId })
-            .Select(g => new { g.Key.RemoteId, g.Key.EpisodeId, At = g.Max(e => e.OccurredAt) })
-            .ToListAsync(ct);
+            .Select(g => new { g.Key.RemoteId, g.Key.EpisodeId, At = g.Max(e => e.OccurredAt) }).ToListAsync(ct);
 
         return rows.ToDictionary(r => (r.RemoteId, r.EpisodeId), r => r.At);
     }
@@ -505,9 +505,9 @@ public sealed class MissingService(
             else if (record.EpisodeId != null)
             {
                 if (!episodeIdMap.TryGetValue(record.EpisodeId.Value, out var eid)) continue;
+                // Episode summaries carry only the EpisodeId: (MediaType, SeriesId) is unique, so storing the
+                // series too would allow just one episode summary per series.
                 localEpisodeId = eid;
-                if (idMap.TryGetValue(record.RemoteId, out var sid))
-                    localSeriesId = sid;
                 mediaType = TrackedMediaType.Episode;
             }
             else
@@ -523,7 +523,8 @@ public sealed class MissingService(
                 : localEpisodeId > 0
                     ? await db.MediaHealthSummaries.FirstOrDefaultAsync(s => s.EpisodeId == localEpisodeId, ct)
                     : localSeriesId > 0
-                        ? await db.MediaHealthSummaries.FirstOrDefaultAsync(s => s.SeriesId == localSeriesId, ct)
+                        ? await db.MediaHealthSummaries.FirstOrDefaultAsync(
+                            s => s.MediaType == TrackedMediaType.Series && s.SeriesId == localSeriesId, ct)
                         : null;
 
             if (summary == null)
