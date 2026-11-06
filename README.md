@@ -151,10 +151,9 @@ first run, in `Trackarr.Data/` during development.
 dotnet test
 ```
 
-**Mock server:** `Trackarr.MockServer` sits between Trackarr and a real Radarr/Sonarr. Reads (queue, missing, library)
-come from the live servers set in user secrets (`MockServer:RadarrSourceUrl`/`RadarrSourceApiKey`, same for Sonarr).
-Searches and queue removals are only logged, never forwarded, so you can test against real data safely. It requires
-its own API key, shown and editable on its dashboard. Start it with `run-mockserver.ps1`.
+**Mock server:** the maintainer tests against real Radarr/Sonarr data with the Trackarr MockServer, which lives in a
+separate private repository. It forwards reads to the live servers and intercepts searches, removals and other writes,
+so Trackarr can be pointed at it without changing anything.
 
 ### Project structure
 
@@ -164,7 +163,6 @@ Trackarr.Core/         Domain models: media, health, queue, routines, settings
 Trackarr.Data/         EF Core DbContext and migrations (SQLite)
 Trackarr.Services/     Business logic: Radarr/Sonarr API client, health scoring, missing search
 Trackarr.Routines/     Background jobs (heartbeat, queue, evaluation, missing media, cleanup)
-Trackarr.MockServer/   Fake Radarr/Sonarr for local testing
 Trackarr.Tests/        Unit and integration tests (xUnit)
 deploy/unraid/         Unraid container template
 ```
