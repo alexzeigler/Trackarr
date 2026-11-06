@@ -5,7 +5,7 @@
   <Registry>https://hub.docker.com/r/confinedfish/trackarr/</Registry>
   <Branch>
     <Tag>latest</Tag>
-    <TagDescription>Latest stable release</TagDescription>
+    <TagDescription>Newest release</TagDescription>
   </Branch>
   <Network>bridge</Network>
   <Shell>bash</Shell>

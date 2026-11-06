@@ -2,7 +2,7 @@
 
 A self-hosted companion app for [Radarr](https://radarr.video/) and [Sonarr](https://sonarr.tv/) that gives you a unified view of your media automation — downloads, queue health, missing media, and what needs your attention.
 
-> **Alpha software** — Trackarr is in early development (v5.x-alpha). Expect breaking changes, incomplete features, and
+> **Alpha software** — Trackarr is in early development. Expect breaking changes, incomplete features, and
 > rough edges. It connects to live Radarr/Sonarr instances and can remove downloads and change quality profiles. Turn
 > on **Passive Mode** (Settings > Servers) to watch without it changing anything. Use at your own risk.
 
@@ -103,11 +103,15 @@ If a connection fails, the error now says why (certificate problem, connection r
 
 ### Updating
 
-Images are automatically built and pushed to Docker Hub on every release. To update:
+A new image is published to Docker Hub only when there's a release. To update:
 
 - **Docker Compose:** `docker compose pull && docker compose up -d`
 - **Docker CLI:** `docker pull confinedfish/trackarr:latest` and recreate the container
 - **Unraid:** Click the update notification in the Docker tab
+
+`latest` is always the newest release. To stay on one major version, use its number instead (for example
+`confinedfish/trackarr:6`), or pin an exact version such as `6.0.1`. Release notes are on the
+[Releases](https://github.com/alexzeigler/Trackarr/releases) page and in Trackarr under System > Releases.
 
 ### First-time setup
 
@@ -150,6 +154,9 @@ first run, in `Trackarr.Data/` during development.
 ```bash
 dotnet test
 ```
+
+**Branches and releases:** work goes into `develop` through pull requests, and releases are version tags on
+`master`. See [docs/RELEASING.md](docs/RELEASING.md).
 
 **Mock server:** the maintainer tests against real Radarr/Sonarr data with the Trackarr MockServer, which lives in a
 separate private repository. It forwards reads to the live servers and intercepts searches, removals and other writes,
