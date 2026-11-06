@@ -47,13 +47,11 @@ public class MediaServer
     public string? ApiKey { get; set; }
 
     public int? FallBackProfileId { get; set; }
-    public bool IsDefault { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public bool IsEnabled { get; set; } = true;
     public bool DisabledByHeartbeat { get; set; }
     public double UptimePercent { get; set; } = 100;
-    public int DownloadsProcessed { get; set; }
 
     public bool? MonitorQueue { get; set; }
     public bool? AutoRemoveDownloads { get; set; }

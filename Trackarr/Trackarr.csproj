@@ -29,15 +29,4 @@
     </Content>
   </ItemGroup>
 
-  <ItemGroup>
-    <_ContentIncludedByDefault Remove="Settings\About.razor"/>
-    <_ContentIncludedByDefault Remove="Settings\General.razor"/>
-    <_ContentIncludedByDefault Remove="Settings\Jobs.razor"/>
-    <_ContentIncludedByDefault Remove="Settings\Services.razor"/>
-    <_ContentIncludedByDefault Remove="Settings\Settings.razor"/>
-    <_ContentIncludedByDefault Remove="Components\Tables\AppTable.razor"/>
-    <_ContentIncludedByDefault Remove="Components\Tables\AppTableColumn.razor"/>
-    <_ContentIncludedByDefault Remove="Components\Tables\AppTableSort.razor"/>
-  </ItemGroup>
-
 </Project>
