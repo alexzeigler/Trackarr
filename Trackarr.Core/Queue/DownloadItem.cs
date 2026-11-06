@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace Trackarr.Core.Queue;
 
@@ -52,14 +51,13 @@ public class DownloadItem
 
     public int DownloadPercent => Size > 0 ? (int)((double)(Size - SizeLeft) / Size * 100) : 0;
 
-    [NotMapped] public QualityModel? Quality => JsonHelper.Deserialize<QualityModel>(QualityJson);
+    public QualityModel? Quality => JsonHelper.Deserialize<QualityModel>(QualityJson);
 
-    [NotMapped]
     public IReadOnlyList<StatusMessage> StatusMessages =>
         JsonHelper.Deserialize<List<StatusMessage>>(StatusMessagesJson) ?? [];
 
-    [NotMapped] public int SeasonNumber { get; set; }
-    [NotMapped] public int EpisodeNumber { get; set; }
+    public int SeasonNumber { get; set; }
+    public int EpisodeNumber { get; set; }
 
     #endregion
 }

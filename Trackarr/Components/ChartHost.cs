@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
 
-namespace Trackarr.Core.UI;
+namespace Trackarr.Components;
 
 public class ChartHost : ComponentBase
 {

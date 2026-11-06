@@ -877,9 +877,10 @@ Phases 5 and 6 can run in either order once Phase 4 lands.
    `StaticRegion`, `Tasks.razor`, `System.razor`, the empty scaffolds, unused enum values, `MediaServer.IsDefault` and
    `DownloadsProcessed`. Anything deleted now doesn't have to be ported in Phase 3. `AttemptStatus.Replaced` stays:
    the replacement counters on the media details modal read it, so Phase 5 decides whether to implement or remove it.
-4. Remove ASP.NET from Core (A2): move `ChartHost` and `StatusMessageDecode` to the web project, and move
-   `[NotMapped]`/`[ForeignKey]` configuration into `AppDbContext`. **This is required:** `Trackarr.Integrations` will
-   reference Core, and Core must stay dependency-free.
+4. Remove ASP.NET from Core (A2): move `ChartHost` to the web project and `StatusMessageDecode` to
+   `Trackarr.Services` (returning a string, so the tests can still reach it), and move `[NotMapped]`/`[ForeignKey]`
+   configuration into `AppDbContext`. **This is required:** `Trackarr.Integrations` will reference Core, and Core must
+   stay dependency-free. Its only package is `Microsoft.Extensions.Logging.Abstractions`, for `LogLevel`.
 5. Build the safety nets from [3.4](#34-safety-nets-to-build-before-restructuring): MockServer record mode and
    fixtures, the v6 database snapshot test, and backup-before-migrate.
 

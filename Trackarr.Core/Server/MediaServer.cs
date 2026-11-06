@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
-using Trackarr.Core.Queue;
+﻿using Trackarr.Core.Queue;
 
 namespace Trackarr.Core.Server;
 
@@ -112,11 +111,13 @@ public class MediaServer
         return trimmed.Length == 0 ? "" : "/" + trimmed;
     }
 
-    // Relationships configured in AppDbContext (not [NotMapped]: fluent config maps them).
+    // Relationships, configured in AppDbContext.
     public ServerMetadata? Metadata { get; set; }
-    [NotMapped] public List<QualityProfile>? Profiles { get; set; }
-    [NotMapped] public List<DownloadItem>? Queue { get; set; }
     public QualityProfile? FallbackProfile { get; set; }
+
+    // Held in memory only. AppDbContext ignores them.
+    public List<QualityProfile>? Profiles { get; set; }
+    public List<DownloadItem>? Queue { get; set; }
 
     #endregion
 }
