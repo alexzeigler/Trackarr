@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using Trackarr.Core.Server;
 
@@ -57,20 +56,17 @@ public class Episode
     public int? SeriesDbId { get; set; }
 
     [JsonIgnore]
-    [ForeignKey(nameof(SeriesDbId))]
     public Series? Series { get; set; }
 
     public int? ServerId { get; set; }
 
     [JsonIgnore]
-    [ForeignKey(nameof(ServerId))]
     public MediaServer? ParentServer { get; set; }
 
     #endregion
 
     #region Computed
 
-    [NotMapped]
     [JsonPropertyName("images")]
     public List<MediaImage>? ImageResources
     {
@@ -78,7 +74,6 @@ public class Episode
         set => ImagesJson = JsonHelper.Serialize(value);
     }
 
-    [NotMapped]
     [JsonPropertyName("episodeFile")]
     public JsonElement? EpisodeFile
     {
@@ -86,7 +81,6 @@ public class Episode
         set => EpisodeFileJson = JsonHelper.Serialize(value);
     }
 
-    [NotMapped]
     [JsonPropertyName("series")]
     public JsonElement? SeriesResource
     {
@@ -94,13 +88,13 @@ public class Episode
         set => SeriesJson = JsonHelper.Serialize(value);
     }
 
-    [NotMapped] [JsonIgnore] public IReadOnlyList<MediaImage> Images => ImageResources ?? [];
+    [JsonIgnore] public IReadOnlyList<MediaImage> Images => ImageResources ?? [];
 
-    [NotMapped] [JsonIgnore] public string? PosterUrl => Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl;
+    [JsonIgnore] public string? PosterUrl => Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl;
 
-    [NotMapped] [JsonIgnore] public string? FanartUrl => Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl;
+    [JsonIgnore] public string? FanartUrl => Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl;
 
-    [NotMapped] [JsonIgnore] public string? BannerUrl => Images.FirstOrDefault(i => i.CoverType == "banner")?.RemoteUrl;
+    [JsonIgnore] public string? BannerUrl => Images.FirstOrDefault(i => i.CoverType == "banner")?.RemoteUrl;
 
     #endregion
 }

@@ -67,7 +67,7 @@ public class MissingStatsServiceTests : IDisposable
         var items = new List<MissingMediaRecord>
         {
             MakeRecord(MissingSearchState.New, lastPushed: DateTime.UtcNow),
-            MakeRecord(MissingSearchState.Stuck, lastPushed: DateTime.UtcNow)
+            MakeRecord(MissingSearchState.Abandoned, lastPushed: DateTime.UtcNow)
         };
 
         // New state is search-ready even with a non-null LastSearchPushedAt.
@@ -97,7 +97,7 @@ public class MissingStatsServiceTests : IDisposable
         {
             MakeRecord(MissingSearchState.SearchPushed, failedCount: 3),
             MakeRecord(MissingSearchState.SearchPushed, failedCount: 0),
-            MakeRecord(MissingSearchState.Stuck, failedCount: 1)
+            MakeRecord(MissingSearchState.SkippedCooldown, failedCount: 1)
         };
 
         var result = _sut.BuildStats(items);
@@ -112,7 +112,7 @@ public class MissingStatsServiceTests : IDisposable
         {
             MakeRecord(MissingSearchState.Abandoned),
             MakeRecord(MissingSearchState.Abandoned),
-            MakeRecord(MissingSearchState.Stuck)
+            MakeRecord(MissingSearchState.Waiting)
         };
 
         var result = _sut.BuildStats(items);
@@ -191,7 +191,7 @@ public class MissingStatsServiceTests : IDisposable
             MakeRecord(MissingSearchState.SkippedCooldown),
             MakeRecord(MissingSearchState.SkippedSearching),
             MakeRecord(MissingSearchState.NotAvailable),
-            MakeRecord(MissingSearchState.Stuck)
+            MakeRecord(MissingSearchState.Abandoned)
         };
 
         var result = _sut.BuildStats(items);
@@ -202,7 +202,7 @@ public class MissingStatsServiceTests : IDisposable
         Assert.Contains("Cooldown", labels);
         Assert.Contains("Skipped", labels);
         Assert.Contains("Not Available", labels);
-        Assert.Contains("Stuck", labels);
+        Assert.Contains("Abandoned", labels);
     }
 
     #endregion

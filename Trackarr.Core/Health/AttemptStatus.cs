@@ -8,6 +8,5 @@ public enum AttemptStatus
     RemovedExternally,
     Replaced,
     Failed,
-    Disappeared,
-    Unknown
+    Disappeared
 }

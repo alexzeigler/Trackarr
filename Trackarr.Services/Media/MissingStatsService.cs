@@ -118,7 +118,6 @@ public sealed class MissingStatsService(IDbContextFactory<AppDbContext> dbFactor
             MissingSearchState.SkippedCooldown => "Cooldown",
             MissingSearchState.SkippedSearching => "Skipped",
             MissingSearchState.NotAvailable => "Not Available",
-            MissingSearchState.Stuck => "Stuck",
             MissingSearchState.Abandoned => "Abandoned",
             MissingSearchState.Waiting => "Waiting",
             _ => state.ToString()
