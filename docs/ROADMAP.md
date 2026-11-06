@@ -875,7 +875,8 @@ Phases 5 and 6 can run in either order once Phase 4 lands.
    `TreatWarningsAsErrors` for Release (A14). Remove the duplicates from the six csproj files.
 3. Delete dead code (A9): the `Trackarr.Client/` folder, `QueueStatus`, `DownloadItemTrackingState`, `Option`,
    `StaticRegion`, `Tasks.razor`, `System.razor`, the empty scaffolds, unused enum values, `MediaServer.IsDefault` and
-   `DownloadsProcessed`. Anything deleted now doesn't have to be ported in Phase 3.
+   `DownloadsProcessed`. Anything deleted now doesn't have to be ported in Phase 3. `AttemptStatus.Replaced` stays:
+   the replacement counters on the media details modal read it, so Phase 5 decides whether to implement or remove it.
 4. Remove ASP.NET from Core (A2): move `ChartHost` and `StatusMessageDecode` to the web project, and move
    `[NotMapped]`/`[ForeignKey]` configuration into `AppDbContext`. **This is required:** `Trackarr.Integrations` will
    reference Core, and Core must stay dependency-free.

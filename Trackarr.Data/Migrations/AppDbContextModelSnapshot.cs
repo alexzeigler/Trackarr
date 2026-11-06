@@ -1408,9 +1408,6 @@ namespace Trackarr.Data.Migrations
                     b.Property<bool>("DisabledByHeartbeat")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("DownloadsProcessed")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int?>("FallBackProfileId")
                         .HasColumnType("INTEGER");
 
@@ -1420,9 +1417,6 @@ namespace Trackarr.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsAuthenticated")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsDefault")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsEnabled")
