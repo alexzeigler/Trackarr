@@ -127,10 +127,10 @@ gitGraph
     checkout develop
     merge v7/phase1-auth
     checkout master
-    branch hotfix/6.0.1
+    branch hotfix/queue-fix
     commit id: "v6 fix"
     checkout master
-    merge hotfix/6.0.1 tag: "v6.0.1-alpha"
+    merge hotfix/queue-fix tag: "v6.0.1"
     checkout develop
     merge master
     branch v7/phase2-arr-client
@@ -141,15 +141,17 @@ gitGraph
 
 | Branch | Purpose | Merges into |
 |--------|---------|-------------|
-| `master` | What v6 users run. Only releases and hotfixes | — |
-| `develop` | Integration branch for v7. Always builds, always green | `master` at each v7 alpha release |
+| `master` | Released code. Every release is a `vX.Y.Z` tag here | — |
+| `develop` | Integration branch for v7. Always builds, always green | `master`, when you release |
 | `v7/<phase>-<topic>` | One focused change, such as `v7/phase2-arr-client` | `develop`, through a PR |
-| `hotfix/<version>` | A fix for v6 users | `master`, then merge `master` into `develop` |
+| `hotfix/<topic>` | A fix for v6 users, or CI and docs changes both branches need | `master`, then merge `master` into `develop` |
+
+Versions, tags, Docker images and the release steps are in [RELEASING.md](RELEASING.md).
 
 ### 3.2 Setting it up
 
-1. Finish the current branch. Commit `docs/` and `notes.md` on `feature/configurable-routine-intervals`, open a PR
-   into `master`, and merge it.
+1. Finish the current branch. Commit `docs/` and the release notes on `feature/configurable-routine-intervals`, open
+   a PR into `master`, and merge it.
 2. The `v6.0.0-alpha` tag already exists, so v6 is pinned. Update your local `master`:
 
    ```bash
@@ -163,13 +165,12 @@ gitGraph
    git push -u origin develop
    ```
 
-4. In GitHub, protect `develop`: PRs only, CI must pass. The Docker workflow
-   ([docker-publish.yml](../.github/workflows/docker-publish.yml)) needs no change. It only runs for `master` and `v*`
-   tags, and only `master` gets `latest`. A `v7.0.0-alpha.N` tag on `develop` publishes an image with that version tag
-   (prerelease versions don't get the `7`/`7.0` tags), so v6 users on `latest` aren't moved. CI tests only run for
-   `develop` PRs if you add a `pull_request` trigger for the test job.
-5. Use version **7.0.0-alpha.N** in `Trackarr.csproj` on `develop`. Cut a v7 alpha whenever a phase ends in something
-   a user can use. The first natural point is the end of Phase 4, when qBittorrent support lands.
+4. In GitHub, protect `develop`: PRs only, CI must pass. [ci.yml](../.github/workflows/ci.yml) runs the tests on every
+   PR into `master` or `develop` and publishes nothing. Only a version tag on `master` publishes an image
+   ([release.yml](../.github/workflows/release.yml)), so work on `develop` never reaches people on `latest`.
+5. Releases use plain versions (no `-alpha`). v7 is a major version because it changes the database and adds login.
+   You decide when `develop` is worth releasing. The first natural point is the end of Phase 4, when qBittorrent
+   support lands. Until then, build a `:develop` test image by hand to try it on a real server.
 
 ### 3.3 The strangler pattern
 
@@ -998,7 +999,7 @@ only new files plus one `HasValue<>` line.
 
 **Done when:** you can add a qBittorrent server, its uptime is tracked, queue items show live client data, and all
 existing health tests pass unchanged.
-**Release:** this is a good point for **7.0.0-alpha.1**.
+**Release:** this is a good point to release **7.0.0**.
 
 ### Phase 5: Health v2 (M)
 
@@ -1157,19 +1158,19 @@ If you later want a component library, try MudBlazor or Fluent UI Blazor on one 
 | Risk | Mitigation |
 |------|------------|
 | A migration breaks a user's database | v6 snapshot tests, backup before migrating, forward-only migrations |
-| Scope creep: the plan becomes "rebuild Cleanuparr" | Phase gates. Ship 7.0.0-alpha.1 after Phase 4 and get feedback before Phase 9. |
+| Scope creep: the plan becomes "rebuild Cleanuparr" | Phase gates. Release 7.0.0 after Phase 4 and get feedback before Phase 9. |
 | New signals change removal behaviour unexpectedly | `client == null` keeps v6 behaviour. New signals ship with conservative defaults and show in Activity before they're tuned up. |
 | Download-client APIs change between versions | Fixtures per version, version detection (`webapiVersion`), and capability checks |
 | Destructive cleanup features delete the wrong thing | Simulate by default, a review list before orphan deletion, protect tags, and everything logged in `ActionLog` |
 | Accidentally copying GPL code | Work from Cleanuparr's docs, not its source. When AI writes code, describe the behaviour you want, not "do it like Cleanuparr's X.cs". |
-| Long-lived `develop` drifts from `master` | Merge `master` into `develop` after every hotfix, and release v7 alphas often |
+| Long-lived `develop` drifts from `master` | Merge `master` into `develop` after every hotfix, and release from `develop` as soon as a phase is usable |
 
 ---
 
 ## 9. First week
 
-1. Commit `docs/` (this file and AUDIT.md) and `notes.md`, then merge `feature/configurable-routine-intervals` into
-   `master`. The `v6.0.0-alpha` tag already exists.
+1. Commit `docs/` (this file and AUDIT.md) and the v6 release notes, then merge
+   `feature/configurable-routine-intervals` into `master`. The `v6.0.0-alpha` tag already exists.
 2. Create `develop` and set up branch protection ([3.2](#32-setting-it-up)).
 3. `v7/phase0-build-props`: add `Directory.Build.props`.
 4. `v7/phase0-dead-code`: delete the A9 items.
