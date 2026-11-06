@@ -1,4 +1,4 @@
-# v5.2.0-alpha
+# v6.0.0-alpha
 
 A big reliability release. Trackarr is now much more careful about what it removes and searches for, works properly
 with more than one Radarr or Sonarr, handles HTTPS and reverse proxies, and is simpler to set up in Docker.
