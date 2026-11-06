@@ -320,7 +320,7 @@ public sealed class MissingService(
     {
         if (server.FallBackProfileId is not { } fallbackId) return;
 
-        var profile = await db.QualityProfiles.FindAsync(fallbackId);
+        var profile = await db.QualityProfiles.FindAsync([fallbackId], ct);
         if (profile is null) return;
 
         var missingIds = missing.Select(m => m.RemoteId).ToHashSet();
@@ -367,7 +367,7 @@ public sealed class MissingService(
 
         if (server.FallBackProfileId is not { } fallbackId) return;
 
-        var profile = await db.QualityProfiles.FindAsync(fallbackId);
+        var profile = await db.QualityProfiles.FindAsync([fallbackId], ct);
         if (profile is null) return;
 
         var missingEpIds = missing.Select(e => e.RemoteId).ToHashSet();

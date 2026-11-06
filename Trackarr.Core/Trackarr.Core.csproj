@@ -1,11 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
-
   <ItemGroup>
     <!-- For the two shared components (ChartHost, StaticRegion) written as plain C#. -->
     <PackageReference Include="Microsoft.AspNetCore.Components.Web"/>

@@ -23,7 +23,7 @@ COPY ["Trackarr.Core/Trackarr.Core.csproj", "Trackarr.Core/"]
 COPY ["Trackarr.Data/Trackarr.Data.csproj", "Trackarr.Data/"]
 COPY ["Trackarr.Services/Trackarr.Services.csproj", "Trackarr.Services/"]
 COPY ["Trackarr.Routines/Trackarr.Routines.csproj", "Trackarr.Routines/"]
-COPY ["Directory.Packages.props", "./"]
+COPY ["Directory.Build.props", "Directory.Packages.props", "./"]
 RUN dotnet restore "Trackarr/Trackarr.csproj"
 COPY . .
 WORKDIR "/src/Trackarr"
