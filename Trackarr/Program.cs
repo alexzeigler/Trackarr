@@ -1,4 +1,5 @@
 using System.Net;
+using System.Reflection;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Data.Sqlite;
@@ -167,6 +168,22 @@ using (var scope = app.Services.CreateScope())
     var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
 
     await using var db = await factory.CreateDbContextAsync();
+
+    // Copy the database before an upgrade changes it. A failed backup is logged but doesn't stop the upgrade:
+    // refusing to start would leave the user with no working Trackarr at all.
+    try
+    {
+        var version = typeof(Program).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion.Split('+')[0] ?? "unknown";
+        var backup = await DatabaseBackup.BackupBeforeMigrateAsync(db, Path.Combine(AppPaths.DataDirectory, "backups"),
+            version);
+        if (backup is not null)
+            app.Logger.LogInformation("Backed up the database to {Path} before upgrading it", backup);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Couldn't back up the database before upgrading it. Upgrading anyway");
+    }
 
     await db.Database.MigrateAsync();
 

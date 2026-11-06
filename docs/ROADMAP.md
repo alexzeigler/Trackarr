@@ -190,9 +190,9 @@ Each arrow is one PR or more. At every step the app runs and the existing tests 
 | Net | Why | How |
 |-----|-----|-----|
 | **Recorded API fixtures** (T3) | Phase 2 moves every HTTP call. Fixtures prove the parsing didn't change | Add a *record mode* to the MockServer repository that saves each Radarr and Sonarr GET response to a configurable folder. Point it at this repo's `Trackarr.Tests/Fixtures/{radarr,sonarr}/`, commit the JSON files here, and replay them through a stub `HttpMessageHandler`. Trackarr's tests never depend on the MockServer project, only on the recorded files. |
-| **A v6 database snapshot** | Phases 3 and 4 change the schema | Copy a real `trackarr.db` (for example from `docker-data/trackarr/`) to `Trackarr.Tests/Fixtures/db/v6.db`, after removing API keys. Add a test that migrates it and checks that row counts survive. |
+| **A v6 database snapshot** ✅ | Phases 3 and 4 change the schema | `V6DatabaseUpgradeTests` builds the schema exactly as v6.0.0 shipped it from the migrations, puts a row in every table, upgrades to the current schema and checks every row and foreign key survives. No real database is committed, so no personal data ends up in the repository. |
 | **Characterization tests** | Pin down today's behaviour where coverage is thin, such as `MissingService` (T1) | Table-driven tests over the state diagram in AUDIT.md 4.4, run before Phase 2 touches the code |
-| **Backup before migrate** (F13) | A failed migration on a user's machine shouldn't lose data | At startup, if migrations are pending, run `VACUUM INTO '/config/backups/trackarr_pre_<version>.db'` first |
+| **Backup before migrate** (F13) ✅ | A failed migration on a user's machine shouldn't lose data | `DatabaseBackup` runs `VACUUM INTO /config/backups/trackarr_pre_<version>_<time>.db` at startup when migrations are pending, and keeps the newest 5. A failed backup is logged and the upgrade goes ahead. |
 
 ### 3.5 Definition of done for every PR
 
