@@ -4,6 +4,9 @@ on:
   push:
     branches: [master]
     tags: ["v*"]
+  # Pull requests run the tests only. Nothing is built or published for them.
+  pull_request:
+    branches: [master, develop]
   workflow_dispatch:
 
 env:
@@ -40,6 +43,7 @@ jobs:
           path: Trackarr.Tests/TestResults/results.trx
 
   build-and-push:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     needs: test
 
