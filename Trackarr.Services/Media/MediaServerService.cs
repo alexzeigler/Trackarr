@@ -1257,7 +1257,7 @@ public class MediaServerService(
                     break;
 
                 default:
-                    throw new ArgumentOutOfRangeException();
+                    throw new ArgumentOutOfRangeException(nameof(server), server.ServiceType, "Unknown server type.");
             }
 
             await EnsureQueueParentMediaSummariesAsync(db, server.Id, items, DateTime.UtcNow);
