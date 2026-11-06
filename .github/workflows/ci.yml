@@ -1,0 +1,38 @@
+name: CI
+
+# Builds and tests. Never publishes anything. release.yml calls this before it publishes.
+on:
+  pull_request:
+    branches: [master, develop]
+  push:
+    branches: [master, develop]
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test Trackarr.Tests --no-build --configuration Release --logger "trx;LogFileName=results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: Trackarr.Tests/TestResults/results.trx

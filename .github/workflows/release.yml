@@ -1,0 +1,140 @@
+name: Release
+
+# A release is a version tag on master, pushed after the release PR merges:
+#
+#   git tag v6.0.1 origin/master && git push origin v6.0.1
+#
+# That runs the checks below, the tests, publishes the Docker image and creates the GitHub release.
+# See docs/RELEASING.md.
+#
+# Running this workflow by hand (Actions > Release > Run workflow) on a branch builds a test image tagged with the
+# branch name, such as confinedfish/trackarr:develop. Nothing else is published, and `latest` doesn't move.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: confinedfish/trackarr
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      latest: ${{ steps.latest.outputs.latest }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        if: github.ref_type == 'tag'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Check the tag
+        if: github.ref_type == 'tag'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+            || fail "$TAG isn't a version tag. Use vMAJOR.MINOR.PATCH, for example v6.0.1."
+
+          version=$(dotnet msbuild Trackarr/Trackarr.csproj -getProperty:Version)
+          [[ "$version" == "${TAG#v}" ]] \
+            || fail "Trackarr.csproj says $version but the tag is $TAG. Set <Version>${TAG#v}</Version>, merge, and tag again."
+
+          [[ -s "docs/releases/$TAG.md" ]] \
+            || fail "docs/releases/$TAG.md is missing. It becomes the GitHub release notes."
+
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/master \
+            || fail "$TAG isn't on master. Tag the release after its PR merges into master."
+
+      - name: Decide whether this is the newest release
+        id: latest
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          latest=false
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            # Only plain vX.Y.Z tags count. Old -alpha tags are ignored.
+            newest=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+            [[ "$TAG" == "$newest" ]] && latest=true
+            echo "Newest release tag: $newest"
+          fi
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "Move latest: $latest"
+
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: [check, test]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Tag v6.0.1 -> 6.0.1 and 6, plus latest when it's the newest release.
+      # A manual run on a branch -> the branch name only (develop, or v7-phase0-prep for v7/phase0-prep).
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ needs.check.outputs.latest == 'true' }}
+            type=ref,event=branch
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Trackarr/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  github-release:
+    if: github.ref_type == 'tag'
+    needs: [check, publish]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: docs/releases/${{ github.ref_name }}.md
+          prerelease: false
+          make_latest: ${{ needs.check.outputs.latest }}
