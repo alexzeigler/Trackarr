@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
-using Trackarr.Core.Queue;
+﻿using Trackarr.Core.Queue;
 
 namespace Trackarr.Core.Server;
 
@@ -47,13 +46,11 @@ public class MediaServer
     public string? ApiKey { get; set; }
 
     public int? FallBackProfileId { get; set; }
-    public bool IsDefault { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public bool IsEnabled { get; set; } = true;
     public bool DisabledByHeartbeat { get; set; }
     public double UptimePercent { get; set; } = 100;
-    public int DownloadsProcessed { get; set; }
 
     public bool? MonitorQueue { get; set; }
     public bool? AutoRemoveDownloads { get; set; }
@@ -114,11 +111,13 @@ public class MediaServer
         return trimmed.Length == 0 ? "" : "/" + trimmed;
     }
 
-    // Relationships configured in AppDbContext (not [NotMapped]: fluent config maps them).
+    // Relationships, configured in AppDbContext.
     public ServerMetadata? Metadata { get; set; }
-    [NotMapped] public List<QualityProfile>? Profiles { get; set; }
-    [NotMapped] public List<DownloadItem>? Queue { get; set; }
     public QualityProfile? FallbackProfile { get; set; }
+
+    // Held in memory only. AppDbContext ignores them.
+    public List<QualityProfile>? Profiles { get; set; }
+    public List<DownloadItem>? Queue { get; set; }
 
     #endregion
 }

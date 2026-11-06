@@ -789,9 +789,6 @@ public class MediaServerService(
         server.NormalizeAddress();
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        if (server.IsDefault)
-            await ClearDefaultAsync(db, server.ServiceType, server.Id);
-
         var tracked = await db.MediaServers.FindAsync(server.Id) ??
                       throw new MediaServerException($"{server.Name}: Server not found.");
 
@@ -1184,7 +1181,7 @@ public class MediaServerService(
         nameof(MediaServer.LastQueueFetchAt), nameof(MediaServer.LastQueueCount),
         nameof(MediaServer.LastMissingFetchAt), nameof(MediaServer.LastMissingCount),
         nameof(MediaServer.LastErrorAt), nameof(MediaServer.LastError),
-        nameof(MediaServer.UptimePercent), nameof(MediaServer.DownloadsProcessed), nameof(MediaServer.CreatedAt)
+        nameof(MediaServer.UptimePercent), nameof(MediaServer.CreatedAt)
     ];
 
     private async Task<(List<DownloadItem> Items, bool Fresh)> FetchAndStoreQueueAsync(MediaServer server,
@@ -1761,18 +1758,6 @@ public class MediaServerService(
             await operation();
             return true;
         });
-    }
-
-    private static async Task ClearDefaultAsync(AppDbContext db, ServiceType type, int? excludeId)
-    {
-        var defaults = await db.MediaServers
-            .Where(s => s.ServiceType == type && s.IsDefault && (excludeId == null || s.Id != excludeId)).ToListAsync();
-
-        foreach (var s in defaults)
-            s.IsDefault = false;
-
-        if (defaults.Count > 0)
-            await db.SaveChangesAsync();
     }
 
     private static QueueState MapQueueState(string? state)

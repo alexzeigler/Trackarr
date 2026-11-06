@@ -8,7 +8,6 @@ public enum MissingSearchState
     SkippedCooldown,
     SkippedSearching,
     NotAvailable,
-    Stuck,
     Abandoned,
     Waiting
 }

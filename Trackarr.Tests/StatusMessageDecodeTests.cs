@@ -1,4 +1,4 @@
-using Trackarr.Core.Queue;
+using Trackarr.Services.UI;
 
 namespace Trackarr.Tests;
 
@@ -12,7 +12,7 @@ public class StatusMessageDecodeTests
     public void FormatStatusMessages_EmptyOrNoGroups_ReturnsDash(string? json)
     {
         var result = StatusMessageDecode.FormatStatusMessages(json);
-        Assert.Equal("—", result.Value);
+        Assert.Equal("—", result);
     }
 
     [Fact]
@@ -21,10 +21,10 @@ public class StatusMessageDecodeTests
         var result = StatusMessageDecode.FormatStatusMessages(
             """[{"title":"Import failed","messages":["No files found","Permission denied"]}]""");
 
-        Assert.Contains("<ul", result.Value);
-        Assert.Contains("Import failed", result.Value);
-        Assert.Contains("No files found", result.Value);
-        Assert.Contains("Permission denied", result.Value);
+        Assert.Contains("<ul", result);
+        Assert.Contains("Import failed", result);
+        Assert.Contains("No files found", result);
+        Assert.Contains("Permission denied", result);
     }
 
     [Fact]
@@ -34,9 +34,9 @@ public class StatusMessageDecodeTests
         var result = StatusMessageDecode.FormatStatusMessages(
             """[{"title":"<b>x</b>","messages":["<script>alert(1)</script>"]}]""");
 
-        Assert.DoesNotContain("<script>", result.Value);
-        Assert.DoesNotContain("<b>x</b>", result.Value);
-        Assert.Contains("&lt;script&gt;", result.Value);
+        Assert.DoesNotContain("<script>", result);
+        Assert.DoesNotContain("<b>x</b>", result);
+        Assert.Contains("&lt;script&gt;", result);
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public class StatusMessageDecodeTests
         // This guards against HTML/script injection through a status message blob.
         var result = StatusMessageDecode.FormatStatusMessages("<script>alert('xss')</script>");
 
-        Assert.DoesNotContain("<script>", result.Value);
-        Assert.Contains("&lt;script&gt;", result.Value);
+        Assert.DoesNotContain("<script>", result);
+        Assert.Contains("&lt;script&gt;", result);
     }
 }
