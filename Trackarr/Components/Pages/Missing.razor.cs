@@ -526,7 +526,6 @@ public partial class Missing : ComponentBase, IAsyncDisposable
             MissingSearchState.SkippedCooldown => "Cooldown",
             MissingSearchState.SkippedSearching => "Skipped",
             MissingSearchState.NotAvailable => "Not Available",
-            MissingSearchState.Stuck => "Stuck",
             MissingSearchState.Abandoned => "Abandoned",
             MissingSearchState.Waiting => "Waiting",
             _ => states[0].ToString()
@@ -544,7 +543,6 @@ public partial class Missing : ComponentBase, IAsyncDisposable
             "Cooldown" => "badge bg-warning-lt text-warning",
             "Skipped" => "badge bg-secondary-lt text-secondary",
             "Not Available" => "badge bg-orange-lt text-orange",
-            "Stuck" => "badge bg-danger-lt text-danger",
             _ => "badge bg-secondary-lt text-secondary"
         };
     }
@@ -609,7 +607,6 @@ public partial class Missing : ComponentBase, IAsyncDisposable
             "Cooldown" => "bg-warning",
             "Skipped" => "bg-secondary",
             "Not Available" => "bg-orange",
-            "Stuck" => "bg-danger",
             _ => "bg-secondary"
         };
     }
