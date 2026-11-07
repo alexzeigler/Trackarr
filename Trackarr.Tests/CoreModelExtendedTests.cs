@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Trackarr.Services.UI;
 using Trackarr.Core;
 using Trackarr.Core.Health;
 using Trackarr.Core.Media;
@@ -552,10 +553,10 @@ public class StatusMessageDecodeExtendedTests
         var result = StatusMessageDecode.FormatStatusMessages(
             """[{"title":"Group A","messages":["msg1"]},{"title":"Group B","messages":["msg2"]}]""");
 
-        Assert.Contains("Group A", result.Value);
-        Assert.Contains("Group B", result.Value);
-        Assert.Contains("msg1", result.Value);
-        Assert.Contains("msg2", result.Value);
+        Assert.Contains("Group A", result);
+        Assert.Contains("Group B", result);
+        Assert.Contains("msg1", result);
+        Assert.Contains("msg2", result);
     }
 
     [Fact]
@@ -563,8 +564,8 @@ public class StatusMessageDecodeExtendedTests
     {
         var result = StatusMessageDecode.FormatStatusMessages("""[{"title":"Only Title","messages":[]}]""");
 
-        Assert.Contains("Only Title", result.Value);
-        Assert.DoesNotContain("<ul class=\"mt-1", result.Value);
+        Assert.Contains("Only Title", result);
+        Assert.DoesNotContain("<ul class=\"mt-1", result);
     }
 
     [Fact]
@@ -572,8 +573,8 @@ public class StatusMessageDecodeExtendedTests
     {
         var result = StatusMessageDecode.FormatStatusMessages("""[{"title":"","messages":["msg"]}]""");
 
-        Assert.Contains("msg", result.Value);
-        Assert.Contains("<li>", result.Value);
+        Assert.Contains("msg", result);
+        Assert.Contains("<li>", result);
     }
 
     [Fact]
@@ -582,8 +583,8 @@ public class StatusMessageDecodeExtendedTests
         var result = StatusMessageDecode.FormatStatusMessages(
             """[{"title":"Test","messages":["<img src=x onerror=alert(1)>"]}]""");
 
-        Assert.DoesNotContain("<img", result.Value);
-        Assert.Contains("&lt;img", result.Value);
+        Assert.DoesNotContain("<img", result);
+        Assert.Contains("&lt;img", result);
     }
 
     [Fact]
@@ -592,9 +593,9 @@ public class StatusMessageDecodeExtendedTests
         var result = StatusMessageDecode.FormatStatusMessages(
             """[{"title":"Error & Warning","messages":["file \"test\" <missing>"]}]""");
 
-        Assert.Contains("&amp;", result.Value);
-        Assert.Contains("&quot;", result.Value);
-        Assert.Contains("&lt;missing&gt;", result.Value);
+        Assert.Contains("&amp;", result);
+        Assert.Contains("&quot;", result);
+        Assert.Contains("&lt;missing&gt;", result);
     }
 
     [Fact]
@@ -602,8 +603,8 @@ public class StatusMessageDecodeExtendedTests
     {
         var result = StatusMessageDecode.FormatStatusMessages("""{"not":"an array"}""");
 
-        Assert.DoesNotContain("<script>", result.Value);
-        Assert.Contains("not", result.Value);
+        Assert.DoesNotContain("<script>", result);
+        Assert.Contains("not", result);
     }
 }
 

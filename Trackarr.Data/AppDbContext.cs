@@ -1,6 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Trackarr.Core.Event;
 using Trackarr.Core.Health;
+using Trackarr.Core.Media;
 using Trackarr.Core.Media.Missing;
 using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Media.Shows;
@@ -447,6 +449,49 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             entity.HasOne<MediaServer>().WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
         });
+
+        IgnoreComputedProperties(modelBuilder);
+    }
+
+    /// <summary>
+    ///     Properties on the Core models that are computed from other columns or only held in memory. They're ignored
+    ///     here rather than with [NotMapped], so Trackarr.Core doesn't depend on EF Core.
+    /// </summary>
+    private static void IgnoreComputedProperties(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<MediaServer>()
+            .Ignore(e => e.Profiles)
+            .Ignore(e => e.Queue);
+
+        modelBuilder.Entity<DownloadItem>()
+            .Ignore(e => e.SeasonNumber)
+            .Ignore(e => e.EpisodeNumber)
+            .Ignore(e => e.Quality)
+            .Ignore(e => e.StatusMessages);
+
+        IgnoreMediaItemComputed(modelBuilder.Entity<Movie>());
+        IgnoreMediaItemComputed(modelBuilder.Entity<Series>());
+
+        modelBuilder.Entity<Episode>()
+            .Ignore(e => e.ImageResources)
+            .Ignore(e => e.EpisodeFile)
+            .Ignore(e => e.SeriesResource)
+            .Ignore(e => e.PosterUrl)
+            .Ignore(e => e.FanartUrl)
+            .Ignore(e => e.BannerUrl)
+            .Ignore(e => e.Images);
+    }
+
+    private static void IgnoreMediaItemComputed<T>(EntityTypeBuilder<T> entity) where T : MediaItem
+    {
+        entity
+            .Ignore(e => e.PosterUrl)
+            .Ignore(e => e.FanartUrl)
+            .Ignore(e => e.BannerUrl)
+            .Ignore(e => e.OriginalLanguage)
+            .Ignore(e => e.Genres)
+            .Ignore(e => e.Tags)
+            .Ignore(e => e.Images);
     }
 
     #endregion

@@ -1,9 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <!-- For the two shared components (ChartHost, StaticRegion) written as plain C#. -->
-    <PackageReference Include="Microsoft.AspNetCore.Components.Web"/>
-    <PackageReference Include="Microsoft.EntityFrameworkCore"/>
+    <!-- Only for LogLevel on LogEvent. Core must not depend on ASP.NET or EF Core. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
   </ItemGroup>
 
 </Project>

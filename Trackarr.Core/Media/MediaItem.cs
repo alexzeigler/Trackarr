@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 using Trackarr.Core.Server;
 
 namespace Trackarr.Core.Media;
@@ -47,25 +46,25 @@ public abstract class MediaItem
     #region Navigation
 
     public int? ServerId { get; set; }
-    [ForeignKey(nameof(ServerId))] public MediaServer? ParentServer { get; set; }
+    public MediaServer? ParentServer { get; set; }
 
     #endregion
 
     #region Computed
 
-    [NotMapped] public IReadOnlyList<MediaImage> Images => JsonHelper.Deserialize<List<MediaImage>>(ImagesJson) ?? [];
+    public IReadOnlyList<MediaImage> Images => JsonHelper.Deserialize<List<MediaImage>>(ImagesJson) ?? [];
 
-    [NotMapped] public IReadOnlyList<string> Genres => JsonHelper.Deserialize<List<string>>(GenresJson) ?? [];
+    public IReadOnlyList<string> Genres => JsonHelper.Deserialize<List<string>>(GenresJson) ?? [];
 
-    [NotMapped] public IReadOnlyList<int> Tags => JsonHelper.Deserialize<List<int>>(TagsJson) ?? [];
+    public IReadOnlyList<int> Tags => JsonHelper.Deserialize<List<int>>(TagsJson) ?? [];
 
-    [NotMapped] public MediaLanguage? OriginalLanguage => JsonHelper.Deserialize<MediaLanguage>(OriginalLanguageJson);
+    public MediaLanguage? OriginalLanguage => JsonHelper.Deserialize<MediaLanguage>(OriginalLanguageJson);
 
-    [NotMapped] public string? PosterUrl => Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl;
+    public string? PosterUrl => Images.FirstOrDefault(i => i.CoverType == "poster")?.RemoteUrl;
 
-    [NotMapped] public string? FanartUrl => Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl;
+    public string? FanartUrl => Images.FirstOrDefault(i => i.CoverType == "fanart")?.RemoteUrl;
 
-    [NotMapped] public string? BannerUrl => Images.FirstOrDefault(i => i.CoverType == "banner")?.RemoteUrl;
+    public string? BannerUrl => Images.FirstOrDefault(i => i.CoverType == "banner")?.RemoteUrl;
 
     #endregion
 }

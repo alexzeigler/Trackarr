@@ -1,9 +1,8 @@
 ﻿using System.Net;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Components;
 
-namespace Trackarr.Core.Queue;
+namespace Trackarr.Services.UI;
 
 public class StatusMessageDecode
 {
@@ -15,9 +14,9 @@ public class StatusMessageDecode
 
     #region Public API
 
-    public static MarkupString FormatStatusMessages(string? json)
+    public static string FormatStatusMessages(string? json)
     {
-        if (string.IsNullOrWhiteSpace(json)) return new MarkupString("—");
+        if (string.IsNullOrWhiteSpace(json)) return "—";
 
         List<StatusMessageGroup>? groups;
 
@@ -27,10 +26,10 @@ public class StatusMessageDecode
         }
         catch
         {
-            return new MarkupString(WebUtility.HtmlEncode(json));
+            return WebUtility.HtmlEncode(json);
         }
 
-        if (groups == null || groups.Count == 0) return new MarkupString("—");
+        if (groups == null || groups.Count == 0) return "—";
 
         var html = new StringBuilder();
 
@@ -57,7 +56,7 @@ public class StatusMessageDecode
 
         html.Append("</ul>");
 
-        return new MarkupString(html.ToString());
+        return html.ToString();
     }
 
     #endregion
