@@ -4,7 +4,11 @@ using Trackarr.Services.Diagnostics;
 
 namespace Trackarr.Services.Routines;
 
+// The only disposable field is a SemaphoreSlim, which needs no disposal unless its wait handle is used, and this
+// singleton lives as long as the app.
+#pragma warning disable CA1001
 public sealed class RoutineRunner(
+#pragma warning restore CA1001
     IEnumerable<IRoutine> handlers,
     RoutineService routineService,
     EventService eventService,
@@ -81,9 +85,10 @@ public sealed class RoutineRunner(
         {
             routine.IsRunning = false;
 
+            // Not cancellable on purpose: a cancelled run is still recorded.
             try
             {
-                await routineService.SaveRunAsync(run);
+                await routineService.SaveRunAsync(run, CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -92,7 +97,7 @@ public sealed class RoutineRunner(
 
             try
             {
-                await routineService.UpdateDefinitionAsync(routine);
+                await routineService.UpdateDefinitionAsync(routine, CancellationToken.None);
             }
             catch (Exception ex)
             {

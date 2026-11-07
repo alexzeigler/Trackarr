@@ -85,3 +85,35 @@ csharp_indent_case_contents = true
 csharp_indent_switch_labels = true
 csharp_using_directive_placement = outside_namespace:warning
 dotnet_sort_system_directives_first = true
+
+#### Analyzers (AnalysisLevel latest-recommended, see Directory.Build.props) ####
+
+# Rules that don't fit this project. They still show in the IDE as suggestions.
+[*.cs]
+# Logging: LoggerMessage delegates, argument cost and placeholder casing. Not worth it at Trackarr's log volume.
+dotnet_diagnostic.CA1848.severity = suggestion
+dotnet_diagnostic.CA1873.severity = suggestion
+dotnet_diagnostic.CA1727.severity = suggestion
+# Style rather than correctness.
+dotnet_diagnostic.CA1805.severity = suggestion
+dotnet_diagnostic.CA1822.severity = suggestion
+dotnet_diagnostic.CA1852.severity = suggestion
+dotnet_diagnostic.CA1859.severity = suggestion
+dotnet_diagnostic.CA1716.severity = suggestion
+# Fires on Radarr/Sonarr API field names that happen to match a parameter name ("movieIds").
+dotnet_diagnostic.CA1507.severity = suggestion
+# Blazor components and test classes have no finalizers.
+dotnet_diagnostic.CA1816.severity = suggestion
+# Page names such as Queue.
+dotnet_diagnostic.CA1711.severity = suggestion
+
+# EF Core migrations are generated.
+[Trackarr.Data/Migrations/**.cs]
+generated_code = true
+
+# Tests: Method_Scenario_Result names, inline arrays and plain string calls are fine here.
+[Trackarr.Tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA1305.severity = none
+dotnet_diagnostic.CA1310.severity = none

@@ -11,7 +11,11 @@ using Trackarr.Services.UI;
 
 namespace Trackarr.Services.Settings;
 
+// The only disposable fields are SemaphoreSlims, which need no disposal unless their wait handle is used, and this
+// singleton lives as long as the app.
+#pragma warning disable CA1001
 public class SettingsService(
+#pragma warning restore CA1001
     IDbContextFactory<AppDbContext> dbFactory,
     ILogger<SettingsService> logger,
     DataChangeBus changeBus)
@@ -274,8 +278,12 @@ public class SettingsService(
                 // Disable FK checks so we can delete in any order
                 await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF");
 
+                // Table names come from sqlite_master, not from users, and SQL can't take a table name as a
+                // parameter.
+#pragma warning disable EF1002
                 foreach (var table in await GetAllTableNamesAsync(db))
                     await db.Database.ExecuteSqlRawAsync($"DELETE FROM \"{table}\"");
+#pragma warning restore EF1002
 
                 await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON");
 

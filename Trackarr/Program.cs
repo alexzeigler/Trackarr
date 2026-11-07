@@ -114,8 +114,11 @@ static SocketsHttpHandler CreateMediaServerHandler(IServiceProvider sp, bool acc
         handler.UseProxy = true;
     }
 
+    // Only for servers where the user turned on "Skip certificate validation" (Radarr/Sonarr's own self-signed SSL).
+#pragma warning disable CA5359
     if (acceptAnyCertificate)
         handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+#pragma warning restore CA5359
 
     return handler;
 }

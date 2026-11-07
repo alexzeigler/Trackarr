@@ -549,13 +549,14 @@ public partial class Missing : ComponentBase, IAsyncDisposable
         };
     }
 
+    private static readonly JsonSerializerOptions CaseInsensitiveJson = new() { PropertyNameCaseInsensitive = true };
+
     private static string? GetPosterUrlFromJson(string? imagesJson)
     {
         if (string.IsNullOrWhiteSpace(imagesJson)) return null;
         try
         {
-            var images = JsonSerializer.Deserialize<List<MediaImage>>(imagesJson,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var images = JsonSerializer.Deserialize<List<MediaImage>>(imagesJson, CaseInsensitiveJson);
             var poster = images?.FirstOrDefault(x =>
                 string.Equals(x.CoverType, "poster", StringComparison.OrdinalIgnoreCase));
             return poster?.RemoteUrl ?? poster?.Url;
