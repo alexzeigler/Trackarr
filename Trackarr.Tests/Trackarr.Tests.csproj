@@ -25,4 +25,9 @@
     <ProjectReference Include="..\Trackarr.Core\Trackarr.Core.csproj"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Recorded Radarr/Sonarr responses, replayed by FixtureHandler. See Fixtures/README.md. -->
+    <None Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+
 </Project>
