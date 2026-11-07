@@ -1,0 +1,12 @@
+@inject NavigationManager Nav
+
+@code {
+
+    protected override void OnInitialized()
+    {
+        // A full page load, so the request goes through the cookie check and lands on the static login page.
+        var returnUrl = new Uri(Nav.Uri).PathAndQuery;
+        Nav.NavigateTo($"login?ReturnUrl={Uri.EscapeDataString(returnUrl)}", forceLoad: true);
+    }
+
+}

@@ -39,6 +39,8 @@
 
   <Config Name="PGID" Target="PGID" Default="100" Description="Group ID Trackarr runs as. 100 = users on Unraid." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
 
+  <Config Name="Reset login" Target="TRACKARR_RESET_AUTH" Default="false" Description="Set to true and restart if nobody can sign in. The login is removed and the next visit creates a new one. Set it back to false straight away, or every restart removes the login." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+
   <Config Name="Time Zone" Target="TZ" Default="Etc/UTC" Description="Time zone for times shown in the UI, e.g. America/New_York. Use the same value as your other containers." Type="Variable" Display="always" Required="false" Mask="false">Etc/UTC</Config>
 
 </Container>

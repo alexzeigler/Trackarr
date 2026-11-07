@@ -115,9 +115,13 @@ A new image is published to Docker Hub only when there's a release. To update:
 
 ### First-time setup
 
-1. Open Trackarr in your browser
+1. Open Trackarr in your browser and create a login. Every page needs it from then on.
 2. Go to **Servers** and add your Radarr/Sonarr instances (you'll need the host, port, and API key for each)
 3. Background routines will start syncing queue and missing media data automatically
+
+**Locked out?** Set the environment variable `TRACKARR_RESET_AUTH=true` and restart the container. The login is
+removed (servers, settings and history are kept) and the next visit shows the setup page again. Remove the variable
+straight away, or every restart removes the login.
 
 ## Configuration
 

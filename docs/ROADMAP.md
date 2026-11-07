@@ -893,7 +893,8 @@ Phases 5 and 6 can run in either order once Phase 4 lands.
 they add *more* secrets and *more* destructive actions.
 
 1. **Auth** as in [4.11](#411-authentication-s1-on-blazor-server). Add a minimal Login, Setup and Settings > Security
-   page using the existing layout.
+   page using the existing layout. Forms login lands first (`v7/phase1-auth`). "Disabled for local addresses" follows in
+   its own PR, because it needs care behind reverse proxies. The API key waits until there's an `/api` to protect.
 2. **Secrets** as in [4.12](#412-secrets-at-rest-s2), with masking in `AddServerModal`.
 3. **`ActionExecutor` and `ActionLog`** ([4.8](#48-the-action-gate)). Route the existing calls through it:
    - `QueueEvaluationRoutine`: blacklist removal and health removal

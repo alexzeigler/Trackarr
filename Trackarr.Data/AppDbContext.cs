@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Trackarr.Core.Auth;
 using Trackarr.Core.Event;
 using Trackarr.Core.Health;
 using Trackarr.Core.Media;
@@ -450,6 +451,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne<MediaServer>().WithMany().HasForeignKey(e => e.ServerId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            // NOCASE so "Admin" and "admin" are the same user, enforced by the unique index too.
+            entity.Property(e => e.Username).IsRequired().HasMaxLength(100).UseCollation("NOCASE");
+            entity.HasIndex(e => e.Username).IsUnique();
+
+            entity.Property(e => e.PasswordHash).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.SecurityStamp).IsRequired().HasMaxLength(64);
+        });
+
         IgnoreComputedProperties(modelBuilder);
     }
 
@@ -520,6 +533,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<BlacklistEntry> Blacklist { get; set; }
     public DbSet<ServerHealthEvent> ServerHealthEvents { get; set; }
     public DbSet<ServerStatusSample> ServerStatusSamples { get; set; }
+    public DbSet<User> Users { get; set; }
 
     #endregion
 }

@@ -335,8 +335,10 @@ public class SettingsService(
         try
         {
             using var cmd = conn.CreateCommand();
+            // Users stays: clearing the login would leave the setup page open to anyone who can reach Trackarr.
             cmd.CommandText =
-                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '__EF%'";
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '__EF%' " +
+                "AND name <> 'Users'";
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
                 tables.Add(reader.GetString(0));

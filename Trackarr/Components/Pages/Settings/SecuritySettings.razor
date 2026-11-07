@@ -1,0 +1,96 @@
+@page "/settings/security"
+@using global::System.Globalization
+@using global::System.Security.Claims
+@using Trackarr.Services.Auth
+@layout SettingsLayout
+@inject UserService Users
+@inject NavigationManager Nav
+
+<h2 class="mb-1">Security</h2>
+<p class="text-muted mb-4">Who can sign in to Trackarr.</p>
+
+<h3 class="settings-section-title">Login</h3>
+<p class="mb-4">
+    Signed in as <strong>@_username</strong>. Every page needs this login, except the health check Docker uses.
+</p>
+
+<h3 class="settings-section-title">Change password</h3>
+<div class="row g-3 mb-2" style="max-width: 36rem;">
+    <div class="col-12">
+        <label class="form-label" for="current-password">Current password</label>
+        <input id="current-password" type="password" class="form-control" autocomplete="current-password"
+               @bind="_current"/>
+    </div>
+    <div class="col-12 col-sm-6">
+        <label class="form-label" for="new-password">New password</label>
+        <input id="new-password" type="password" class="form-control" autocomplete="new-password" @bind="_new"/>
+        <div class="form-hint">At least @UserService.MinPasswordLength characters.</div>
+    </div>
+    <div class="col-12 col-sm-6">
+        <label class="form-label" for="confirm-password">Confirm new password</label>
+        <input id="confirm-password" type="password" class="form-control" autocomplete="new-password"
+               @bind="_confirm"/>
+    </div>
+</div>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger" role="alert" style="max-width: 36rem;">@_error</div>
+}
+
+<button class="btn btn-app-primary" @onclick="ChangePasswordAsync" disabled="@_busy">Change password</button>
+<p class="text-secondary small mt-2 mb-4">
+    Changing the password signs out every device, including this one. Sign in again with the new password.
+</p>
+
+<h3 class="settings-section-title">Locked out</h3>
+<p class="text-secondary mb-0">
+    If nobody can sign in, set the environment variable <code>@UserService.ResetVariable=true</code> on the
+    container and restart Trackarr. The login is removed and the next visitor creates a new one, so remove the
+    variable again straight away. Servers, settings and history are kept.
+</p>
+
+@code {
+
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private int _userId;
+    private string _username = string.Empty;
+    private string _current = string.Empty;
+    private string _new = string.Empty;
+    private string _confirm = string.Empty;
+    private string? _error;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState).User;
+        _username = user.Identity?.Name ?? string.Empty;
+        _ = int.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), NumberStyles.None,
+            CultureInfo.InvariantCulture, out _userId);
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        _error = null;
+        if (_new != _confirm)
+        {
+            _error = "The new passwords don't match.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            _error = await Users.ChangePasswordAsync(_userId, _current, _new);
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        if (_error is null)
+            Nav.NavigateTo("login", forceLoad: true);
+    }
+
+}

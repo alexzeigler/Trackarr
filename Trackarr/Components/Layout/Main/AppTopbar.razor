@@ -106,6 +106,18 @@
                     <i class="ti ti-brand-github me-2"></i>
                     GitHub
                 </a>
+                <div class="dropdown-divider"></div>
+                <AuthorizeView>
+                    <span class="dropdown-header">Signed in as @context.User.Identity?.Name</span>
+                </AuthorizeView>
+                @* A plain form post, so the server can clear the sign-in cookie. *@
+                <form method="post" action="logout" class="m-0">
+                    <AntiforgeryToken/>
+                    <button type="submit" class="dropdown-item">
+                        <i class="ti ti-logout me-2"></i>
+                        Log out
+                    </button>
+                </form>
             </div>
         </div>
 

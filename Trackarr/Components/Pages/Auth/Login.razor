@@ -1,0 +1,113 @@
+@page "/login"
+@layout AuthLayout
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@using global::System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using Microsoft.AspNetCore.Http
+@using Trackarr.Services.Auth
+@inject UserService Users
+@inject NavigationManager Nav
+@inject ILogger<Login> Logger
+
+<PageTitle>Sign in · Trackarr</PageTitle>
+
+<div class="card card-md">
+    <div class="card-body">
+        <h2 class="h2 text-center mb-4">Sign in</h2>
+
+        @if (_error is not null)
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
+
+        <EditForm Model="Input" method="post" OnValidSubmit="SignInAsync" FormName="login">
+            <DataAnnotationsValidator/>
+
+            <div class="mb-3">
+                <label class="form-label" for="username">Username</label>
+                <InputText id="username" class="form-control" @bind-Value="Input.Username" autocomplete="username"
+                           autofocus/>
+                <ValidationMessage For="() => Input.Username" class="invalid-feedback d-block"/>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="password">Password</label>
+                <InputText id="password" type="password" class="form-control" @bind-Value="Input.Password"
+                           autocomplete="current-password"/>
+                <ValidationMessage For="() => Input.Password" class="invalid-feedback d-block"/>
+            </div>
+            <div class="mb-3">
+                <label class="form-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="Input.RememberMe"/>
+                    <span class="form-check-label">Keep me signed in on this device</span>
+                </label>
+            </div>
+            <div class="form-footer">
+                <button type="submit" class="btn btn-primary w-100">Sign in</button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+<p class="text-center text-secondary mt-3 small">
+    Forgot the password? Set <code>@UserService.ResetVariable=true</code> on the container and restart Trackarr to
+    create a new login.
+</p>
+
+@code {
+
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm] private LoginInput Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+
+    private string? _error;
+
+    // Back to the page that sent us here, if it's on this site. Otherwise the home page.
+    private string Target => LocalUrl.IsLocal(ReturnUrl) ? ReturnUrl! : Nav.BaseUri;
+
+    protected override void OnInitialized()
+    {
+        Input ??= new LoginInput();
+
+        if (HttpMethods.IsGet(HttpContext.Request.Method) && HttpContext.User.Identity?.IsAuthenticated == true)
+            Nav.NavigateTo(Target);
+    }
+
+    private async Task SignInAsync()
+    {
+        var user = await Users.ValidateCredentialsAsync(Input.Username, Input.Password, HttpContext.RequestAborted);
+        if (user is null)
+        {
+            Logger.LogWarning("Failed sign-in for '{Username}' from {Address}", Input.Username,
+                HttpContext.Connection.RemoteIpAddress);
+            // Slows down password guessing.
+            await Task.Delay(TimeSpan.FromSeconds(1), HttpContext.RequestAborted);
+            _error = "Wrong username or password.";
+            Input.Password = string.Empty;
+            return;
+        }
+
+        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
+            UserService.CreatePrincipal(user, CookieAuthenticationDefaults.AuthenticationScheme),
+            new AuthenticationProperties { IsPersistent = Input.RememberMe });
+
+        Logger.LogInformation("'{Username}' signed in from {Address}", user.Username,
+            HttpContext.Connection.RemoteIpAddress);
+        Nav.NavigateTo(Target, forceLoad: true);
+    }
+
+    private sealed class LoginInput
+    {
+        [Required(ErrorMessage = "Enter your username.")]
+        public string Username { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Enter your password.")]
+        public string Password { get; set; } = string.Empty;
+
+        public bool RememberMe { get; set; } = true;
+    }
+
+}

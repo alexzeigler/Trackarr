@@ -1,0 +1,115 @@
+@page "/setup"
+@layout AuthLayout
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@using global::System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using Microsoft.AspNetCore.Http
+@using Trackarr.Services.Auth
+@inject UserService Users
+@inject NavigationManager Nav
+@inject ILogger<Setup> Logger
+
+<PageTitle>Create a login · Trackarr</PageTitle>
+
+<div class="card card-md">
+    <div class="card-body">
+        <h2 class="h2 text-center mb-2">Create a login</h2>
+        <p class="text-secondary text-center mb-4">
+            Trackarr can remove downloads and change your Radarr and Sonarr settings, so it needs a login. You'll use
+            this to sign in from now on.
+        </p>
+
+        @if (_error is not null)
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
+
+        <EditForm Model="Input" method="post" OnValidSubmit="CreateAsync" FormName="setup">
+            <DataAnnotationsValidator/>
+
+            <div class="mb-3">
+                <label class="form-label" for="username">Username</label>
+                <InputText id="username" class="form-control" @bind-Value="Input.Username" autocomplete="username"
+                           autofocus/>
+                <ValidationMessage For="() => Input.Username" class="invalid-feedback d-block"/>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="password">Password</label>
+                <InputText id="password" type="password" class="form-control" @bind-Value="Input.Password"
+                           autocomplete="new-password"/>
+                <div class="form-hint">At least @UserService.MinPasswordLength characters.</div>
+                <ValidationMessage For="() => Input.Password" class="invalid-feedback d-block"/>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="confirm">Confirm password</label>
+                <InputText id="confirm" type="password" class="form-control" @bind-Value="Input.ConfirmPassword"
+                           autocomplete="new-password"/>
+                <ValidationMessage For="() => Input.ConfirmPassword" class="invalid-feedback d-block"/>
+            </div>
+            <div class="form-footer">
+                <button type="submit" class="btn btn-primary w-100">Create login</button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm] private SetupInput Input { get; set; } = default!;
+
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new SetupInput();
+
+        // Setup is only for the very first login. After that, it's the login page.
+        if (await Users.HasUserAsync(HttpContext.RequestAborted)) Nav.NavigateTo("login");
+    }
+
+    private async Task CreateAsync()
+    {
+        _error = UserService.CheckUsername(Input.Username) ?? UserService.CheckPassword(Input.Password);
+        if (_error is not null) return;
+
+        Trackarr.Core.Auth.User user;
+        try
+        {
+            user = await Users.CreateFirstUserAsync(Input.Username, Input.Password, HttpContext.RequestAborted);
+        }
+        catch (InvalidOperationException)
+        {
+            // Someone else finished setup first.
+            Nav.NavigateTo("login");
+            return;
+        }
+
+        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
+            UserService.CreatePrincipal(user, CookieAuthenticationDefaults.AuthenticationScheme),
+            new AuthenticationProperties { IsPersistent = true });
+
+        Logger.LogInformation("Setup finished from {Address}", HttpContext.Connection.RemoteIpAddress);
+        Nav.NavigateTo(Nav.BaseUri, forceLoad: true);
+    }
+
+    private sealed class SetupInput
+    {
+        [Required(ErrorMessage = "Enter a username.")]
+        [StringLength(UserService.MaxUsernameLength)]
+        public string Username { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Enter a password.")]
+        [StringLength(UserService.MaxPasswordLength, MinimumLength = UserService.MinPasswordLength,
+            ErrorMessage = "Use at least 8 characters.")]
+        public string Password { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Enter the password again.")]
+        [Compare(nameof(Password), ErrorMessage = "The passwords don't match.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+
+}
