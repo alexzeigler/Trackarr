@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -40,13 +41,13 @@ public class StatusMessageDecode
             var title = WebUtility.HtmlEncode(group.Title);
 
             html.Append("<li>");
-            html.Append($"<span class=\"fw-semibold\">{title}</span>");
+            html.Append(CultureInfo.InvariantCulture, $"<span class=\"fw-semibold\">{title}</span>");
 
             if (group.Messages.Count > 0)
             {
                 html.Append("<ul class=\"mt-1 ps-3\">");
 
-                foreach (var message in group.Messages) html.Append($"<li>{WebUtility.HtmlEncode(message)}</li>");
+                foreach (var message in group.Messages) html.Append(CultureInfo.InvariantCulture, $"<li>{WebUtility.HtmlEncode(message)}</li>");
 
                 html.Append("</ul>");
             }

@@ -1,4 +1,5 @@
 ﻿using Trackarr.Core.Exception;
+using System.Globalization;
 
 namespace Trackarr.Services.Diagnostics;
 
@@ -20,9 +21,11 @@ public static class CrashReporter
         {
             Directory.CreateDirectory(CrashDir);
 
-            var path = Path.Combine(CrashDir, $"crash_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}.log");
-            var content =
-                $"Timestamp: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}\nSource: {source}\nType: {ex.GetType().FullName}\nMessage: {ex.Message}\nStackTrace:\n{ex.StackTrace}";
+            // Invariant: "HH:mm:ss" uses the culture's time separator, which ReadAll then couldn't parse back.
+            var path = Path.Combine(CrashDir,
+                string.Create(CultureInfo.InvariantCulture, $"crash_{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}.log"));
+            var content = string.Create(CultureInfo.InvariantCulture,
+                $"Timestamp: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}\nSource: {source}\nType: {ex.GetType().FullName}\nMessage: {ex.Message}\nStackTrace:\n{ex.StackTrace}");
 
             File.WriteAllText(path, content);
         }
@@ -31,6 +34,19 @@ public static class CrashReporter
             LastError =
                 $"{e.GetType().Name}: {e.Message}\nCrashDir: {CrashDir}\nBaseDirectory: {AppContext.BaseDirectory}";
         }
+    }
+
+    /// <summary>
+    ///     "Timestamp: 2026-11-08 14:03:22", UTC. Files from older versions used the server's time separator, which
+    ///     the server's culture still reads.
+    /// </summary>
+    internal static DateTime ParseTimestamp(string line)
+    {
+        var value = line.Replace("Timestamp: ", "", StringComparison.Ordinal);
+        return DateTime.TryParseExact(value, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture,
+            DateTimeStyles.None, out var at)
+            ? at
+            : DateTime.Parse(value, CultureInfo.CurrentCulture);
     }
 
     public static IEnumerable<(string Path, CrashReport Report)> ReadAll()
@@ -46,7 +62,7 @@ public static class CrashReporter
                 var lines = File.ReadAllLines(file);
                 report = new CrashReport
                 {
-                    TimeStamp = DateTime.Parse(lines[0].Replace("Timestamp: ", "")),
+                    TimeStamp = ParseTimestamp(lines[0]),
                     Source = lines[1].Replace("Source: ", ""),
                     ExceptionType = lines[2].Replace("Type: ", ""),
                     Message = lines[3].Replace("Message: ", ""),

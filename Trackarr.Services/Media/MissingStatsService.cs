@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using Trackarr.Core.Media.Missing;
 using Trackarr.Core.Queue;
 using Trackarr.Data;
@@ -45,7 +46,7 @@ public sealed class MissingStatsService(IDbContextFactory<AppDbContext> dbFactor
 
             points.Add(new MissingActivityPoint
             {
-                Label = bucketStart.ToLocalTime().ToString("h tt").ToLower(),
+                Label = bucketStart.ToLocalTime().ToString("h tt", CultureInfo.CurrentCulture).ToLower(CultureInfo.CurrentCulture),
                 Pushed = bucket.Count(e => e.EventType == MissingEventType.SearchPushed),
                 Cascaded = bucket.Count(e => e.EventType == MissingEventType.CascadedToEpisode),
                 Resolved = bucket.Count(e => e.EventType == MissingEventType.Resolved),

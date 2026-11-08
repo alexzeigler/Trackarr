@@ -72,7 +72,7 @@ public static class Utils
 
     public static string DateTimeDisplay(DateTime? value)
     {
-        return value is { } v ? ToLocal(v).ToString(_dateFormat) : "—";
+        return value is { } v ? ToLocal(v).ToString(_dateFormat, CultureInfo.CurrentCulture) : "—";
     }
 
     /// <summary>
@@ -116,7 +116,7 @@ public static class Utils
 
     public static string IntDisplay(int? value)
     {
-        return value?.ToString() ?? "—";
+        return value?.ToString(CultureInfo.CurrentCulture) ?? "—";
     }
 
     public static string EnumDisplay<T>(T? value) where T : struct, Enum
@@ -166,7 +166,7 @@ public static class Utils
     {
         var display = HealthEvaluator.GetDisplayStatus(item);
         var status = string.IsNullOrWhiteSpace(display) ? "Unknown" : display;
-        return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(status.ToLower());
+        return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(status.ToLower(CultureInfo.CurrentCulture));
     }
 
     public static string GetMediaType(DownloadItem item)

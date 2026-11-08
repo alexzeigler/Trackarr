@@ -225,9 +225,18 @@ public partial class Uptime : ComponentBase, IAsyncDisposable
         await Js.InvokeVoidAsync("modalHelper.show", "confirmationModal");
     }
 
-    private async void SendDeleteToDb(int id)
+    // Task, not async void (AUDIT B9): an exception from an async void handler ends the circuit.
+    private async Task SendDeleteToDb(int id)
     {
-        await MediaServerService.DeleteServerAsync(id);
+        try
+        {
+            await MediaServerService.DeleteServerAsync(id);
+        }
+        catch (MediaServerException ex)
+        {
+            _actionError = ex.Message;
+        }
+
         await Js.InvokeVoidAsync("modalHelper.hide", "confirmationModal");
         Nav.NavigateTo("servers");
     }

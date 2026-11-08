@@ -254,7 +254,7 @@
             <input type="number"
                    class="form-control"
                    value="@r.Get()"
-                   @onchange="e => { r.Set(int.TryParse(e.Value?.ToString(), out var v) ? v : r.Get()); MarkDirty(); }"/>
+                   @onchange="e => { r.Set(SettingsService.TryParseInt(e.Value?.ToString(), out var v) ? v : r.Get()); MarkDirty(); }"/>
         </div>
     }
 </div>
@@ -275,8 +275,8 @@
                 <input type="number"
                        step="0.1"
                        class="form-control"
-                       value="@p.GetDecimal!()"
-                       @onchange="e => { p.SetDecimal!(decimal.TryParse(e.Value?.ToString(), out var v) ? v : p.GetDecimal!()); MarkDirty(); }"/>
+                       value="@p.GetDecimal!().ToString(CultureInfo.InvariantCulture)"
+                       @onchange="e => { p.SetDecimal!(SettingsService.TryParseDecimal(e.Value?.ToString(), out var v) ? v : p.GetDecimal!()); MarkDirty(); }"/>
             }
             else if (p.Suffix is not null)
             {
@@ -284,7 +284,7 @@
                     <input type="number"
                            class="form-control"
                            value="@p.Get()"
-                           @onchange="e => { p.Set(int.TryParse(e.Value?.ToString(), out var v) ? v : p.Get()); MarkDirty(); }"/>
+                           @onchange="e => { p.Set(SettingsService.TryParseInt(e.Value?.ToString(), out var v) ? v : p.Get()); MarkDirty(); }"/>
                     <span class="input-group-text">@p.Suffix</span>
                 </div>
             }
@@ -293,7 +293,7 @@
                 <input type="number"
                        class="form-control"
                        value="@p.Get()"
-                       @onchange="e => { p.Set(int.TryParse(e.Value?.ToString(), out var v) ? v : p.Get()); MarkDirty(); }"/>
+                       @onchange="e => { p.Set(SettingsService.TryParseInt(e.Value?.ToString(), out var v) ? v : p.Get()); MarkDirty(); }"/>
             }
         </div>
     }

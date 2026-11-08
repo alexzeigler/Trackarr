@@ -729,7 +729,7 @@ public partial class Queue : ComponentBase
 
         var match = Regex.Match(item.Title, @"S(\d{2,})E(\d{2,})", RegexOptions.IgnoreCase);
 
-        return match.Success ? (int.Parse(match.Groups[1].Value), int.Parse(match.Groups[2].Value)) : null;
+        return match.Success ? (int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture), int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture)) : null;
     }
 
     private static string GetEpisodeSummary(List<DownloadItem> items)

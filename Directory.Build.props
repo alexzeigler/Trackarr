@@ -11,8 +11,7 @@
   <!-- Release builds (CI and Docker) fail on any warning, so warnings can't pile up. Debug builds only show them. -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <!-- Culture-sensitive string handling (AUDIT B3). Fixed in Phase 1; until then these stay warnings. -->
-    <WarningsNotAsErrors>$(WarningsNotAsErrors);CA1304;CA1305;CA1310;CA1311</WarningsNotAsErrors>
+    <!-- Culture-sensitive string handling (CA1304/1305/1310/1311) is an error too since AUDIT B3 was fixed. -->
     <!-- A new security advisory for a package shouldn't block a release the day it's published. It still shows. -->
     <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
   </PropertyGroup>

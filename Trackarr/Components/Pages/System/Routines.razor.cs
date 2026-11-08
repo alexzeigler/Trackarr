@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using System.Globalization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop;
@@ -211,7 +212,7 @@ public partial class Routines : ComponentBase, IDisposable
 
         if (saved is { } applied && key == CleanupKey)
             await SettingsService.SaveCategoryAsync("Maintenance",
-                new Dictionary<string, string> { ["CleanupIntervalHours"] = Math.Max(1, applied / 3600).ToString() });
+                new Dictionary<string, string> { ["CleanupIntervalHours"] = Math.Max(1, applied / 3600).ToString(CultureInfo.InvariantCulture) });
 
         _editingKey = null;
         await Js.InvokeVoidAsync("modalHelper.hide", IntervalModalId);
