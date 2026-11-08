@@ -150,10 +150,13 @@
 
                 <div class="mb-3">
                     <label class="form-label">API Key</label>
+                    @* The saved key never goes into this field, so it never reaches the browser (AUDIT S2). *@
                     <div class="input-group">
                         <input class="form-control @(string.IsNullOrWhiteSpace(Model.ApiKey) ? "is-invalid" : "")"
                                type="@(_showApiKey ? "text" : "password")"
-                               @bind="Model.ApiKey"/>
+                               placeholder="@ApiKeyPlaceholder"
+                               autocomplete="off"
+                               @bind="_apiKeyInput" @bind:after="ApplyApiKey"/>
                         <button class="btn btn-outline-secondary" type="button" @onclick="ToggleApiKey">
                             @if (_showApiKey)
                             {
@@ -182,7 +185,7 @@
                             }
                         </button>
                     </div>
-                    <div class="form-text">Your @Model.ServiceType API key (Settings &gt; General).</div>
+                    <div class="form-text">@ApiKeyHint</div>
                 </div>
 
                 <div class="row g-3 mb-3">

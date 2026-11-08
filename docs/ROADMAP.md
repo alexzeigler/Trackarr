@@ -824,7 +824,7 @@ public sealed class ProtectedStringConverter(IDataProtector protector)
 - **Never send a secret to the browser.** Forms show `••••1a2b` and a "Replace" field. An empty field means "keep the
   current value".
 - The Data Protection keys already live in `/config/keys`. Document that a backup must include that folder, or the
-  secrets can't be read.
+  secrets can't be read. (Done in the README's "Backups" section.)
 
 ### 4.13 Typed settings (A4)
 
@@ -897,7 +897,10 @@ they add *more* secrets and *more* destructive actions.
    its own PR (`v7/phase1-local-access`), because it needs care behind reverse proxies: any proxy header the
    forwarded-headers step didn't handle means "not local" (the CVE-2026-30975 class). The API key waits until there's
    an `/api` to protect.
-2. **Secrets** as in [4.12](#412-secrets-at-rest-s2), with masking in `AddServerModal`.
+2. **Secrets** as in [4.12](#412-secrets-at-rest-s2), with masking in `AddServerModal`. Built in `v7/phase1-secrets`:
+   `SecretProtector` (values marked `dp1:`, so plain v6 values are recognised without relying on exceptions), a
+   `ProtectedDbContextFactory` that hands it to every context, `SecretUpgrade` at startup (then `VACUUM`, because
+   SQLite keeps overwritten values in free pages), and the proxy password as its own encrypted setting.
 3. **`ActionExecutor` and `ActionLog`** ([4.8](#48-the-action-gate)). Route the existing calls through it:
    - `QueueEvaluationRoutine`: blacklist removal and health removal
    - `Queue.razor.cs`: user Remove, deduplicated by download ID (B11)

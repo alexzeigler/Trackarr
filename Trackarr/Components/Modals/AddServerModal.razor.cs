@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Trackarr.Core.Server;
+using Trackarr.Data;
 
 namespace Trackarr.Components.Modals;
 
@@ -31,6 +32,20 @@ public partial class AddServerModal : ComponentBase
     private string _searchMissing = "";
     private bool _showApiKey;
 
+    // What's typed into the API key field. The saved key stays on the server: an empty field keeps it.
+    private string _apiKeyInput = "";
+    private string _savedApiKey = "";
+
+    private string ApiKeyPlaceholder =>
+        _savedApiKey.Length > 0 ? $"Saved key {SecretProtector.Mask(_savedApiKey)}" : "";
+
+    private string ApiKeyHint => (IsEditing, _savedApiKey.Length > 0) switch
+    {
+        (true, true) => "Leave empty to keep the saved key, or paste a new one.",
+        (true, false) => "Paste the API key again: the saved one can't be read (was the keys folder replaced?).",
+        _ => $"Your {Model.ServiceType} API key (Settings > General)."
+    };
+
     private bool HasProfiles { get; set; }
 
     private MediaServer Model { get; set; } = new();
@@ -57,6 +72,18 @@ public partial class AddServerModal : ComponentBase
         _showApiKey = !_showApiKey;
     }
 
+    private void ApplyApiKey()
+    {
+        Model.ApiKey = string.IsNullOrWhiteSpace(_apiKeyInput) ? _savedApiKey : _apiKeyInput.Trim();
+    }
+
+    private void ResetApiKeyField(string? saved)
+    {
+        _savedApiKey = saved ?? "";
+        _apiKeyInput = "";
+        _showApiKey = false;
+    }
+
     public async Task OpenForAdd(ServiceType? type = null)
     {
         type ??= Enum.TryParse<ServiceType>(Settings.GetString("General", "DefaultServerType", "Radarr"),
@@ -80,7 +107,7 @@ public partial class AddServerModal : ComponentBase
         };
 
         TestResult = null;
-        _showApiKey = false;
+        ResetApiKeyField(null);
         HasProfiles = false;
         SyncBehaviorFromModel();
 
@@ -94,6 +121,7 @@ public partial class AddServerModal : ComponentBase
         ServiceType = server.ServiceType;
         await ResetFallbackSelect();
         Model = server.Clone();
+        ResetApiKeyField(server.ApiKey);
         SyncBehaviorFromModel();
         if (server.FallBackProfileId != null)
         {
@@ -114,7 +142,6 @@ public partial class AddServerModal : ComponentBase
             TestResult = null;
         }
 
-        _showApiKey = false;
         await InvokeAsync(StateHasChanged);
         await InitFallbackSelect();
         await Js.InvokeVoidAsync("modalHelper.show", "serverModal");
