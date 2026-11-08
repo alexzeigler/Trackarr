@@ -1,4 +1,4 @@
-﻿namespace Trackarr.Core.Queue;
+﻿namespace Trackarr.Integrations.Media.Arr.Dtos;
 
 public class QueueResponse
 {

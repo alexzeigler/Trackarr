@@ -45,6 +45,13 @@ the same endpoint.
 
 The MockServer's `FixtureRecorder.FileNameFor` and `FixtureHandler.FileNameFor` here must stay the same.
 
+## Hand-written samples
+
+`samples/{radarr,sonarr}/` holds small responses written by hand in the shape of the v3 API, with made-up titles. They
+let `ArrClientTests` test the clients before any recordings exist. They are not recordings: they only contain the fields
+Trackarr reads, so they can't catch a change in a real Radarr or Sonarr. Recordings go in `radarr/` and `sonarr/`
+directly, never in `samples/`.
+
 ## Using them in a test
 
 ```csharp

@@ -945,6 +945,18 @@ and `IsPassiveMode` is only read by `ActionExecutor`, `SettingsService`, the UI 
    `DownloadItem` their own DTOs and mappers, so entities stop carrying `[JsonPropertyName]` (A3).
 3. **Write `IMediaServerReader`, `IMediaServerWriter`, `ArrClientBase`, `RadarrClient` and `SonarrClient`**, tested
    against the Phase 0 fixtures. At this stage they still take today's `MediaServer` entity. Phase 3 changes that.
+
+   Steps 1 and 3, and the DTO move in step 2, are built in `v7/phase2-integrations`. Decisions made along the way:
+   - **The clients return the types `MediaServerService` parses today** (`QualityProfile`, `ServerMetadata`, the
+     records), so the strangling in step 4 can't change what Trackarr reads. The entity DTOs and mappers (A3) land in
+     step 4, when the entities stop being parsed directly.
+   - **`Microsoft.Extensions.Http.Resilience` waits for step 4**, where the clients are first used. Its retries must
+     be limited to GET: retrying a DELETE or a search command could repeat an action.
+   - **No recordings yet.** The client tests use hand-written samples (`Fixtures/samples`). Record the real responses
+     (`Fixtures/README.md`) before step 4: they're what proves the strangling didn't change the parsing.
+   - The planned PRs from here: strangle the reads (status, health, profiles, commands, history), then missing
+     media, then the queue and writes; split what's left (4.7) with a `CommandWatcher`; pages stop calling the
+     *arr apps; typed settings; per-routine loops; delete `MediaServerService`.
 4. **Strangle `MediaServerService`** method by method ([3.3](#33-the-strangler-pattern)). Its HTTP code becomes calls to
    the reader or writer. Suggested order, from easiest to riskiest: system status and health, quality profiles,
    commands and history, missing pages, then the queue.
