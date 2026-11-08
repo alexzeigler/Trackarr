@@ -925,7 +925,9 @@ they add *more* secrets and *more* destructive actions.
    - The UI is **System > Actions**, with a filter by outcome. Filtered to Simulated, it's the F5 dry-run report
      (the daily summary waits for notifications).
 4. **Fix the bugs that get worse with more servers:** B3 (culture), B4 (runner queue), B13 (heartbeat threshold), and
-   B9 (`async void`).
+   B9 (`async void`). Built in `v7/phase1-bugfixes`. CA1304/1305/1310/1311 are now errors in Release builds. The
+   heartbeat disables a server after `HeartbeatRoutine.FailuresBeforeDisable` (3) failures in a row, counted from the
+   status samples. Still to add: dedicated tests for B3's comma and U+2212 values, and for B4's concurrent queueing.
 
 **Done when:** a login is required, keys are encrypted and masked, a test proves Passive Mode never reaches a writer,
 and `IsPassiveMode` is only read by `ActionExecutor`, `SettingsService`, the UI and the evaluator's display restriction.
