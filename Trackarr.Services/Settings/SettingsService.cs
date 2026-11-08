@@ -18,8 +18,16 @@ public class SettingsService(
 #pragma warning restore CA1001
     IDbContextFactory<AppDbContext> dbFactory,
     ILogger<SettingsService> logger,
-    DataChangeBus changeBus)
+    DataChangeBus changeBus,
+    SecretProtector? secrets = null)
 {
+    /// <summary>
+    ///     Settings stored encrypted (AUDIT S2). The cache holds the plain value, so Get* calls are unchanged. Pages
+    ///     must never put one into a form: show <see cref="SecretProtector.Mask" /> and treat an empty field as "keep".
+    /// </summary>
+    public static readonly IReadOnlySet<(string Category, string Key)> SecretKeys =
+        new HashSet<(string, string)> { ("Network", "ProxyPassword") };
+
     #region Defaults Registry
 
     private static readonly Dictionary<(string Category, string Key), (string Value, string Type)> Defaults = new()
@@ -46,6 +54,8 @@ public class SettingsService(
         [("Network", "ReverseProxy")] = ("false", "bool"),
         [("Network", "TrustedProxies")] = ("", "string"),
         [("Network", "ProxyUrl")] = ("", "string"),
+        [("Network", "ProxyUsername")] = ("", "string"),
+        [("Network", "ProxyPassword")] = ("", "string"),
         [("Network", "ProxyBypassLocal")] = ("true", "bool"),
 
         // Security. The login itself is in the Users table. These keys are LocalAccess's constants.
@@ -137,7 +147,7 @@ public class SettingsService(
         var existing = await db.AppSettings.AsNoTracking().ToListAsync();
 
         foreach (var setting in existing)
-            _cache[$"{setting.Category}:{setting.Key}"] = setting;
+            _cache[$"{setting.Category}:{setting.Key}"] = Plain(setting);
 
         var inserted = 0;
         foreach (var (key, def) in Defaults)
@@ -157,6 +167,63 @@ public class SettingsService(
 
         logger.LogInformation("Settings initialized: {Loaded} loaded, {Inserted} defaults seeded", existing.Count,
             inserted);
+
+        await MoveProxyCredentialsAsync();
+    }
+
+    /// <summary>
+    ///     Up to v6 the proxy username and password could only go inside the proxy URL (http://user:pass@proxy:3128),
+    ///     stored in plain text. They have their own settings now, with the password encrypted.
+    /// </summary>
+    private async Task MoveProxyCredentialsAsync()
+    {
+        if (!TrySplitProxyCredentials(GetString("Network", "ProxyUrl"), out var url, out var user, out var password))
+            return;
+
+        await SaveCategoryAsync("Network", new Dictionary<string, string>
+        {
+            ["ProxyUrl"] = url, ["ProxyUsername"] = user, ["ProxyPassword"] = password
+        });
+
+        // The old URL, password included, would otherwise linger in the file's free space.
+        await using (var db = await dbFactory.CreateDbContextAsync())
+            await SecretUpgrade.ScrubAsync(db);
+
+        logger.LogInformation("Moved the proxy username and password out of the proxy URL into their own settings");
+    }
+
+    /// <summary>
+    ///     Splits "http://user:pass@proxy:3128" into the URL without them, the username and the password. False when the
+    ///     value isn't a URL or has no username in it.
+    /// </summary>
+    public static bool TrySplitProxyCredentials(string? value, out string url, out string user, out string password)
+    {
+        url = value?.Trim() ?? "";
+        user = password = "";
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || string.IsNullOrEmpty(uri.UserInfo)) return false;
+
+        var parts = uri.UserInfo.Split(':', 2);
+        user = Uri.UnescapeDataString(parts[0]);
+        password = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : "";
+        url = $"{uri.Scheme}://{uri.Authority}{(uri.PathAndQuery == "/" ? "" : uri.PathAndQuery)}";
+        return true;
+    }
+
+    private string Stored(string category, string key, string value)
+    {
+        return secrets is not null && SecretKeys.Contains((category, key)) ? secrets.Protect(value) : value;
+    }
+
+    // A cache copy with a secret's plain value. The row itself keeps the stored (encrypted) value.
+    private AppSetting Plain(AppSetting setting)
+    {
+        if (secrets is null || !SecretKeys.Contains((setting.Category, setting.Key))) return setting;
+
+        return new AppSetting
+        {
+            Category = setting.Category, Key = setting.Key, Type = setting.Type,
+            Value = secrets.Unprotect(setting.Value)
+        };
     }
 
     public async Task SaveCategoryAsync(string category, Dictionary<string, string> values)
@@ -170,14 +237,15 @@ public class SettingsService(
 
             foreach (var (key, value) in values)
             {
+                var stored = Stored(category, key, value);
                 if (lookup.TryGetValue(key, out var existing))
                 {
-                    existing.Value = value;
+                    existing.Value = stored;
                 }
                 else
                 {
                     var type = Defaults.TryGetValue((category, key), out var def) ? def.Type : "string";
-                    var entity = new AppSetting { Category = category, Key = key, Value = value, Type = type };
+                    var entity = new AppSetting { Category = category, Key = key, Value = stored, Type = type };
                     db.AppSettings.Add(entity);
                 }
 

@@ -113,6 +113,14 @@ A new image is published to Docker Hub only when there's a release. To update:
 `confinedfish/trackarr:6`), or pin an exact version such as `6.0.1`. Release notes are on the
 [Releases](https://github.com/alexzeigler/Trackarr/releases) page and in Trackarr under System > Releases.
 
+### Backups
+
+Back up the **whole** `/config` folder, not just `trackarr.db`. API keys and the proxy password are stored encrypted
+with the keys in `/config/keys`. A database restored without that folder still works, but every server's API key has
+to be entered again (the log says how many can't be read). Trackarr also copies the database to `/config/backups`
+before each upgrade. Copies made before encryption existed (up to v6) hold the API keys in plain text, so delete them
+once you're happy with the upgrade.
+
 ### First-time setup
 
 1. Open Trackarr in your browser and create a login. Every page needs it from then on.

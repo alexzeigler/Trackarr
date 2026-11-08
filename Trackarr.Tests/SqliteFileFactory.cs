@@ -14,11 +14,17 @@ namespace Trackarr.Tests;
 internal sealed class SqliteFileFactory : IDbContextFactory<AppDbContext>, IDisposable
 {
     private readonly DbContextOptions<AppDbContext> _options;
+    private readonly SecretProtector? _secrets;
 
     public string DbPath { get; }
 
-    public SqliteFileFactory()
+    /// <summary>Options for a context that sees the stored values, with no secrets protector.</summary>
+    public DbContextOptions<AppDbContext> Options => _options;
+
+    /// <param name="secrets">Encrypts secret columns, as the app does. Null stores them as given.</param>
+    public SqliteFileFactory(SecretProtector? secrets = null)
     {
+        _secrets = secrets;
         DbPath = Path.Combine(Path.GetTempPath(), $"trackarr-test-{Guid.NewGuid():N}.db");
 
         var connectionString = new SqliteConnectionStringBuilder
@@ -34,7 +40,7 @@ internal sealed class SqliteFileFactory : IDbContextFactory<AppDbContext>, IDisp
 
     public AppDbContext CreateDbContext()
     {
-        return new AppDbContext(_options);
+        return new AppDbContext(_options, _secrets);
     }
 
     public Task<AppDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)

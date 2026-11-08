@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -73,6 +74,27 @@ public sealed class V6DatabaseUpgradeTests : IDisposable
         Assert.Equal("v6 Radarr", await ScalarAsync<string>(connection, "SELECT Name FROM MediaServers"));
         Assert.Equal("ok", await ScalarAsync<string>(connection, "PRAGMA integrity_check"));
         Assert.Null(await ScalarOrNullAsync(connection, "PRAGMA foreign_key_check"));
+    }
+
+    [Fact]
+    public async Task V6Database_ApiKeysAreEncryptedAfterTheUpgrade()
+    {
+        // v6 stored API keys in plain text. Startup runs SecretUpgrade right after the migrations.
+        await using (var db = new AppDbContext(_options))
+            await db.GetService<IMigrator>().MigrateAsync(V6Migration);
+        await SeedEveryTableAsync(); // ApiKey is "x"
+
+        var secrets = new SecretProtector(new EphemeralDataProtectionProvider());
+        await using (var db = new AppDbContext(_options, secrets))
+        {
+            await db.Database.MigrateAsync();
+            Assert.Equal((1, 0), await SecretUpgrade.ProtectExistingAsync(db, secrets));
+            Assert.Equal("x", (await db.MediaServers.SingleAsync()).ApiKey);
+        }
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        Assert.StartsWith(SecretProtector.Prefix, await ScalarAsync<string>(connection, "SELECT ApiKey FROM MediaServers"));
     }
 
     [Fact]

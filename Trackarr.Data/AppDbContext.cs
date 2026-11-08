@@ -1,5 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Trackarr.Core.Auth;
 using Trackarr.Core.Event;
 using Trackarr.Core.Health;
@@ -14,8 +16,24 @@ using Trackarr.Core.Settings;
 
 namespace Trackarr.Data;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+/// <param name="options">Connection options.</param>
+/// <param name="secrets">
+///     Encrypts secret columns. The app always passes one (see <see cref="ProtectedDbContextFactory" />). Without one,
+///     as in most tests and the design-time factory, they're stored as given.
+/// </param>
+public class AppDbContext(DbContextOptions<AppDbContext> options, SecretProtector? secrets = null)
+    : DbContext(options)
 {
+    /// <summary>Encrypts secret columns, or null to store them as given.</summary>
+    public SecretProtector? Secrets { get; } = secrets;
+
+    // EF Core builds the model once per cache key. With the converter in it, contexts with different protectors (or
+    // none) need different models.
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.ReplaceService<IModelCacheKeyFactory, SecretsModelCacheKeyFactory>();
+    }
+
     #region Entity Configuration
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -30,6 +48,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(e => e.Host).IsRequired().HasMaxLength(1000);
             entity.Property(e => e.Port).IsRequired();
             entity.Property(e => e.ApiKey).HasMaxLength(1000);
+            if (Secrets is not null)
+                entity.Property(e => e.ApiKey).HasConversion((ValueConverter)Secrets.Converter);
             entity.Property(e => e.FallBackProfileId);
 
             entity.HasOne(e => e.Metadata).WithOne().HasForeignKey<ServerMetadata>(m => m.ServerId)

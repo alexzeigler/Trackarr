@@ -109,12 +109,12 @@
     <div class="col-12 col-lg-8">
         <label class="form-label"
                data-bs-toggle="tooltip"
-               title="Proxy for connections to your servers, e.g. http://proxy:3128 or socks5://proxy:1080. Credentials can go in the URL: http://user:pass@proxy:3128">
+               title="Proxy for connections to your servers, e.g. http://proxy:3128 or socks5://proxy:1080. A pasted http://user:pass@proxy:3128 is split into the fields below">
             Proxy URL
             <i class="ti ti-info-circle ms-1 opacity-50"></i>
         </label>
         <input class="form-control @(ProxyUrlValid ? "" : "is-invalid")" placeholder="No proxy"
-               @bind="_proxyUrl" @bind:after="MarkDirty"/>
+               @bind="_proxyUrl" @bind:after="ProxyUrlChanged"/>
     </div>
     <div class="col-12 col-lg-4">
         <label class="form-label d-block"
@@ -129,6 +129,24 @@
             <span class="form-check-label">Bypass proxy for local addresses</span>
         </label>
     </div>
+    <div class="col-12 col-lg-4">
+        <label class="form-label" for="proxy-username">Username</label>
+        <input id="proxy-username" class="form-control" placeholder="None" autocomplete="off"
+               disabled="@string.IsNullOrWhiteSpace(_proxyUrl)"
+               @bind="_proxyUser" @bind:after="MarkDirty"/>
+    </div>
+    <div class="col-12 col-lg-4">
+        @* The saved password never goes into this field (AUDIT S2). It's stored encrypted. *@
+        <label class="form-label" for="proxy-password">Password</label>
+        <input id="proxy-password" type="password" class="form-control" autocomplete="new-password"
+               placeholder="@(_hasSavedPassword ? "Saved ••••" : "")"
+               disabled="@(string.IsNullOrWhiteSpace(_proxyUrl) || string.IsNullOrWhiteSpace(_proxyUser))"
+               @bind="_proxyPassword" @bind:after="MarkDirty"/>
+        @if (_hasSavedPassword)
+        {
+            <div class="form-text">Leave empty to keep the saved password.</div>
+        }
+    </div>
 </div>
 
 @code {
@@ -141,8 +159,13 @@
     private string _trustedProxies = "";
     private string _proxyUrl = "";
     private bool _proxyBypassLocal;
+    private string _proxyUser = "";
 
-    private (int, string, string, bool, string, string, bool) _orig;
+    // A new password typed in. Empty keeps the saved one, which stays on the server.
+    private string _proxyPassword = "";
+    private bool _hasSavedPassword;
+
+    private (int, string, string, bool, string, string, bool, string, string) _orig;
     private List<string> _invalidProxies = [];
 
     private bool PortValid => _port is > 0 and <= 65535;
@@ -190,13 +213,37 @@
         _trustedProxies = SettingsService.GetString("Network", "TrustedProxies", "");
         _proxyUrl = SettingsService.GetString("Network", "ProxyUrl", "");
         _proxyBypassLocal = SettingsService.GetBool("Network", "ProxyBypassLocal", true);
+        _proxyUser = SettingsService.GetString("Network", "ProxyUsername", "");
+        _proxyPassword = "";
+        _hasSavedPassword = SettingsService.GetString("Network", "ProxyPassword", "").Length > 0;
         _orig = Snapshot();
         Validate();
     }
 
-    private (int, string, string, bool, string, string, bool) Snapshot()
+    private (int, string, string, bool, string, string, bool, string, string) Snapshot()
     {
-        return (_port, _bindAddress, _urlBase, _reverseProxy, _trustedProxies, _proxyUrl, _proxyBypassLocal);
+        return (_port, _bindAddress, _urlBase, _reverseProxy, _trustedProxies, _proxyUrl, _proxyBypassLocal,
+            _proxyUser, _proxyPassword);
+    }
+
+    // A pasted http://user:pass@proxy:3128 goes into the three fields, so the password isn't kept in the URL.
+    private void ProxyUrlChanged()
+    {
+        if (SettingsService.TrySplitProxyCredentials(_proxyUrl, out var url, out var user, out var password))
+        {
+            _proxyUrl = url;
+            _proxyUser = user;
+            _proxyPassword = password;
+        }
+
+        MarkDirty();
+    }
+
+    // No username means no password. Otherwise a typed password replaces the saved one.
+    private string PasswordToSave()
+    {
+        if (string.IsNullOrWhiteSpace(_proxyUser)) return "";
+        return _proxyPassword.Length > 0 ? _proxyPassword : SettingsService.GetString("Network", "ProxyPassword", "");
     }
 
     private void Validate()
@@ -225,7 +272,9 @@
             ["ReverseProxy"] = _reverseProxy.ToString(),
             ["TrustedProxies"] = _trustedProxies.Trim(),
             ["ProxyUrl"] = _proxyUrl.Trim(),
-            ["ProxyBypassLocal"] = _proxyBypassLocal.ToString()
+            ["ProxyBypassLocal"] = _proxyBypassLocal.ToString(),
+            ["ProxyUsername"] = _proxyUser.Trim(),
+            ["ProxyPassword"] = PasswordToSave()
         });
         LoadValues();
     }

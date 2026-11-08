@@ -1039,8 +1039,9 @@ public class MediaServerService(
         if (server is null)
             return;
 
+        // The server is tracked, so only the fields the update changed are written. Marking the whole row modified
+        // would also rewrite the encrypted API key on every heartbeat, and blank it for good if it can't be decrypted.
         update(server);
-        db.Entry(server).State = EntityState.Modified;
         await db.SaveChangesAsync();
         changeBus.NotifyChanged();
     }

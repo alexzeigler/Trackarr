@@ -87,7 +87,10 @@ var hosting = HostingOptions.Load(connectionString, builder.Configuration["urls"
 builder.WebHost.UseUrls(hosting.ListenUrls);
 builder.Services.AddSingleton(hosting);
 
-builder.Services.AddDbContextFactory<AppDbContext>(options =>
+// API keys are encrypted in the database with the Data Protection keys above (AUDIT S2), so every context comes from
+// a factory that hands it the protector.
+builder.Services.AddSingleton<SecretProtector>();
+builder.Services.AddDbContextFactory<AppDbContext, ProtectedDbContextFactory>(options =>
 {
     options.UseSqlite(connectionString, sqlite => { sqlite.CommandTimeout(30); });
 });
@@ -142,8 +145,14 @@ static SocketsHttpHandler CreateMediaServerHandler(IServiceProvider sp, bool acc
             BypassProxyOnLocal = settings.GetBool("Network", "ProxyBypassLocal", true)
         };
 
-        // http://user:pass@proxy:3128 style credentials.
-        if (!string.IsNullOrEmpty(proxyUri.UserInfo))
+        // Username and password are their own settings (the password encrypted). A URL with user:pass@ in it still
+        // works, though the settings page and the startup upgrade move those into the fields.
+        var proxyUser = settings.GetString("Network", "ProxyUsername", "");
+        if (proxyUser.Length > 0)
+        {
+            proxy.Credentials = new NetworkCredential(proxyUser, settings.GetString("Network", "ProxyPassword", ""));
+        }
+        else if (!string.IsNullOrEmpty(proxyUri.UserInfo))
         {
             var parts = Uri.UnescapeDataString(proxyUri.UserInfo).Split(':', 2);
             proxy.Credentials = new NetworkCredential(parts[0], parts.Length > 1 ? parts[1] : "");
@@ -237,6 +246,17 @@ using (var scope = app.Services.CreateScope())
     }
 
     await db.Database.MigrateAsync();
+
+    // API keys saved before encryption existed are encrypted now. Keys that can't be decrypted mean the keys folder
+    // was lost or replaced: those servers need their API key entered again.
+    var (encrypted, unreadable) = await SecretUpgrade.ProtectExistingAsync(db,
+        scope.ServiceProvider.GetRequiredService<SecretProtector>());
+    if (encrypted > 0)
+        app.Logger.LogInformation("Encrypted {Count} API key(s) that were stored in plain text", encrypted);
+    if (unreadable > 0)
+        app.Logger.LogError("{Count} API key(s) can't be decrypted. The keys folder ({Path}) is missing or isn't the " +
+                            "one they were saved with. Restore it, or enter those API keys again under Servers",
+            unreadable, dataProtectionPath);
 
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
     // No busy_timeout pragma: it only applied to this one pooled connection. Microsoft.Data.Sqlite already retries
