@@ -2,7 +2,13 @@
 <Router AppAssembly="typeof(Program).Assembly"
         NotFoundPage="typeof(NotFound)">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)"/>
+        @* Pages are [Authorize] by default (Pages/_Imports.razor). An open page whose login has been revoked shows
+           NotAuthorized, which sends it to the login page. *@
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">
+            <NotAuthorized>
+                <RedirectToLogin/>
+            </NotAuthorized>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1"/>
     </Found>
 </Router>

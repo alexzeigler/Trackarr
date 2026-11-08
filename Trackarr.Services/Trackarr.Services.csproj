@@ -7,6 +7,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
     <PackageReference Include="Microsoft.Extensions.Http"/>
+    <!-- PasswordHasher for the Trackarr login. -->
+    <PackageReference Include="Microsoft.Extensions.Identity.Core"/>
   </ItemGroup>
 
   <ItemGroup>

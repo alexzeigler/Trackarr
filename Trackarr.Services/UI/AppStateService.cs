@@ -25,7 +25,8 @@ public sealed class AppStateService : IAsyncDisposable
         new("/settings/blacklist", "Blacklist", [new BreadcrumbSegment("Settings", "/settings/blacklist")]),
         new("/settings/services", "Servers", [new BreadcrumbSegment("Settings", "/settings/services")]),
         new("/settings/maintenance", "Maintenance", [new BreadcrumbSegment("Settings", "/settings/maintenance")]),
-        new("/settings/network", "Network", [new BreadcrumbSegment("Settings", "/settings/network")])
+        new("/settings/network", "Network", [new BreadcrumbSegment("Settings", "/settings/network")]),
+        new("/settings/security", "Security", [new BreadcrumbSegment("Settings", "/settings/security")])
     ];
 
     private readonly DataChangeBus _bus;

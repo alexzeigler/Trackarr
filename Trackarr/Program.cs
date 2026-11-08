@@ -1,14 +1,21 @@
 using System.Net;
 using System.Reflection;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Trackarr;
+using Trackarr.Auth;
 using Trackarr.Components;
 using Trackarr.Core.Routine;
 using Trackarr.Data;
 using Trackarr.Routines;
+using Trackarr.Services.Auth;
 using Trackarr.Services.Diagnostics;
 using Trackarr.Services.Media;
 using Trackarr.Services.Routines;
@@ -21,6 +28,35 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddInMemoryCollection();
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+
+// Login (AUDIT S1). Every page needs a signed-in user unless it says [AllowAnonymous]. The cookie is checked
+// against the user's security stamp on every request, so a password change or TRACKARR_RESET_AUTH signs everyone
+// out.
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = "Trackarr.Auth";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.LoginPath = "/login";
+        options.AccessDeniedPath = "/login";
+        options.ExpireTimeSpan = TimeSpan.FromDays(30);
+        options.SlidingExpiration = true;
+        options.Events.OnValidatePrincipal = async context =>
+        {
+            var users = context.HttpContext.RequestServices.GetRequiredService<UserService>();
+            if (await users.IsCurrentAsync(context.Principal, context.HttpContext.RequestAborted)) return;
+
+            context.RejectPrincipal();
+            await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        };
+    });
+builder.Services.AddAuthorizationBuilder()
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingAuthStateProvider>();
+builder.Services.AddSingleton<UserService>();
 
 var connectionString = ResolveConnectionString(builder);
 
@@ -201,6 +237,16 @@ using (var scope = app.Services.CreateScope())
     await eventService.IngestCrashReportsAsync();
 }
 
+// Locked out: TRACKARR_RESET_AUTH=true removes the login, and the next visitor gets the setup page.
+if (string.Equals(Environment.GetEnvironmentVariable(UserService.ResetVariable), "true",
+        StringComparison.OrdinalIgnoreCase))
+{
+    var removed = await app.Services.GetRequiredService<UserService>().ResetAsync();
+    app.Logger.LogWarning("{Variable} is set: removed {Count} login(s). Open Trackarr to create a new one, then " +
+                          "remove {Variable} so the next restart doesn't remove it again", UserService.ResetVariable,
+        removed, UserService.ResetVariable);
+}
+
 var settingsService = app.Services.GetRequiredService<SettingsService>();
 await settingsService.InitializeAsync();
 Utils.Configure(settingsService);
@@ -211,19 +257,46 @@ settingsService.OnSettingsChanged += () => ApplyConsoleLogLevel(app.Configuratio
 
 if (app.Environment.IsDevelopment()) app.UseHttpsRedirection();
 
+// Static files come before authentication: the login page needs its CSS and scripts.
+app.UseStaticFiles();
+
+// Until the first login exists, every page goes to the setup page.
+app.Use(async (context, next) =>
+{
+    if (IsPageRequest(context.Request) && !context.Request.Path.StartsWithSegments("/setup") &&
+        !await context.RequestServices.GetRequiredService<UserService>().HasUserAsync(context.RequestAborted))
+    {
+        context.Response.Redirect($"{context.Request.PathBase}/setup");
+        return;
+    }
+
+    await next();
+});
+
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseAntiforgery();
 
-app.UseStaticFiles();
-app.MapStaticAssets();
+app.MapStaticAssets().AllowAnonymous();
 
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+
+// The antiforgery middleware only records whether the token is valid, and this endpoint binds no form that would
+// reject a bad one, so it checks the token itself. Otherwise another site could sign people out.
+app.MapPost("/logout", async (HttpContext context, IAntiforgery antiforgery) =>
+{
+    if (!await antiforgery.IsRequestValidAsync(context)) return Results.BadRequest();
+
+    await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.LocalRedirect("~/login");
+}).AllowAnonymous().DisableAntiforgery();
 
 // For the Docker HEALTHCHECK: healthy when the app is up and the database opens.
 app.MapGet("/health", async (IDbContextFactory<AppDbContext> dbFactory, CancellationToken ct) =>
 {
     await using var db = await dbFactory.CreateDbContextAsync(ct);
     return await db.Database.CanConnectAsync(ct) ? Results.Text("Healthy") : Results.StatusCode(503);
-}).ExcludeFromDescription();
+}).AllowAnonymous().ExcludeFromDescription();
 
 if (CrashReporter.LastError is not null)
     Console.Error.WriteLine($"[CrashReporter] {CrashReporter.LastError}");
@@ -242,6 +315,16 @@ app.Logger.LogInformation("Listening on {Urls}{Base}", hosting.ListenUrls,
 
 app.Run();
 return;
+
+// A browser asking for a page, as opposed to a file, the Blazor connection or the health check.
+static bool IsPageRequest(HttpRequest request)
+{
+    if (!HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method)) return false;
+
+    var path = request.Path.Value ?? "/";
+    return !path.StartsWith("/_", StringComparison.Ordinal) && !Path.HasExtension(path) &&
+           !request.Path.StartsWithSegments("/health");
+}
 
 static void ApplyConsoleLogLevel(IConfiguration configuration, SettingsService settings)
 {
