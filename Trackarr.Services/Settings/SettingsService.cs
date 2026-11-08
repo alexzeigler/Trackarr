@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Data;
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Trackarr.Core.Health;
@@ -145,7 +146,18 @@ public class SettingsService(
     public async Task InitializeAsync()
     {
         await using var db = await dbFactory.CreateDbContextAsync();
-        var existing = await db.AppSettings.AsNoTracking().ToListAsync();
+        var existing = await db.AppSettings.ToListAsync();
+
+        // Numbers an older version wrote in the server's culture ("1,5") are rewritten as "1.5" once.
+        var normalized = 0;
+        foreach (var setting in existing)
+        {
+            var value = Normalize(TypeOf(setting.Category, setting.Key), setting.Value);
+            if (value == setting.Value) continue;
+
+            setting.Value = value;
+            normalized++;
+        }
 
         foreach (var setting in existing)
             _cache[$"{setting.Category}:{setting.Key}"] = Plain(setting);
@@ -163,11 +175,11 @@ public class SettingsService(
             inserted++;
         }
 
-        if (inserted > 0)
+        if (inserted > 0 || normalized > 0)
             await db.SaveChangesAsync();
 
-        logger.LogInformation("Settings initialized: {Loaded} loaded, {Inserted} defaults seeded", existing.Count,
-            inserted);
+        logger.LogInformation("Settings initialized: {Loaded} loaded, {Inserted} defaults seeded, {Normalized} " +
+                              "numbers rewritten in the invariant format", existing.Count, inserted, normalized);
 
         await MoveProxyCredentialsAsync();
     }
@@ -236,8 +248,10 @@ public class SettingsService(
             var dbSettings = await db.AppSettings.Where(s => s.Category == category).ToListAsync();
             var lookup = dbSettings.ToDictionary(s => s.Key);
 
-            foreach (var (key, value) in values)
+            foreach (var (key, raw) in values)
             {
+                var type = TypeOf(category, key);
+                var value = Normalize(type, raw);
                 var stored = Stored(category, key, value);
                 if (lookup.TryGetValue(key, out var existing))
                 {
@@ -245,7 +259,6 @@ public class SettingsService(
                 }
                 else
                 {
-                    var type = Defaults.TryGetValue((category, key), out var def) ? def.Type : "string";
                     var entity = new AppSetting { Category = category, Key = key, Value = stored, Type = type };
                     db.AppSettings.Add(entity);
                 }
@@ -255,7 +268,7 @@ public class SettingsService(
                     Category = category,
                     Key = key,
                     Value = value,
-                    Type = Defaults.TryGetValue((category, key), out var d) ? d.Type : "string"
+                    Type = type
                 };
             }
 
@@ -285,7 +298,7 @@ public class SettingsService(
 
     public int GetInt(string category, string key, int defaultValue = 0)
     {
-        return _cache.TryGetValue($"{category}:{key}", out var s) && int.TryParse(s.Value, out var v)
+        return _cache.TryGetValue($"{category}:{key}", out var s) && TryParseInt(s.Value, out var v)
             ? v
             : defaultValue;
     }
@@ -299,9 +312,59 @@ public class SettingsService(
 
     public decimal GetDecimal(string category, string key, decimal defaultValue = 0m)
     {
-        return _cache.TryGetValue($"{category}:{key}", out var s) && decimal.TryParse(s.Value, out var v)
+        return _cache.TryGetValue($"{category}:{key}", out var s) && TryParseDecimal(s.Value, out var v)
             ? v
             : defaultValue;
+    }
+
+    #endregion
+
+    #region Number Format (AUDIT B3)
+
+    // No thousands separator: under the invariant culture "1,5" would otherwise parse as 15.
+    private const NumberStyles DecimalStyles = NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite |
+                                               NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint;
+
+    /// <summary>
+    ///     Numbers are stored the same way whatever the server's language: "1.5". Before v7 they were written with
+    ///     the server's culture, so a German or French server stored "1,5". That still reads as 1.5.
+    /// </summary>
+    public static bool TryParseDecimal(string? value, out decimal result)
+    {
+        var clean = Clean(value);
+        if (decimal.TryParse(clean, DecimalStyles, CultureInfo.InvariantCulture, out result)) return true;
+        return clean is not null &&
+               decimal.TryParse(clean.Replace(',', '.'), DecimalStyles, CultureInfo.InvariantCulture, out result);
+    }
+
+    public static bool TryParseInt(string? value, out int result)
+    {
+        return int.TryParse(Clean(value), NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
+    }
+
+    // Some cultures (Swedish, for one) write the minus sign as U+2212 rather than '-'.
+    private static string? Clean(string? value)
+    {
+        return value?.Trim().Replace('−', '-');
+    }
+
+    /// <summary>
+    ///     The value as stored: numbers in the invariant format whatever form they arrive in, everything else as is.
+    ///     Pages can pass <c>value.ToString()</c> and still store "1.5" on a server set to German.
+    /// </summary>
+    private static string Normalize(string type, string value)
+    {
+        return type switch
+        {
+            "decimal" when TryParseDecimal(value, out var d) => d.ToString(CultureInfo.InvariantCulture),
+            "int" when TryParseInt(value, out var i) => i.ToString(CultureInfo.InvariantCulture),
+            _ => value
+        };
+    }
+
+    private static string TypeOf(string category, string key)
+    {
+        return Defaults.TryGetValue((category, key), out var def) ? def.Type : "string";
     }
 
     #endregion

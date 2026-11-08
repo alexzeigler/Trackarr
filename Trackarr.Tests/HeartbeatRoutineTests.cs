@@ -36,7 +36,7 @@ public class HeartbeatRoutineTests
         };
 
     [Fact]
-    public async Task ExecuteAsync_ServerUnreachable_DisablesServer()
+    public async Task ExecuteAsync_ServerUnreachable_DisablesServer_AfterThreeFailuresInARow()
     {
         using var factory = new SqliteInMemoryFactory();
         var httpFactory = new SwitchableHttpClientFactory();
@@ -48,12 +48,37 @@ public class HeartbeatRoutineTests
         httpFactory.Handler.Fail = true;
 
         var routine = new HeartbeatRoutine(service, NullLogger<HeartbeatRoutine>.Instance);
+        for (var run = 1; run < HeartbeatRoutine.FailuresBeforeDisable; run++)
+        {
+            var early = (await routine.ExecuteAsync(CancellationToken.None)).Message;
+            Assert.True((await service.GetServerByIdAsync(server.Id))!.IsEnabled, $"disabled after {run} failure(s)");
+            Assert.Contains("1 not responding", early);
+        }
+
         var result = (await routine.ExecuteAsync(CancellationToken.None)).Message;
 
-        var updated = await service.GetServerByIdAsync(server.Id);
-
-        Assert.False(updated!.IsEnabled);
+        Assert.False((await service.GetServerByIdAsync(server.Id))!.IsEnabled);
         Assert.Contains("1 disabled", result);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_OneBlipBetweenSuccesses_NeverDisables()
+    {
+        // AUDIT B13: a single failed ping (DNS blip, Radarr restarting) used to disable the server.
+        using var factory = new SqliteInMemoryFactory();
+        var httpFactory = new SwitchableHttpClientFactory();
+        var service = CreateService(factory, httpFactory);
+
+        var server = NewServer("Flaky Radarr");
+        await service.CreateServerAsync(server);
+        var routine = new HeartbeatRoutine(service, NullLogger<HeartbeatRoutine>.Instance);
+
+        foreach (var fail in new[] { true, true, false, true, true, false })
+        {
+            httpFactory.Handler.Fail = fail;
+            await routine.ExecuteAsync(CancellationToken.None);
+            Assert.True((await service.GetServerByIdAsync(server.Id))!.IsEnabled);
+        }
     }
 
     [Fact]
@@ -160,7 +185,8 @@ public class HeartbeatRoutineTests
         httpFactory.Handler.Fail = true;
 
         var routine = new HeartbeatRoutine(service, NullLogger<HeartbeatRoutine>.Instance);
-        await routine.ExecuteAsync(CancellationToken.None);
+        for (var run = 0; run < HeartbeatRoutine.FailuresBeforeDisable; run++)
+            await routine.ExecuteAsync(CancellationToken.None);
 
         var events = await service.GetRecentHealthEventsAsync(server.Id, 10);
 

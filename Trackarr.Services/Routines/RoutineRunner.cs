@@ -112,6 +112,9 @@ public sealed class RoutineRunner(
 
     private readonly SemaphoreSlim _lock = new(1, 1);
 
+    // Pages queue runs from their own threads while the runner reads the queue (AUDIT B4), so every use of it takes
+    // _queueLock. Queue<T> on its own can corrupt or throw under concurrent use.
+    private readonly Lock _queueLock = new();
     private readonly Queue<string> _manualQueue = new();
 
     // Swapped as a whole (never changed in place) so readers on other threads never see a half-built list.
@@ -125,8 +128,26 @@ public sealed class RoutineRunner(
 
     private void Enqueue(string key)
     {
-        if (!_manualQueue.Contains(key))
-            _manualQueue.Enqueue(key);
+        lock (_queueLock)
+        {
+            if (!_manualQueue.Contains(key))
+                _manualQueue.Enqueue(key);
+        }
+    }
+
+    private string? NextQueued()
+    {
+        lock (_queueLock)
+            return _manualQueue.TryPeek(out var key) ? key : null;
+    }
+
+    private void DequeueIfNext(string key)
+    {
+        lock (_queueLock)
+        {
+            if (_manualQueue.TryPeek(out var next) && next == key)
+                _manualQueue.Dequeue();
+        }
     }
 
     public void Load(List<RoutineDefinition> definitions)
@@ -144,7 +165,8 @@ public sealed class RoutineRunner(
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            _manualQueue.Clear();
+            lock (_queueLock)
+                _manualQueue.Clear();
             await wipe();
 
             foreach (var handler in handlers)
@@ -168,17 +190,32 @@ public sealed class RoutineRunner(
         try
         {
             var now = DateTime.UtcNow;
+            RoutineDefinition? routine;
 
-            var routine = _manualQueue.Count > 0
-                ? _routines.FirstOrDefault(x => x.Key == _manualQueue.Peek() && !x.IsRunning)
-                : runScheduled
+            if (NextQueued() is { } queued)
+            {
+                routine = _routines.FirstOrDefault(x => x.Key == queued);
+
+                // Its routine is gone: drop it, or it would sit at the front and block every run after it.
+                if (routine is null)
+                {
+                    logger.LogWarning("Dropping queued run of unknown routine {Key}", queued);
+                    DequeueIfNext(queued);
+                    return;
+                }
+
+                if (routine.IsRunning) return;
+                DequeueIfNext(queued);
+            }
+            else
+            {
+                routine = runScheduled
                     ? _routines.Where(x => x.Enabled).Where(x => !x.IsPaused).Where(x => !x.IsRunning)
                         .Where(x => x.NextRun <= now).OrderBy(x => x.NextRun).FirstOrDefault()
                     : null;
+            }
 
             if (routine is null) return;
-
-            if (_manualQueue.Count > 0 && _manualQueue.Peek() == routine.Key) _manualQueue.Dequeue();
 
             await ExecuteRoutineAsync(routine, cancellationToken);
         }
@@ -198,7 +235,8 @@ public sealed class RoutineRunner(
 
     public bool IsQueued(string key)
     {
-        return _manualQueue.Contains(key);
+        lock (_queueLock)
+            return _manualQueue.Contains(key);
     }
 
     public RoutineDefinition? GetDefinition(string key)

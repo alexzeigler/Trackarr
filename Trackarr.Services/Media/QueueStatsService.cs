@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using Trackarr.Core.Health;
 using Trackarr.Core.Queue;
 using Trackarr.Data;
@@ -72,7 +73,7 @@ public sealed class QueueStatsService(IDbContextFactory<AppDbContext> dbFactory)
 
             points.Add(new QueueActivityPoint
             {
-                Label = bucketStart.ToLocalTime().ToString("h tt").ToLower(),
+                Label = bucketStart.ToLocalTime().ToString("h tt", CultureInfo.CurrentCulture).ToLower(CultureInfo.CurrentCulture),
                 Added = attempts.Count(a => a.FirstSeenAt >= bucketStart && a.FirstSeenAt < bucketEnd),
                 Completed =
                     attempts.Count(a =>

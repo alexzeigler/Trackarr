@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Globalization;
 using System.Diagnostics;
 using System.Net;
 using System.Text;
@@ -1116,6 +1117,16 @@ public class MediaServerService(
         return uptimePercent;
     }
 
+    /// <summary>How many of the latest status samples, up to <paramref name="max" />, failed in a row.</summary>
+    public async Task<int> CountRecentFailuresAsync(int serverId, int max)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var latest = await db.ServerStatusSamples.AsNoTracking().Where(s => s.ServerId == serverId)
+            .OrderByDescending(s => s.SampledAt).ThenByDescending(s => s.Id).Take(max).Select(s => s.Success)
+            .ToListAsync();
+        return latest.TakeWhile(success => !success).Count();
+    }
+
     public async Task<List<ServerStatusSample>> GetStatusSamplesAsync(int serverId, DateTime since)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -1619,7 +1630,7 @@ public class MediaServerService(
         public int? ReportsDownloaded =>
             Message is not null && Regex.Match(Message, @"(\d+)\s+reports?\s+downloaded", RegexOptions.IgnoreCase) is
                 { Success: true } m
-                ? int.Parse(m.Groups[1].Value)
+                ? int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)
                 : null;
     }
 

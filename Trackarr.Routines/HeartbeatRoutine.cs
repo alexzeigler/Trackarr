@@ -7,6 +7,13 @@ namespace Trackarr.Routines;
 
 public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILogger<HeartbeatRoutine> logger) : Routine
 {
+    /// <summary>
+    ///     Failed checks in a row before a server is disabled (AUDIT B13). One failure is usually a DNS blip or
+    ///     Radarr/Sonarr restarting, and disabling hides the server's queue and forces a full re-sync afterwards.
+    ///     With the default 5-minute interval, this is about 15 minutes of downtime.
+    /// </summary>
+    public const int FailuresBeforeDisable = 3;
+
     public override string Key { get; set; } = "heartbeat";
     public override string Name { get; set; } = "Server Heartbeat";
     public override string Description { get; set; } = "Checks server status.";
@@ -23,6 +30,7 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
 
         var disabled = 0;
         var reenabled = 0;
+        var failing = 0;
 
         foreach (var server in servers)
         {
@@ -76,10 +84,22 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
             }
             catch (Exception ex)
             {
-                if (server.IsEnabled)
+                // This failure plus the ones right before it (this run's sample is recorded below).
+                var failures = server.IsEnabled
+                    ? await mediaServerService.CountRecentFailuresAsync(server.Id, FailuresBeforeDisable - 1) + 1
+                    : 0;
+
+                if (server.IsEnabled && failures < FailuresBeforeDisable)
                 {
-                    logger.LogWarning("Heartbeat [{name}]: failed — {message}. Disabling server.", server.Name,
-                        ex.Message);
+                    logger.LogWarning(
+                        "Heartbeat [{name}]: failed ({count} of {limit} in a row before it's disabled) — {message}",
+                        server.Name, failures, FailuresBeforeDisable, ex.Message);
+                    failing++;
+                }
+                else if (server.IsEnabled)
+                {
+                    logger.LogWarning("Heartbeat [{name}]: failed {count} times in a row — {message}. Disabling server.",
+                        server.Name, failures, ex.Message);
 
                     await mediaServerService.LogHealthEventAsync(server.Id, ServerHealthEventType.Down, ex.Message,
                         "Heartbeat");
@@ -102,6 +122,8 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
         }
 
         var parts = new List<string> { $"{servers.Count} servers checked" };
+        if (failing > 0)
+            parts.Add($"{failing} not responding (disabled after {FailuresBeforeDisable} failures in a row)");
         if (disabled > 0) parts.Add($"{disabled} disabled");
         if (reenabled > 0) parts.Add($"{reenabled} re-enabled");
 

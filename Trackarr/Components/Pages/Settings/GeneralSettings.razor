@@ -343,7 +343,7 @@
         await Js.InvokeVoidAsync("modalHelper.show", "confirmRestart");
     }
 
-    private async void ExecuteResetDataAsync()
+    private async Task ExecuteResetDataAsync()
     {
         _resettingData = true;
         StateHasChanged();
@@ -368,7 +368,7 @@
         await Js.InvokeVoidAsync("modalHelper.hide", "confirmResetData");
     }
 
-    private async void ExecuteResetSettingsAsync()
+    private async Task ExecuteResetSettingsAsync()
     {
         _resettingSettings = true;
         StateHasChanged();
@@ -396,7 +396,7 @@
         await Js.InvokeVoidAsync("modalHelper.hide", "confirmResetSettings");
     }
 
-    private async void ExecuteRestartAsync()
+    private async Task ExecuteRestartAsync()
     {
         _restarting = true;
         StateHasChanged();

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Components;
@@ -141,7 +142,7 @@ public partial class MediaDetailsModal : ComponentBase
         get
         {
             object? value = _mostRecentSnapshot?.Confidence;
-            return value == null ? 0 : Math.Clamp(Convert.ToInt32(value), 0, 100);
+            return value == null ? 0 : Math.Clamp(Convert.ToInt32(value, CultureInfo.InvariantCulture), 0, 100);
         }
     }
 
@@ -566,7 +567,7 @@ public partial class MediaDetailsModal : ComponentBase
 
         var sb = new StringBuilder("<ol class='mb-0 ps-3' style='text-align:left'>");
         foreach (var name in names)
-            sb.Append($"<li>{WebUtility.HtmlEncode(name)}</li>");
+            sb.Append(CultureInfo.InvariantCulture, $"<li>{WebUtility.HtmlEncode(name)}</li>");
         sb.Append("</ol>");
         return sb.ToString();
     }
@@ -699,7 +700,7 @@ public partial class MediaDetailsModal : ComponentBase
         return delta switch
         {
             > 0 => $"+{delta:0.#}",
-            < 0 => delta.ToString("0.#"),
+            < 0 => delta.ToString("0.#", CultureInfo.CurrentCulture),
             _ => string.Empty
         };
     }

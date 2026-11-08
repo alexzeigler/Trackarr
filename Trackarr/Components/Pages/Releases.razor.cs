@@ -1,4 +1,5 @@
 using System.Net;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Components;
@@ -62,7 +63,7 @@ public partial class Releases : ComponentBase
         {
             var line = rawLine.TrimEnd('\r');
 
-            if (line.StartsWith("### "))
+            if (line.StartsWith("### ", StringComparison.Ordinal))
             {
                 if (inList)
                 {
@@ -70,9 +71,9 @@ public partial class Releases : ComponentBase
                     inList = false;
                 }
 
-                sb.Append($"<h5 class=\"mt-3 mb-2\">{Encode(line[4..])}</h5>");
+                sb.Append(CultureInfo.InvariantCulture, $"<h5 class=\"mt-3 mb-2\">{Encode(line[4..])}</h5>");
             }
-            else if (line.StartsWith("## "))
+            else if (line.StartsWith("## ", StringComparison.Ordinal))
             {
                 if (inList)
                 {
@@ -80,9 +81,9 @@ public partial class Releases : ComponentBase
                     inList = false;
                 }
 
-                sb.Append($"<h4 class=\"mt-3 mb-2\">{Encode(line[3..])}</h4>");
+                sb.Append(CultureInfo.InvariantCulture, $"<h4 class=\"mt-3 mb-2\">{Encode(line[3..])}</h4>");
             }
-            else if (line.StartsWith("- ") || line.StartsWith("* "))
+            else if (line.StartsWith("- ", StringComparison.Ordinal) || line.StartsWith("* ", StringComparison.Ordinal))
             {
                 if (!inList)
                 {
@@ -90,7 +91,7 @@ public partial class Releases : ComponentBase
                     inList = true;
                 }
 
-                sb.Append($"<li>{FormatInline(line[2..])}</li>");
+                sb.Append(CultureInfo.InvariantCulture, $"<li>{FormatInline(line[2..])}</li>");
             }
             else if (string.IsNullOrWhiteSpace(line))
             {
@@ -108,7 +109,7 @@ public partial class Releases : ComponentBase
                     inList = false;
                 }
 
-                sb.Append($"<p class=\"mb-1\">{FormatInline(line)}</p>");
+                sb.Append(CultureInfo.InvariantCulture, $"<p class=\"mb-1\">{FormatInline(line)}</p>");
             }
         }
 
