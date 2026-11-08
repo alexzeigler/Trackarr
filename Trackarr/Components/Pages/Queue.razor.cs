@@ -10,6 +10,7 @@ using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
+using Trackarr.Services.Actions;
 using Trackarr.Services.Media;
 using Trackarr.Services.Routines;
 using Trackarr.Services.Settings;
@@ -48,6 +49,7 @@ public partial class Queue : ComponentBase
     [Inject] private RoutineRunner RoutineRunner { get; set; } = null!;
     [Inject] private QueueStatsService QueueStatsService { get; set; } = null!;
     [Inject] private SettingsService Settings { get; set; } = null!;
+    [Inject] private ActionExecutor Actions { get; set; } = null!;
     [Inject] private IJSRuntime Js { get; set; } = null!;
 
     #endregion
@@ -380,43 +382,45 @@ public partial class Queue : ComponentBase
         await _setScoreModal.Open(item, GetChildLabel(item), snapshot?.VisibleScore, snapshot?.Confidence);
     }
 
-    private async Task RemoveItemAsync(DownloadItem item)
+    private Task RemoveItemAsync(DownloadItem item)
     {
-        var server = _serverMap?.GetValueOrDefault(item.ServerId);
-        if (server == null) return;
-
-        IsRefreshing = true;
-        await InvokeAsync(StateHasChanged);
-
-        try
-        {
-            await MediaServerService.RemoveFromQueueAsync(server, item.RemoteId);
-            await HealthService.MarkRemovedByUserAsync(item);
-            RoutineRunner.RunAsync("queue_refresh");
-            await RefreshAsync();
-        }
-        finally
-        {
-            IsRefreshing = false;
-            await InvokeAsync(StateHasChanged);
-        }
+        return RemoveDownloadsAsync([item]);
     }
 
-    private async Task RemoveGroupAsync(QueueGroup group)
+    private Task RemoveGroupAsync(QueueGroup group)
+    {
+        return RemoveDownloadsAsync(group.Items);
+    }
+
+    /// <summary>
+    ///     Removes downloads through the action gate. A season pack is one download shown as many queue rows, and
+    ///     removing one row removes the download, so it's one removal per download, not per row (AUDIT B11). A
+    ///     failure is shown on the page and the rest still go ahead.
+    /// </summary>
+    private async Task RemoveDownloadsAsync(IReadOnlyList<DownloadItem> items)
     {
         IsRefreshing = true;
+        _noticeMessage = null;
         await InvokeAsync(StateHasChanged);
 
         try
         {
-            foreach (var item in group.Items)
+            var failures = new List<string>();
+            foreach (var download in items.GroupBy(i => (i.ServerId, Id: HealthService.GetDownloadId(i))))
             {
+                var item = download.First();
                 var server = _serverMap?.GetValueOrDefault(item.ServerId);
                 if (server == null) continue;
 
-                await MediaServerService.RemoveFromQueueAsync(server, item.RemoteId);
-                await HealthService.MarkRemovedByUserAsync(item);
+                var result = await Actions.ExecuteAsync(new RemoveFromQueue(server, item.RemoteId, download.Key.Id,
+                    item.Title ?? $"Queue item {item.RemoteId}", "Removed from the Queue page.", ActionSource.User));
+
+                if (result.Executed) await HealthService.MarkRemovedByUserAsync(item);
+                else failures.Add($"{item.Title}: {result.Error}");
             }
+
+            if (failures.Count > 0)
+                _noticeMessage = $"Couldn't remove {string.Join("; ", failures)}";
 
             RoutineRunner.RunAsync("queue_refresh");
             await RefreshAsync();

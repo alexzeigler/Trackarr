@@ -35,6 +35,7 @@ public sealed class DatabaseCleanupRoutine(IDbContextFactory<AppDbContext> dbFac
         var summaryRetention = settings.GetInt("Maintenance", "SourceSummaryRetentionDays", 90);
         var serverEventRetention = settings.GetInt("Maintenance", "ServerHealthEventRetentionDays", 90);
         var serverSampleRetention = settings.GetInt("Maintenance", "ServerStatusSampleRetentionDays", 14);
+        var actionRetention = settings.GetInt("Maintenance", "ActionLogRetentionDays", 90);
         var vacuumAfter = settings.GetBool("Maintenance", "VacuumAfterCleanup", true);
 
         var deduped = await DeduplicateHealthEventsAsync(db, cancellationToken);
@@ -45,6 +46,8 @@ public sealed class DatabaseCleanupRoutine(IDbContextFactory<AppDbContext> dbFac
         var staleSummaries = await PruneStaleSummariesAsync(db, summaryRetention, cancellationToken);
         var oldServerEvents = await PruneOldServerHealthEventsAsync(db, serverEventRetention, cancellationToken);
         var oldServerSamples = await PruneOldServerStatusSamplesAsync(db, serverSampleRetention, cancellationToken);
+        var oldActions = await db.ActionLog.Where(e => e.LastOccurredAt < DateTime.UtcNow.AddDays(-actionRetention))
+            .ExecuteDeleteAsync(cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
 
@@ -61,6 +64,7 @@ public sealed class DatabaseCleanupRoutine(IDbContextFactory<AppDbContext> dbFac
                $"{oldRuns} old runs, {oldLogs} old logs, " +
                $"{orphanedSnapshots} orphaned snapshots, {staleSummaries} stale summaries, " +
                $"{oldServerEvents} old server events, {oldServerSamples} old server samples, " +
+               $"{oldActions} old actions, " +
                $"{oldLogFiles} old log files, {oldCrashFiles} old crash reports.";
     }
 

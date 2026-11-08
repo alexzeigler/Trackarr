@@ -4,9 +4,12 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Trackarr.Core.Actions;
+using Trackarr.Core.Health;
 using Trackarr.Core.Server;
 using Trackarr.Core.Settings;
 using Trackarr.Routines;
+using Trackarr.Services.Actions;
 using Trackarr.Services.Media;
 using Trackarr.Services.Settings;
 using Trackarr.Services.UI;
@@ -44,7 +47,7 @@ public class QueueRoutineIsolationTests
         var ctx = await CreateAsync();
         using var _ = ctx.Factory;
 
-        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings,
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
             NullLogger<QueueEvaluationRoutine>.Instance);
         var run = await routine.ExecuteAsync(CancellationToken.None);
         var result = run.Message;
@@ -62,7 +65,7 @@ public class QueueRoutineIsolationTests
         var ctx = await CreateAsync();
         using var _ = ctx.Factory;
 
-        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings,
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
             NullLogger<QueueEvaluationRoutine>.Instance);
         await routine.ExecuteAsync(CancellationToken.None);
 
@@ -83,7 +86,7 @@ public class QueueRoutineIsolationTests
         // Queue item 1 already left the client, so its DELETE returns 404. Item 2 should still be removed.
         ctx.Fake.MissingQueueIds.Add(1);
 
-        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings,
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
             NullLogger<QueueEvaluationRoutine>.Instance);
         var run = await routine.ExecuteAsync(CancellationToken.None);
         var result = run.Message;
@@ -102,7 +105,7 @@ public class QueueRoutineIsolationTests
         await ctx.Blacklist.AddAsync(new BlacklistEntry { Pattern = "BadGroup", Type = BlacklistType.Keyword });
         await SetServerAsync(ctx, s => s.MonitorQueue = false);
 
-        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings,
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
             NullLogger<QueueEvaluationRoutine>.Instance);
         await routine.ExecuteAsync(CancellationToken.None);
 
@@ -120,12 +123,62 @@ public class QueueRoutineIsolationTests
         await ctx.Blacklist.AddAsync(new BlacklistEntry { Pattern = "BadGroup", Type = BlacklistType.Keyword });
         await SetServerAsync(ctx, s => s.AutoRemoveDownloads = false);
 
-        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings,
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
             NullLogger<QueueEvaluationRoutine>.Instance);
         var result = (await routine.ExecuteAsync(CancellationToken.None)).Message;
 
         Assert.Empty(ctx.Fake.DeleteAttempts);
         Assert.Contains("blacklisted 0", result);
+    }
+
+    [Fact]
+    public async Task Evaluation_PassiveMode_SimulatesRemovals_AndKeepsTheDownloadsTracked()
+    {
+        var ctx = await CreateAsync();
+        using var _ = ctx.Factory;
+        await ctx.Blacklist.AddAsync(new BlacklistEntry { Pattern = "BadGroup", Type = BlacklistType.Keyword });
+        await ctx.Settings.SaveCategoryAsync("General", new Dictionary<string, string> { ["PassiveMode"] = "true" });
+
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
+            NullLogger<QueueEvaluationRoutine>.Instance);
+        var result = (await routine.ExecuteAsync(CancellationToken.None)).Message;
+
+        Assert.Empty(ctx.Fake.DeleteAttempts);
+        Assert.Contains("would have removed 2", result);
+
+        await using var db = ctx.Factory.CreateDbContext();
+        Assert.All(await db.DownloadAttempts.Where(a => a.ServerId == ctx.UpServerId).ToListAsync(),
+            a => Assert.Equal(AttemptStatus.Active, a.Status));
+        Assert.Equal(2, await db.ActionLog.CountAsync(e =>
+            e.Outcome == ActionOutcome.Simulated && e.Kind == ActionKind.RemoveFromQueue));
+    }
+
+    [Fact]
+    public async Task Evaluation_ProtectedDownload_IsNotRemovedEvenOnABlacklistMatch()
+    {
+        // The blacklist path never checked protection; the gate now does, for every automatic removal.
+        var ctx = await CreateAsync();
+        using var _ = ctx.Factory;
+        await ctx.Blacklist.AddAsync(new BlacklistEntry { Pattern = "BadGroup", Type = BlacklistType.Keyword });
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
+            NullLogger<QueueEvaluationRoutine>.Instance);
+
+        // A first run in Passive Mode only starts tracking the two downloads.
+        await ctx.Settings.SaveCategoryAsync("General", new Dictionary<string, string> { ["PassiveMode"] = "true" });
+        await routine.ExecuteAsync(CancellationToken.None);
+        await using (var db = ctx.Factory.CreateDbContext())
+        {
+            var first = await db.DownloadAttempts.SingleAsync(a => a.ServerId == ctx.UpServerId && a.DownloadId == "dl-1");
+            first.IsProtected = true;
+            await db.SaveChangesAsync();
+        }
+
+        await ctx.Settings.SaveCategoryAsync("General", new Dictionary<string, string> { ["PassiveMode"] = "false" });
+        var result = (await routine.ExecuteAsync(CancellationToken.None)).Message;
+
+        Assert.Equal([2], ctx.Fake.DeleteAttempts);
+        Assert.Contains("blacklisted 1", result);
+        Assert.Contains("Kept 1 protected", result);
     }
 
     private static async Task SetServerAsync(Context ctx, Action<MediaServer> change)
@@ -155,7 +208,8 @@ public class QueueRoutineIsolationTests
             await db.SaveChangesAsync();
         }
 
-        return new Context(factory, media, health, settings, new BlacklistService(factory, bus), fake, up.Id);
+        var actions = new ActionExecutor(media, settings, factory, bus, NullLogger<ActionExecutor>.Instance);
+        return new Context(factory, media, health, settings, new BlacklistService(factory, bus), actions, fake, up.Id);
     }
 
     private static MediaServer NewServer(string name, string host, int priority)
@@ -179,6 +233,7 @@ public class QueueRoutineIsolationTests
         HealthService Health,
         SettingsService Settings,
         BlacklistService Blacklist,
+        ActionExecutor Actions,
         FakeServers Fake,
         int UpServerId);
 

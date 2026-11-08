@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Trackarr.Core.Actions;
 using Trackarr.Core.Auth;
 using Trackarr.Core.Event;
 using Trackarr.Core.Health;
@@ -483,6 +484,24 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, SecretProtecto
             entity.Property(e => e.SecurityStamp).IsRequired().HasMaxLength(64);
         });
 
+        modelBuilder.Entity<ActionLogEntry>(entity =>
+        {
+            entity.ToTable("ActionLog");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ServerName).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Kind).IsRequired().HasConversion<string>().HasMaxLength(50);
+            entity.Property(e => e.Target).IsRequired().HasMaxLength(1000);
+            entity.Property(e => e.Reason).IsRequired().HasMaxLength(1000);
+            entity.Property(e => e.Source).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Outcome).IsRequired().HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.Error).HasMaxLength(2000);
+            entity.Property(e => e.Count).HasDefaultValue(1);
+
+            // The Actions page lists newest first; the gate looks for a repeat of a simulated action.
+            entity.HasIndex(e => e.LastOccurredAt);
+            entity.HasIndex(e => new { e.ServerId, e.Kind, e.Outcome, e.LastOccurredAt });
+        });
+
         IgnoreComputedProperties(modelBuilder);
     }
 
@@ -554,6 +573,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, SecretProtecto
     public DbSet<ServerHealthEvent> ServerHealthEvents { get; set; }
     public DbSet<ServerStatusSample> ServerStatusSamples { get; set; }
     public DbSet<User> Users { get; set; }
+    public DbSet<ActionLogEntry> ActionLog { get; set; }
 
     #endregion
 }

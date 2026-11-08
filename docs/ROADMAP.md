@@ -911,6 +911,19 @@ they add *more* secrets and *more* destructive actions.
    `QueueEvaluationRoutine`, `HealthService`, `MissingService`, `ServerSyncService` and `HealthEvaluator`. Delete the
    enforcing checks. Keep the one in `HealthEvaluator.BuildDecision` as a display-only restriction, so the Queue page
    can still say *why* a download won't be removed.
+
+   Built in `v7/phase1-actions`. The writers on `MediaServerService` are `internal`, so the gate is enforced by the
+   compiler, and `ActionExecutorTests.PassiveMode_IsOnlyEnforcedByTheGate` scans the source for anything else reading
+   Passive Mode. Decisions made along the way:
+   - Passive Mode applies to **automatic** actions only (`ActionSource` other than `user`). What you click still
+     happens, as the setting's tooltip always said for removals.
+   - The display restriction lives in `HealthService` (not `HealthEvaluator`), and sets
+     `HealthDecision.BlockedByPassiveMode`, so health removals still reach the gate and show up as simulated.
+   - A simulated action that repeats within 24 hours updates one `ActionLog` row (`Count`, `LastOccurredAt`).
+   - The gate also re-checks protection before an automatic removal. The blacklist path never did.
+   - No typed event yet: the gate calls `DataChangeBus.NotifyChanged()`. Typed events come with Phase 7.
+   - The UI is **System > Actions**, with a filter by outcome. Filtered to Simulated, it's the F5 dry-run report
+     (the daily summary waits for notifications).
 4. **Fix the bugs that get worse with more servers:** B3 (culture), B4 (runner queue), B13 (heartbeat threshold), and
    B9 (`async void`).
 

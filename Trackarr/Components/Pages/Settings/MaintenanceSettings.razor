@@ -69,6 +69,23 @@
             <span class="input-group-text">days</span>
         </div>
     </div>
+    <div class="col-6 col-lg-3">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="Rows in System > Actions (removals, searches, profile changes, and what Passive Mode simulated) older than this are deleted">
+            Actions
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <div class="input-group">
+            <input type="number"
+                   class="form-control"
+                   min="7"
+                   max="365"
+                   @bind="_actionRetention"
+                   @bind:after="MarkDirty"/>
+            <span class="input-group-text">days</span>
+        </div>
+    </div>
 </div>
 
 <hr class="settings-divider"/>
@@ -132,9 +149,11 @@
     private int _routineRetention;
     private int _logRetention;
     private int _summaryRetention;
+    private int _actionRetention;
     private bool _vacuumAfter;
     private int _cleanupInterval;
 
+    private int _origActionRetention;
     private int _origHealthRetention;
     private int _origRoutineRetention;
     private int _origLogRetention;
@@ -159,6 +178,7 @@
         _routineRetention = SettingsService.GetInt("Maintenance", "RoutineRunRetentionDays", 30);
         _logRetention = SettingsService.GetInt("Maintenance", "LogEventRetentionDays", 14);
         _summaryRetention = SettingsService.GetInt("Maintenance", "SourceSummaryRetentionDays", 90);
+        _actionRetention = SettingsService.GetInt("Maintenance", "ActionLogRetentionDays", 90);
         _vacuumAfter = SettingsService.GetBool("Maintenance", "VacuumAfterCleanup", true);
         _cleanupInterval = SettingsService.GetInt("Maintenance", "CleanupIntervalHours", 24);
 
@@ -166,13 +186,14 @@
         _origRoutineRetention = _routineRetention;
         _origLogRetention = _logRetention;
         _origSummaryRetention = _summaryRetention;
+        _origActionRetention = _actionRetention;
         _origVacuumAfter = _vacuumAfter;
         _origCleanupInterval = _cleanupInterval;
     }
 
     private void MarkDirty()
     {
-        Context.HasChanges = _healthRetention != _origHealthRetention || _routineRetention != _origRoutineRetention || _logRetention != _origLogRetention || _summaryRetention != _origSummaryRetention || _vacuumAfter != _origVacuumAfter || _cleanupInterval != _origCleanupInterval;
+        Context.HasChanges = _healthRetention != _origHealthRetention || _routineRetention != _origRoutineRetention || _logRetention != _origLogRetention || _summaryRetention != _origSummaryRetention || _actionRetention != _origActionRetention || _vacuumAfter != _origVacuumAfter || _cleanupInterval != _origCleanupInterval;
         Context.NotifyChanged();
     }
 
@@ -184,6 +205,7 @@
             ["RoutineRunRetentionDays"] = _routineRetention.ToString(),
             ["LogEventRetentionDays"] = _logRetention.ToString(),
             ["SourceSummaryRetentionDays"] = _summaryRetention.ToString(),
+            ["ActionLogRetentionDays"] = Math.Clamp(_actionRetention, 7, 365).ToString(),
             ["VacuumAfterCleanup"] = _vacuumAfter.ToString(),
             ["CleanupIntervalHours"] = _cleanupInterval.ToString()
         });
@@ -203,6 +225,7 @@
         _routineRetention = _origRoutineRetention;
         _logRetention = _origLogRetention;
         _summaryRetention = _origSummaryRetention;
+        _actionRetention = _origActionRetention;
         _vacuumAfter = _origVacuumAfter;
         _cleanupInterval = _origCleanupInterval;
         StateHasChanged();

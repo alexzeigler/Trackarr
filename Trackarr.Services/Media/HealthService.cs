@@ -105,14 +105,17 @@ public sealed class HealthService(
 
         var decision = evaluator.BuildDecision(attempt, snapshot, evaluation, now, scansSinceRecovery);
 
-        // Settings that block removal belong in the decision too, so nothing shows as "Remove" that won't be.
+        // Settings that block removal belong in the decision too, so nothing shows as "Remove" that won't be. This
+        // is for display: the action gate is what actually stops Passive Mode removals (ROADMAP 4.8).
+        var autoRemoveOff = server is not null && !settings.ShouldAutoRemove(server);
         var settingsBlock = settings.IsPassiveMode() ? "Passive Mode is on." :
-            server is not null && !settings.ShouldAutoRemove(server) ? "Auto Remove is off for this server." : null;
+            autoRemoveOff ? "Auto Remove is off for this server." : null;
         if (settingsBlock is not null)
         {
             decision.Restrictions.Add(settingsBlock);
             if (decision.ShouldRemove)
             {
+                decision.BlockedByPassiveMode = !autoRemoveOff;
                 decision.ShouldRemove = false;
                 decision.State = snapshot.State;
                 decision.ReasonKey = evaluation.ReasonKey;

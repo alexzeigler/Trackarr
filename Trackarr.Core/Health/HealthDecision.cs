@@ -8,6 +8,13 @@ public class HealthDecision
 
     public bool ShouldRemove { get; set; }
 
+    /// <summary>
+    ///     It would be removed, and only Passive Mode stops that. <see cref="ShouldRemove" /> is false so the Queue page
+    ///     doesn't show "Remove", but the queue routine still hands it to the action gate, which records it as
+    ///     simulated: the Passive Mode dry run.
+    /// </summary>
+    public bool BlockedByPassiveMode { get; set; }
+
     public HealthState State { get; set; }
 
     public decimal RawScore { get; set; }

@@ -4,7 +4,8 @@ A self-hosted companion app for [Radarr](https://radarr.video/) and [Sonarr](htt
 
 > **Alpha software** — Trackarr is in early development. Expect breaking changes, incomplete features, and
 > rough edges. It connects to live Radarr/Sonarr instances and can remove downloads and change quality profiles. Turn
-> on **Passive Mode** (Settings > Servers) to watch without it changing anything. Use at your own risk.
+> on **Passive Mode** (Settings > Servers) to watch without it changing anything on its own: System > Actions then
+> shows what it would have done. Use at your own risk.
 
 ## Features
 
@@ -216,7 +217,7 @@ That shapes how much you should trust it:
 - AI-written code can contain mistakes that look correct. There's an automated test suite (around 570 tests), but tests
   only cover what someone thought to check.
 - Trackarr can remove downloads, blocklist releases and change quality profiles on your Radarr and Sonarr. Start with
-  **Passive Mode** on and watch what it would do before letting it act.
+  **Passive Mode** on and check System > Actions, which lists what it would have done, before letting it act.
 - If something looks wrong, please open an issue. Reports from real setups are what catch the problems tests miss.
 
 ## Disclaimer

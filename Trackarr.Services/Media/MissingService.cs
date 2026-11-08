@@ -1,23 +1,33 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Trackarr.Core.Exception;
+﻿using System.Globalization;
+using Microsoft.EntityFrameworkCore;
 using Trackarr.Core.Health;
+using Trackarr.Core.Media;
 using Trackarr.Core.Media.Missing;
 using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Data;
+using Trackarr.Services.Actions;
 using Trackarr.Services.Settings;
 using Trackarr.Services.UI;
 
 namespace Trackarr.Services.Media;
 
+/// <summary>
+///     Tracks missing media and searches for it. Every search and profile change goes through the action gate, which
+///     decides about Passive Mode: a record only counts as searched, lowered or restored when the action really ran.
+/// </summary>
 public sealed class MissingService(
     IDbContextFactory<AppDbContext> contextFactory,
     MediaServerService media,
     SettingsService settings,
+    ActionExecutor actions,
     DataChangeBus changeBus)
 {
+    // The missing search routine, or "Sync Now" running the same engine: either way Trackarr deciding on its own.
+    private static readonly string Source = ActionSource.Routine("missing_search");
+
     private MissingPolicy Policy => settings.GetMissingPolicy();
 
     public async Task<int> EvaluateServerAsync(MediaServer server, CancellationToken ct = default)
@@ -31,10 +41,7 @@ public sealed class MissingService(
         var active = await media.GetActiveSearchesAsync(server);
         var now = DateTime.UtcNow;
 
-        // Passive Mode: keep tracking what's missing, but push nothing to Radarr/Sonarr (no searches, no
-        // profile changes). A zero-capacity batch leaves every due item in the Waiting state.
-        var passive = settings.IsPassiveMode();
-        var batch = new MissingSearchBatch(passive ? 0 : Policy.MaxSearchesPerRun);
+        var batch = new MissingSearchBatch(Policy.MaxSearchesPerRun);
         var abandonedAt = await GetAbandonedAtAsync(db, server.Id, ct);
 
         int count;
@@ -50,10 +57,10 @@ public sealed class MissingService(
             await db.SaveChangesAsync(ct); // restored profiles + resolved records
 
             ProcessRadarr(server, db, records, missing, queue, active, batch, abandonedAt, now);
-            await SendSearchesAsync(server, batch);
+            await SendSearchesAsync(server, db, batch, now, ct);
             await db.SaveChangesAsync(ct);
 
-            if (!passive) await ApplyRadarrFallbackAsync(server, db, records, missing, ct);
+            await ApplyRadarrFallbackAsync(server, db, records, missing, ct);
         }
         else
         {
@@ -64,10 +71,10 @@ public sealed class MissingService(
             await db.SaveChangesAsync(ct);
 
             await ProcessSonarrAsync(server, db, records, missing, queue, active, batch, abandonedAt, now);
-            await SendSearchesAsync(server, batch);
+            await SendSearchesAsync(server, db, batch, now, ct);
             await db.SaveChangesAsync(ct);
 
-            if (!passive) await ApplySonarrFallbackAsync(server, db, records, missing, now, ct);
+            await ApplySonarrFallbackAsync(server, db, records, missing, now, ct);
         }
 
         await media.UpdateServerStatsAsync(server.Id, s =>
@@ -83,8 +90,8 @@ public sealed class MissingService(
         return count;
     }
 
-    private void RunSearchFlow(MediaServer server, AppDbContext db, MissingMediaRecord record, bool inQueue,
-        bool isSearching, bool isAvailable, MissingSearchBatch batch,
+    private void RunSearchFlow(MediaServer server, AppDbContext db, MissingMediaRecord record, string? label,
+        bool inQueue, bool isSearching, bool isAvailable, MissingSearchBatch batch,
         Dictionary<(int RemoteId, int? EpisodeId), DateTime> abandonedAt, DateTime now)
     {
         var policy = Policy;
@@ -153,13 +160,14 @@ public sealed class MissingService(
             return;
         }
 
-        // Over this run's cap (or Passive Mode): wait for a later run. Nothing was pushed, so it isn't a failure.
-        if (!batch.TryAdd(server.ServiceType == ServiceType.Radarr, record))
-        {
+        // Over this run's cap: wait for a later run. Nothing was pushed, so it isn't a failure. In the batch, it's
+        // marked pushed by SendSearchesAsync, once the search has really gone out.
+        if (!batch.TryAdd(server.ServiceType == ServiceType.Radarr, record, label))
             record.SearchState = MissingSearchState.Waiting;
-            return;
-        }
+    }
 
+    private static void MarkSearchPushed(AppDbContext db, MissingMediaRecord record, DateTime now)
+    {
         record.SearchState = MissingSearchState.SearchPushed;
         record.LastSearchPushedAt = now;
         AddEvent(db, record, MissingEventType.SearchPushed);
@@ -176,8 +184,32 @@ public sealed class MissingService(
 
             var inQueue = queue.Any(q => q.MovieId == item.RemoteId);
             var isSearching = active.MovieIds.Contains(item.RemoteId);
-            RunSearchFlow(server, db, rec, inQueue, isSearching, item.IsAvailable, batch, abandonedAt, now);
+            RunSearchFlow(server, db, rec, Label(item), inQueue, isSearching, item.IsAvailable, batch, abandonedAt,
+                now);
         }
+    }
+
+    // "Dune (2021)", for the action log.
+    private static string? Label(MediaItem? item)
+    {
+        if (string.IsNullOrWhiteSpace(item?.Title)) return null;
+        return item.Year > 0 ? $"{item.Title} ({item.Year})" : item.Title;
+    }
+
+    private static string EpisodeLabel(string? seriesTitle, Episode episode)
+    {
+        return $"{seriesTitle ?? $"Series {episode.RemoteSeriesId}"} " +
+               $"S{episode.SeasonNumber.ToString("00", CultureInfo.InvariantCulture)}" +
+               $"E{episode.EpisodeNumber.ToString("00", CultureInfo.InvariantCulture)}";
+    }
+
+    /// <summary>The title Trackarr has synced for a movie or series, or "movie 123" when it has none.</summary>
+    private static async Task<string> TitleAsync(AppDbContext db, MediaServer server, int remoteId)
+    {
+        MediaItem? item = server.ServiceType == ServiceType.Radarr
+            ? await db.Movies.AsNoTracking().FirstOrDefaultAsync(m => m.ServerId == server.Id && m.RemoteId == remoteId)
+            : await db.Series.AsNoTracking().FirstOrDefaultAsync(s => s.ServerId == server.Id && s.RemoteId == remoteId);
+        return Label(item) ?? $"{(server.ServiceType == ServiceType.Radarr ? "movie" : "series")} {remoteId}";
     }
 
     private async Task ProcessSonarrAsync(MediaServer server, AppDbContext db, List<MissingMediaRecord> records,
@@ -188,6 +220,7 @@ public sealed class MissingService(
         {
             var seriesId = group.Key;
             var hasEpisodeRecords = records.Any(r => r.RemoteId == seriesId && r.EpisodeId != null);
+            var series = await db.Series.FirstOrDefaultAsync(s => s.ServerId == server.Id && s.RemoteId == seriesId);
 
             if (hasEpisodeRecords)
             {
@@ -199,7 +232,8 @@ public sealed class MissingService(
 
                     var inQueue = queue.Any(q => q.EpisodeId == ep.RemoteId);
                     var isSearching = active.EpisodeIds.Contains(ep.RemoteId);
-                    RunSearchFlow(server, db, rec, inQueue, isSearching, epAvailable, batch, abandonedAt, now);
+                    RunSearchFlow(server, db, rec, EpisodeLabel(series?.Title, ep), inQueue, isSearching,
+                        epAvailable, batch, abandonedAt, now);
                 }
 
                 continue;
@@ -210,9 +244,9 @@ public sealed class MissingService(
 
             var sInQueue = queue.Any(q => q.SeriesId == seriesId);
             var sSearching = active.SeriesIds.Contains(seriesId);
-            var series = await db.Series.FirstOrDefaultAsync(s => s.ServerId == server.Id && s.RemoteId == seriesId);
             var sAvailable = series?.IsAvailable(now) ?? false;
-            RunSearchFlow(server, db, seriesRec, sInQueue, sSearching, sAvailable, batch, abandonedAt, now);
+            RunSearchFlow(server, db, seriesRec, Label(series), sInQueue, sSearching, sAvailable, batch,
+                abandonedAt, now);
         }
     }
 
@@ -331,7 +365,15 @@ public sealed class MissingService(
 
         foreach (var rec in targets)
         {
-            rec.OriginalQualityProfileId = await media.SetQualityProfileAsync(server, rec.RemoteId, profile.RemoteId);
+            var title = Label(missing.FirstOrDefault(m => m.RemoteId == rec.RemoteId)) ?? $"movie {rec.RemoteId}";
+            var result = await actions.ExecuteAsync(new SetQualityProfile(server, rec.RemoteId, profile.RemoteId, null,
+                title, FallbackReason(rec.FailedSearchCount, profile.Name), Source), ct);
+
+            // Passive Mode, or the call failed: nothing changed, so the record stays as it is and the next run asks
+            // again.
+            if (!result.Executed) continue;
+
+            rec.OriginalQualityProfileId = result.PreviousProfileId;
             rec.LoweredToFallback = true;
             rec.FailedSearchCount = 0;
             rec.LastSearchPushedAt = null;
@@ -381,12 +423,15 @@ public sealed class MissingService(
             if (recs.Count == 0 || recs.Any(r => r.LoweredToFallback)) continue;
             if (!recs.All(r => r.FailedSearchCount >= Policy.MaxFailedSearches)) continue;
 
-            var original = await media.SetQualityProfileAsync(server, grp.Key, profile.RemoteId);
+            var result = await actions.ExecuteAsync(new SetQualityProfile(server, grp.Key, profile.RemoteId, null,
+                await TitleAsync(db, server, grp.Key), FallbackReason(recs.Min(r => r.FailedSearchCount), profile.Name),
+                Source), ct);
+            if (!result.Executed) continue;
 
             foreach (var r in recs)
             {
                 r.LoweredToFallback = true;
-                r.OriginalQualityProfileId = original;
+                r.OriginalQualityProfileId = result.PreviousProfileId;
                 r.FailedSearchCount = 0;
                 r.LastSearchPushedAt = null;
                 r.SearchState = MissingSearchState.New;
@@ -401,8 +446,8 @@ public sealed class MissingService(
     ///     Removes a record that's no longer missing. If Trackarr lowered its quality profile, the original goes
     ///     back first: for Sonarr, once no other lowered record of the same series is left, since the profile is
     ///     per series. The revert only applies while the item still has the fallback profile, so a profile someone
-    ///     changed by hand is left alone. Returns false and keeps the record when the revert call fails, so the
-    ///     next run tries again.
+    ///     changed by hand is left alone. Returns false and keeps the record when the revert didn't happen (Passive
+    ///     Mode, or the call failed), so the next run tries again.
     /// </summary>
     private async Task<bool> RestoreProfileAndRemoveAsync(MediaServer server, AppDbContext db,
         List<MissingMediaRecord> records, MissingMediaRecord rec)
@@ -416,29 +461,79 @@ public sealed class MissingService(
 
         if (fallback is not null && rec.OriginalQualityProfileId is { } original && original != fallback.RemoteId)
         {
-            try
-            {
-                var before = await media.SetQualityProfileAsync(server, rec.RemoteId, original, fallback.RemoteId);
-                if (before == fallback.RemoteId) AddEvent(db, rec, MissingEventType.ProfileRestored);
-            }
-            catch (MediaServerException)
-            {
-                return false;
-            }
+            var result = await actions.ExecuteAsync(new SetQualityProfile(server, rec.RemoteId, original,
+                fallback.RemoteId, await TitleAsync(db, server, rec.RemoteId),
+                "No longer missing: putting the original quality profile back.", Source));
+            if (!result.Executed) return false;
+            if (result.PreviousProfileId == fallback.RemoteId) AddEvent(db, rec, MissingEventType.ProfileRestored);
         }
 
         RemoveRecord(db, records, rec);
         return true;
     }
 
-    private async Task SendSearchesAsync(MediaServer server, MissingSearchBatch batch)
+    private static string FallbackReason(int failedSearches, string? profileName)
     {
-        if (batch.MovieIds.Count > 0) await media.TriggerMoviesSearchAsync(server, batch.MovieIds.ToList());
-        if (batch.EpisodeIds.Count > 0) await media.TriggerEpisodesSearchAsync(server, batch.EpisodeIds.ToList());
+        return $"Nothing found after {failedSearches} searches: trying the fallback profile {profileName}.";
+    }
 
-        // SeriesSearch takes a single seriesId.
-        foreach (var seriesId in batch.SeriesIds)
-            await media.TriggerSeriesSearchAsync(server, seriesId);
+    /// <summary>
+    ///     Sends the batch's searches through the action gate. Only a search that really went out marks its records
+    ///     as pushed. In Passive Mode, or if the call failed, they wait for a later run, and it isn't a failed search.
+    /// </summary>
+    private async Task SendSearchesAsync(MediaServer server, AppDbContext db, MissingSearchBatch batch, DateTime now,
+        CancellationToken ct)
+    {
+        foreach (var command in batch.Commands())
+        {
+            var result = await actions.ExecuteAsync(new TriggerSearch(server, command.Kind, command.Ids,
+                command.Description, "Missing, and due for a search.", Source), ct);
+
+            foreach (var record in command.Records)
+            {
+                if (result.Executed) MarkSearchPushed(db, record, now);
+                else record.SearchState = MissingSearchState.Waiting;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Force Search on the Missing page (AUDIT B17). Searches exactly what's tracked as missing: the movie, the
+    ///     missing episodes, or the whole series only when episodes aren't tracked one by one. The records are marked
+    ///     pushed, so the routine waits out the usual cooldown instead of searching again minutes later.
+    /// </summary>
+    /// <returns>Whether the search went out, and a message for the page.</returns>
+    public async Task<(bool Sent, string Message)> ForceSearchAsync(int serverId, int remoteId,
+        CancellationToken ct = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(ct);
+
+        var server = await db.MediaServers.AsNoTracking().FirstOrDefaultAsync(s => s.Id == serverId, ct);
+        if (server is null) return (false, "That server no longer exists.");
+
+        var records = await db.MissingMedia.Where(r => r.ServerId == serverId && r.RemoteId == remoteId)
+            .ToListAsync(ct);
+        var episodes = records.Where(r => r.EpisodeId != null).ToList();
+        var title = await TitleAsync(db, server, remoteId);
+
+        var search = server.ServiceType == ServiceType.Radarr
+            ? new TriggerSearch(server, SearchKind.Movies, [remoteId], title, "Force Search.", ActionSource.User)
+            : episodes.Count > 0
+                ? new TriggerSearch(server, SearchKind.Episodes, episodes.Select(r => r.EpisodeId!.Value).ToList(),
+                    episodes.Count == 1 ? $"{title}: 1 episode" : $"{title}: {episodes.Count} episodes",
+                    "Force Search.", ActionSource.User)
+                : new TriggerSearch(server, SearchKind.Series, [remoteId], title, "Force Search.", ActionSource.User);
+
+        var result = await actions.ExecuteAsync(search, ct);
+        if (!result.Executed) return (false, $"The search for {search.Target} failed: {result.Error}");
+
+        var now = DateTime.UtcNow;
+        foreach (var record in episodes.Count > 0 ? episodes : records)
+            MarkSearchPushed(db, record, now);
+        await db.SaveChangesAsync(ct);
+        changeBus.NotifyChanged();
+
+        return (true, $"Search sent for {search.Target}.");
     }
 
     /// <summary>When each currently-abandoned item on this server was last abandoned, from its search events.</summary>

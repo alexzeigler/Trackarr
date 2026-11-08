@@ -1,0 +1,189 @@
+@page "/system/actions"
+@using Microsoft.EntityFrameworkCore
+@using Trackarr.Core.Actions
+@using Trackarr.Data
+@using Trackarr.Services.Settings
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject SettingsService Settings
+
+<PageTitle>Actions</PageTitle>
+
+@* Everything that went through the action gate (ROADMAP 4.8). Filtered to Simulated, it's the Passive Mode dry run. *@
+<div class="d-flex flex-column gap-3">
+    @if (Settings.IsPassiveMode())
+    {
+        <div class="alert alert-info mb-0" role="status">
+            <div>
+                Passive Mode is on, so what Trackarr would do on its own is only <strong>simulated</strong>: nothing is
+                sent to your servers. Show <em>Simulated</em> to see that dry run. What you click yourself still
+                happens. Passive Mode is under Settings &gt; Servers.
+            </div>
+        </div>
+    }
+
+    <div class="card app-card">
+        <div class="card-header">
+            <div class="d-flex flex-wrap align-items-center gap-2 w-100">
+                <div>
+                    <h3 class="card-title mb-0">Actions</h3>
+                    <div class="text-secondary small">
+                        Every removal, search and quality profile change on your servers: done, simulated, skipped or
+                        failed.
+                    </div>
+                </div>
+                <div class="ms-auto d-flex flex-wrap btn-list">
+                    <select class="form-select w-auto" value="@_outcome" @onchange="OnOutcomeChanged"
+                            aria-label="Outcome">
+                        <option value="">All outcomes</option>
+                        @foreach (var outcome in Enum.GetValues<ActionOutcome>())
+                        {
+                            <option value="@outcome">@outcome</option>
+                        }
+                    </select>
+                    <button type="button" class="btn btn-app-ghost" disabled="@_loading" @onclick="LoadAsync"
+                            aria-label="Refresh">
+                        <i class="ti ti-refresh @(_loading ? "spinner" : "")"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-vcenter">
+                <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Outcome</th>
+                    <th>Action</th>
+                    <th>On</th>
+                    <th>Server</th>
+                    <th>Why</th>
+                    <th>By</th>
+                </tr>
+                </thead>
+                <tbody class="table-tbody">
+                @if (_entries.Count == 0)
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            @(_outcome.Length > 0 ? "Nothing with this outcome." : "Nothing yet. Removals, searches and profile changes show up here.")
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var entry in _entries)
+                    {
+                        <tr>
+                            <td class="text-secondary text-nowrap" title="@TimeTitle(entry)">
+                                @Utils.ToLocal(entry.LastOccurredAt).ToString("MMM d, h:mm tt")
+                                @if (entry.Count > 1)
+                                {
+                                    <span class="badge bg-secondary-lt ms-1">×@entry.Count</span>
+                                }
+                            </td>
+                            <td><span class="badge @OutcomeBadge(entry.Outcome)">@entry.Outcome</span></td>
+                            <td class="text-nowrap">@KindLabel(entry.Kind)</td>
+                            <td class="text-truncate" style="max-width: 320px" title="@entry.Target">@entry.Target</td>
+                            <td class="text-secondary text-nowrap">@entry.ServerName</td>
+                            <td style="max-width: 360px">
+                                <div class="text-truncate" title="@entry.Reason">@entry.Reason</div>
+                                @if (!string.IsNullOrWhiteSpace(entry.Error))
+                                {
+                                    <div class="text-danger small text-truncate" title="@entry.Error">@entry.Error</div>
+                                }
+                            </td>
+                            <td class="text-secondary text-nowrap">@SourceLabel(entry.Source)</td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-footer text-secondary small">
+            The latest @MaxRows. Kept for @Settings.GetInt("Maintenance", "ActionLogRetentionDays", 90) days
+            (Settings &gt; Maintenance). A simulated action that repeats is one row with a count.
+        </div>
+    </div>
+</div>
+
+@code {
+
+    private const int MaxRows = 500;
+
+    private List<ActionLogEntry> _entries = [];
+    private string _outcome = "";
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var query = db.ActionLog.AsNoTracking();
+            if (Enum.TryParse<ActionOutcome>(_outcome, out var outcome))
+                query = query.Where(e => e.Outcome == outcome);
+            _entries = await query.OrderByDescending(e => e.LastOccurredAt).Take(MaxRows).ToListAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnOutcomeChanged(ChangeEventArgs e)
+    {
+        _outcome = e.Value?.ToString() ?? "";
+        await LoadAsync();
+    }
+
+    private static string TimeTitle(ActionLogEntry entry)
+    {
+        var last = Utils.ToLocal(entry.LastOccurredAt).ToString("f");
+        return entry.Count > 1
+            ? $"{entry.Count} times, first {Utils.ToLocal(entry.OccurredAt):f}, last {last}"
+            : last;
+    }
+
+    private static string OutcomeBadge(ActionOutcome outcome)
+    {
+        return outcome switch
+        {
+            ActionOutcome.Executed => "bg-green-lt",
+            ActionOutcome.Simulated => "bg-azure-lt",
+            ActionOutcome.Failed => "bg-red-lt",
+            _ => "bg-secondary-lt"
+        };
+    }
+
+    private static string KindLabel(ActionKind kind)
+    {
+        return kind switch
+        {
+            ActionKind.RemoveFromQueue => "Remove from queue",
+            ActionKind.SearchMovies => "Search movies",
+            ActionKind.SearchEpisodes => "Search episodes",
+            ActionKind.SearchSeries => "Search series",
+            ActionKind.SetQualityProfile => "Change quality profile",
+            _ => kind.ToString()
+        };
+    }
+
+    // "user" → You; "routine:queue-evaluation" → Queue evaluation.
+    private static string SourceLabel(string source)
+    {
+        if (source == "user") return "You";
+        if (!source.StartsWith("routine:", StringComparison.Ordinal)) return source;
+
+        var name = source["routine:".Length..].Replace('-', ' ').Replace('_', ' ');
+        return name.Length == 0 ? source : char.ToUpperInvariant(name[0]) + name[1..];
+    }
+
+}

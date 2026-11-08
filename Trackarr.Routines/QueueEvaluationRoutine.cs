@@ -1,11 +1,12 @@
 ﻿using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
-using Trackarr.Core.Exception;
+using Trackarr.Core.Actions;
 using Trackarr.Core.Health;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Routine;
 using Trackarr.Core.Server;
 using Trackarr.Core.Settings;
+using Trackarr.Services.Actions;
 using Trackarr.Services.Media;
 using Trackarr.Services.Settings;
 
@@ -16,6 +17,7 @@ public sealed class QueueEvaluationRoutine(
     HealthService healthService,
     BlacklistService blacklistService,
     SettingsService settings,
+    ActionExecutor actions,
     ILogger<QueueEvaluationRoutine> logger) : Routine
 {
     public override string Key { get; set; } = "queue-evaluation";
@@ -48,9 +50,10 @@ public sealed class QueueEvaluationRoutine(
         var skippedServers = 0;
         var failedServers = 0;
         var failedRemovals = 0;
+        var simulated = 0;
+        var skippedRemovals = 0;
 
         var blacklist = await blacklistService.GetAllAsync();
-        var passiveMode = settings.IsPassiveMode();
 
         foreach (var server in servers)
         {
@@ -93,15 +96,17 @@ public sealed class QueueEvaluationRoutine(
                             ? await healthService.PreviewAsync(download, cancellationToken)
                             : await healthService.EvaluateAsync(download, cancellationToken);
                         // A blacklist match is still a removal, so Auto Remove off keeps it in the queue too.
-                        if (passiveMode || !autoRemoveEnabled) continue;
+                        if (!autoRemoveEnabled) continue;
 
-                        if (await TryRemoveAsync(server, download))
+                        var blOutcome = await RemoveAsync(server, download, "Matches the blacklist.",
+                            cancellationToken);
+                        if (blOutcome == ActionOutcome.Executed)
                         {
                             await healthService.MarkRemovedByTrackarrAsync(blDecision.DownloadAttemptId,
                                 $"Removed by blacklist match: {download.Title}", cancellationToken);
                             blacklisted++;
                         }
-                        else failedRemovals++;
+                        else Tally(blOutcome);
 
                         continue;
                     }
@@ -116,15 +121,17 @@ public sealed class QueueEvaluationRoutine(
                     var decision = await healthService.EvaluateAsync(download, cancellationToken);
                     evaluated++;
 
-                    if (!decision.ShouldRemove || !autoRemoveEnabled || passiveMode) continue;
+                    // Blocked only by Passive Mode: still asked for, so the gate records the would-be removal.
+                    if (!(decision.ShouldRemove || decision.BlockedByPassiveMode) || !autoRemoveEnabled) continue;
 
-                    if (await TryRemoveAsync(server, download))
+                    var outcome = await RemoveAsync(server, download, decision.Message, cancellationToken);
+                    if (outcome == ActionOutcome.Executed)
                     {
                         await healthService.MarkRemovedByTrackarrAsync(decision.DownloadAttemptId, decision.Message,
                             cancellationToken);
                         removed++;
                     }
-                    else failedRemovals++;
+                    else Tally(outcome);
                 }
 
                 var activeIds = downloads.Select(HealthService.GetDownloadId).ToList();
@@ -149,6 +156,8 @@ public sealed class QueueEvaluationRoutine(
         }
 
         var notes = new List<string>();
+        if (simulated > 0) notes.Add($"Passive Mode: would have removed {simulated} (see System > Actions).");
+        if (skippedRemovals > 0) notes.Add($"Kept {skippedRemovals} protected download(s).");
         if (skippedServers > 0) notes.Add($"Skipped {skippedServers} server(s) with the download client unavailable.");
         if (failedRemovals > 0) notes.Add($"{failedRemovals} removal(s) failed.");
         if (failedServers > 0) notes.Add($"{failedServers} server(s) failed.");
@@ -156,24 +165,30 @@ public sealed class QueueEvaluationRoutine(
         return new RoutineResult(
             $"Evaluated {evaluated}, removed {removed}, blacklisted {blacklisted}, imported {imported}, disappeared {disappeared}.{suffix}",
             failedServers == 0 && failedRemovals == 0);
+
+        void Tally(ActionOutcome outcome)
+        {
+            switch (outcome)
+            {
+                case ActionOutcome.Simulated: simulated++; break;
+                case ActionOutcome.Skipped: skippedRemovals++; break;
+                default: failedRemovals++; break;
+            }
+        }
     }
 
     /// <summary>
-    ///     Removes one item from the server's queue. A failure (say a 404 because the item already left) is logged
-    ///     and the attempt stays active, so it's re-evaluated next run instead of aborting the rest of the queue.
+    ///     Asks the action gate to remove one download. Anything but Executed leaves the attempt active: simulated in
+    ///     Passive Mode, skipped because it's protected, or failed (say a 404 because it already left), so it's looked
+    ///     at again next run instead of aborting the rest of the queue.
     /// </summary>
-    private async Task<bool> TryRemoveAsync(MediaServer server, DownloadItem download)
+    private async Task<ActionOutcome> RemoveAsync(MediaServer server, DownloadItem download, string reason,
+        CancellationToken ct)
     {
-        try
-        {
-            await mediaServerService.RemoveFromQueueAsync(server, download.RemoteId);
-            return true;
-        }
-        catch (MediaServerException ex)
-        {
-            logger.LogWarning(ex, "Could not remove {title} from {name}'s queue", download.Title, server.Name);
-            return false;
-        }
+        var result = await actions.ExecuteAsync(new RemoveFromQueue(server, download.RemoteId,
+            HealthService.GetDownloadId(download), download.Title ?? $"Queue item {download.RemoteId}", reason,
+            ActionSource.Routine(Key)), ct);
+        return result.Outcome;
     }
 
     private bool IsBlacklisted(DownloadItem download, List<BlacklistEntry> blacklist)
