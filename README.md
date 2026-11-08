@@ -123,6 +123,12 @@ A new image is published to Docker Hub only when there's a release. To update:
 removed (servers, settings and history are kept) and the next visit shows the setup page again. Remove the variable
 straight away, or every restart removes the login.
 
+**No login at home?** Settings > Security > **Local Network Access** skips the login for visitors on your local
+networks, like "Disabled for local addresses" in Radarr and Sonarr. Only turn it on when Trackarr's port isn't
+reachable from the internet. Behind a reverse proxy, also turn on **Trust forwarded headers** (Settings > Network).
+Until you do, every visit through the proxy needs the login, because Trackarr can't tell where it came from. The page
+shows the address Trackarr sees for your browser and whether that counts as local.
+
 ## Configuration
 
 Trackarr stores its settings in the database and exposes them through the UI. Key configuration areas:

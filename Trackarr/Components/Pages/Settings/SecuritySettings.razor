@@ -1,48 +1,126 @@
 @page "/settings/security"
 @using global::System.Globalization
+@using global::System.Net
 @using global::System.Security.Claims
+@using Trackarr.Core.UI
 @using Trackarr.Services.Auth
+@using Trackarr.Services.Settings
 @layout SettingsLayout
 @inject UserService Users
+@inject LocalAccess LocalAccess
+@inject SettingsService SettingsService
 @inject NavigationManager Nav
 
 <h2 class="mb-1">Security</h2>
 <p class="text-muted mb-4">Who can sign in to Trackarr.</p>
 
 <h3 class="settings-section-title">Login</h3>
-<p class="mb-4">
-    Signed in as <strong>@_username</strong>. Every page needs this login, except the health check Docker uses.
-</p>
+@if (_inLocally)
+{
+    <p class="mb-4">
+        You're using Trackarr without signing in, because this browser is on a local network and local network
+        access is on. <a href="login">Sign in</a> to change the password.
+    </p>
+}
+else
+{
+    <p class="mb-4">
+        Signed in as <strong>@_username</strong>. @LoginScope
+    </p>
 
-<h3 class="settings-section-title">Change password</h3>
-<div class="row g-3 mb-2" style="max-width: 36rem;">
-    <div class="col-12">
-        <label class="form-label" for="current-password">Current password</label>
-        <input id="current-password" type="password" class="form-control" autocomplete="current-password"
-               @bind="_current"/>
+    <h3 class="settings-section-title">Change password</h3>
+    <div class="row g-3 mb-2" style="max-width: 36rem;">
+        <div class="col-12">
+            <label class="form-label" for="current-password">Current password</label>
+            <input id="current-password" type="password" class="form-control" autocomplete="current-password"
+                   @bind="_current"/>
+        </div>
+        <div class="col-12 col-sm-6">
+            <label class="form-label" for="new-password">New password</label>
+            <input id="new-password" type="password" class="form-control" autocomplete="new-password" @bind="_new"/>
+            <div class="form-hint">At least @UserService.MinPasswordLength characters.</div>
+        </div>
+        <div class="col-12 col-sm-6">
+            <label class="form-label" for="confirm-password">Confirm new password</label>
+            <input id="confirm-password" type="password" class="form-control" autocomplete="new-password"
+                   @bind="_confirm"/>
+        </div>
     </div>
-    <div class="col-12 col-sm-6">
-        <label class="form-label" for="new-password">New password</label>
-        <input id="new-password" type="password" class="form-control" autocomplete="new-password" @bind="_new"/>
-        <div class="form-hint">At least @UserService.MinPasswordLength characters.</div>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger" role="alert" style="max-width: 36rem;">@_error</div>
+    }
+
+    <button class="btn btn-app-primary" @onclick="ChangePasswordAsync" disabled="@_busy">Change password</button>
+    <p class="text-secondary small mt-2 mb-4">
+        Changing the password signs out every device, including this one. Sign in again with the new password.
+    </p>
+}
+
+<hr class="settings-divider"/>
+<h3 class="settings-section-title">Local Network Access</h3>
+<p class="text-muted small mb-3" style="max-width: 48rem;">
+    Like "Disabled for local addresses" in Radarr and Sonarr: visits from your own network don't need the login.
+    Applies straight away.
+</p>
+<div class="row g-3 mb-3">
+    <div class="col-12 col-lg-4">
+        <label class="form-label d-block"
+               data-bs-toggle="tooltip"
+               title="Skip the login for visitors whose address is on one of the local networks">
+            Login on Local Networks
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <label class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" @bind="_localAccess" @bind:after="MarkDirty"/>
+            <span class="form-check-label">Don't ask on local networks</span>
+        </label>
     </div>
-    <div class="col-12 col-sm-6">
-        <label class="form-label" for="confirm-password">Confirm new password</label>
-        <input id="confirm-password" type="password" class="form-control" autocomplete="new-password"
-               @bind="_confirm"/>
+    <div class="col-12 col-lg-8">
+        <label class="form-label"
+               data-bs-toggle="tooltip"
+               title="IP addresses or CIDR ranges, comma separated. Empty means this machine and private networks">
+            Local Networks
+            <i class="ti ti-info-circle ms-1 opacity-50"></i>
+        </label>
+        <input class="form-control @(_invalidNetworks.Count == 0 ? "" : "is-invalid")"
+               placeholder="e.g. 192.168.1.0/24"
+               disabled="@(!_localAccess)"
+               @bind="_localNetworks" @bind:after="MarkDirty"/>
+        @if (_invalidNetworks.Count > 0)
+        {
+            <div class="invalid-feedback d-block">Not an IP or range: @string.Join(", ", _invalidNetworks)</div>
+        }
+        else
+        {
+            <div class="form-text">
+                Empty means loopback and private networks (10.x, 172.16–31.x, 192.168.x and the IPv6 equivalents).
+                List your LAN's range instead if Docker or VPN networks shouldn't count.
+            </div>
+        }
     </div>
 </div>
 
-@if (_error is not null)
+@if (_localAccess)
 {
-    <div class="alert alert-danger" role="alert" style="max-width: 36rem;">@_error</div>
+    <div class="alert alert-warning" role="status" style="max-width: 48rem;">
+        Anyone who reaches Trackarr from these networks gets in without the login. Only use this when Trackarr's
+        port isn't reachable from the internet. Behind a reverse proxy, turn on <strong>Trust forwarded
+        headers</strong> in Settings &gt; Network: until then, every visit through the proxy needs the login.
+        Then test it from outside your network, for example on a phone using mobile data. Trackarr should still ask
+        for the login there.
+    </div>
 }
 
-<button class="btn btn-app-primary" @onclick="ChangePasswordAsync" disabled="@_busy">Change password</button>
-<p class="text-secondary small mt-2 mb-4">
-    Changing the password signs out every device, including this one. Sign in again with the new password.
-</p>
+@if (BrowserOrigin is { } origin)
+{
+    <p class="text-secondary small mb-4" style="max-width: 48rem;">
+        <i class="ti ti-device-desktop me-1"></i>@origin
+    </p>
+}
 
+<hr class="settings-divider"/>
 <h3 class="settings-section-title">Locked out</h3>
 <p class="text-secondary mb-0">
     If nobody can sign in, set the environment variable <code>@UserService.ResetVariable=true</code> on the
@@ -53,21 +131,98 @@
 @code {
 
     [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+    [CascadingParameter] private SettingsPageContext Context { get; set; } = null!;
 
     private int _userId;
     private string _username = string.Empty;
+    private bool _inLocally;
     private string _current = string.Empty;
     private string _new = string.Empty;
     private string _confirm = string.Empty;
     private string? _error;
     private bool _busy;
 
+    // Where this browser's connection came from, recorded when the page connected.
+    private IPAddress? _address;
+    private RequestOrigin? _origin;
+
+    private bool _localAccess;
+    private string _localNetworks = string.Empty;
+    private (bool, string) _orig;
+    private List<IPNetwork> _networks = [];
+    private List<string> _invalidNetworks = [];
+
+    private string LoginScope => LocalAccess.Enabled
+        ? "Every page needs this login, except the health check Docker uses and visits from your local networks."
+        : "Every page needs this login, except the health check Docker uses.";
+
+    // Answers "would this browser count as local?" for the networks as typed, before they're saved.
+    private string? BrowserOrigin => _origin switch
+    {
+        RequestOrigin.UntrustedProxy =>
+            "This browser came through a proxy Trackarr can't see past (forwarded headers aren't trusted in " +
+            "Settings > Network, or there's more than one proxy), so it always needs the login.",
+        RequestOrigin.Local or RequestOrigin.NotLocal when _address is not null =>
+            LocalAccess.IsInNetworks(_address, _networks)
+                ? $"Trackarr sees this browser at {_address}, which is on a local network."
+                : $"Trackarr sees this browser at {_address}, which isn't on a local network, so it needs the login.",
+        _ => null
+    };
+
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthState).User;
+        _inLocally = LocalAccess.IsLocalPrincipal(user);
         _username = user.Identity?.Name ?? string.Empty;
         _ = int.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), NumberStyles.None,
             CultureInfo.InvariantCulture, out _userId);
+        (_address, _origin) = LocalAccess.ReadOrigin(user);
+
+        LoadValues();
+        Context.SaveAsync = SaveAsync;
+        Context.DiscardAsync = DiscardAsync;
+        Context.NotifyChanged();
+    }
+
+    private void LoadValues()
+    {
+        _localAccess = SettingsService.GetBool(LocalAccess.Category, LocalAccess.EnabledKey);
+        _localNetworks = SettingsService.GetString(LocalAccess.Category, LocalAccess.NetworksKey);
+        _orig = (_localAccess, _localNetworks);
+        Validate();
+    }
+
+    private void Validate()
+    {
+        _networks = LocalAccess.ParseNetworks(_localNetworks, out _invalidNetworks);
+    }
+
+    private void MarkDirty()
+    {
+        Validate();
+        // Invalid entries are marked red and keep the Save bar hidden until they're fixed.
+        Context.HasChanges = (_localAccess, _localNetworks) != _orig && _invalidNetworks.Count == 0;
+        Context.NotifyChanged();
+    }
+
+    private async Task SaveAsync()
+    {
+        Validate();
+        if (_invalidNetworks.Count > 0) return;
+
+        await SettingsService.SaveCategoryAsync(LocalAccess.Category, new Dictionary<string, string>
+        {
+            [LocalAccess.EnabledKey] = _localAccess.ToString(),
+            [LocalAccess.NetworksKey] = _localNetworks.Trim()
+        });
+        LoadValues();
+    }
+
+    private Task DiscardAsync()
+    {
+        LoadValues();
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 
     private async Task ChangePasswordAsync()

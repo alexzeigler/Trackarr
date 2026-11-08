@@ -1,5 +1,6 @@
 using System.Net;
 using System.Reflection;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -57,6 +58,7 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingAuthStateProvider>();
 builder.Services.AddSingleton<UserService>();
+builder.Services.AddSingleton<LocalAccess>();
 
 var connectionString = ResolveConnectionString(builder);
 
@@ -174,6 +176,9 @@ TaskScheduler.UnobservedTaskException += (_, e) =>
 
 var app = builder.Build();
 
+// Set on a request when X-Forwarded-For arrived, before the forwarded-headers step consumes it.
+const string HadForwardedForKey = "Trackarr.HadForwardedFor";
+
 // Behind a reverse proxy: take the client IP, scheme, host and path prefix from X-Forwarded-* headers, but only
 // from trusted proxies (by default loopback and private networks, where Docker and LAN proxies live).
 if (hosting.ReverseProxy)
@@ -191,6 +196,13 @@ if (hosting.ReverseProxy)
     foreach (var entry in invalid)
         app.Logger.LogWarning("Ignoring invalid trusted proxy '{Entry}' in Settings > Network", entry);
 
+    // Local network access needs to know whether X-Forwarded-For came in, to tell whether this step used it.
+    app.Use((context, next) =>
+    {
+        if (context.Request.Headers.ContainsKey(LocalAccess.ForwardedForHeader))
+            context.Items[HadForwardedForKey] = true;
+        return next(context);
+    });
     app.UseForwardedHeaders(forwarded);
 }
 
@@ -274,6 +286,26 @@ app.Use(async (context, next) =>
 });
 
 app.UseAuthentication();
+
+// Local network access (Settings > Security): a visitor on a local network who isn't signed in gets a stand-in
+// login, when that option is on. Every request also records where it came from, so Settings > Security can show it.
+// The cookie principal is copied rather than changed, because a sliding cookie renewal writes that object back out.
+app.Use(async (context, next) =>
+{
+    var access = context.RequestServices.GetRequiredService<LocalAccess>();
+    var headers = context.Request.Headers;
+    var address = context.Connection.RemoteIpAddress;
+    var origin = LocalAccess.Classify(address,
+        LocalAccess.ProxyResolved(context.Items.ContainsKey(HadForwardedForKey), headers.ContainsKey),
+        headers.ContainsKey, access.Networks);
+
+    context.User = context.User.Identity?.IsAuthenticated != true && origin == RequestOrigin.Local && access.Enabled
+        ? LocalAccess.CreatePrincipal(address!)
+        : new ClaimsPrincipal(context.User.Identities.Append(LocalAccess.CreateOriginIdentity(address, origin)));
+
+    await next(context);
+});
+
 app.UseAuthorization();
 app.UseAntiforgery();
 
