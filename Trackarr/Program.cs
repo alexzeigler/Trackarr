@@ -16,6 +16,7 @@ using Trackarr.Components;
 using Trackarr.Core.Routine;
 using Trackarr.Data;
 using Trackarr.Routines;
+using Trackarr.Services.Actions;
 using Trackarr.Services.Auth;
 using Trackarr.Services.Diagnostics;
 using Trackarr.Services.Media;
@@ -108,6 +109,8 @@ builder.Services.AddSingleton<EventService>();
 builder.Services.AddSingleton<RoutineRunner>();
 builder.Services.AddSingleton<RoutineService>();
 builder.Services.AddSingleton<MediaServerService>();
+// Every change on Radarr/Sonarr goes through here, and Passive Mode is enforced here only (ROADMAP 4.8).
+builder.Services.AddSingleton<ActionExecutor>();
 builder.Services.AddSingleton<MissingService>();
 builder.Services.AddSingleton<ServerSyncService>();
 builder.Services.AddSingleton<HealthService>();

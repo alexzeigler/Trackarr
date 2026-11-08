@@ -105,7 +105,7 @@ public class MediaServerService(
     ///     response had none). With <paramref name="onlyIfCurrent" />, nothing changes unless the current
     ///     profile is that one, so a revert never overwrites a profile someone changed by hand.
     /// </summary>
-    public async Task<int?> SetQualityProfileAsync(MediaServer server, int remoteId, int profileId,
+    internal async Task<int?> SetQualityProfileAsync(MediaServer server, int remoteId, int profileId,
         int? onlyIfCurrent = null)
     {
         if (string.IsNullOrWhiteSpace(server.ApiKey))
@@ -1434,7 +1434,7 @@ public class MediaServerService(
         await db.SaveChangesAsync();
     }
 
-    public async Task RemoveFromQueueAsync(MediaServer server, int queueId, bool blocklist = true,
+    internal async Task RemoveFromQueueAsync(MediaServer server, int queueId, bool blocklist = true,
         bool removeFromClient = true)
     {
         if (string.IsNullOrWhiteSpace(server.ApiKey))
@@ -1623,29 +1623,29 @@ public class MediaServerService(
                 : null;
     }
 
-    public Task TriggerMovieSearchAsync(MediaServer? server, int movieId)
+    internal Task TriggerMovieSearchAsync(MediaServer? server, int movieId)
     {
         return TriggerMoviesSearchAsync(server, [movieId]);
     }
 
     /// <summary>One MoviesSearch command for several movies, instead of one command each.</summary>
-    public Task TriggerMoviesSearchAsync(MediaServer? server, IReadOnlyCollection<int> movieIds)
+    internal Task TriggerMoviesSearchAsync(MediaServer? server, IReadOnlyCollection<int> movieIds)
     {
         return TriggerSearchAsync(server, "MoviesSearch", "movieIds", movieIds.ToArray());
     }
 
     /// <summary>One EpisodeSearch command for several episodes, instead of one command each.</summary>
-    public Task TriggerEpisodesSearchAsync(MediaServer server, IReadOnlyCollection<int> episodeIds)
+    internal Task TriggerEpisodesSearchAsync(MediaServer server, IReadOnlyCollection<int> episodeIds)
     {
         return TriggerSearchAsync(server, "EpisodeSearch", "episodeIds", episodeIds.ToArray());
     }
 
-    public Task TriggerSeriesSearchAsync(MediaServer? server, int seriesId)
+    internal Task TriggerSeriesSearchAsync(MediaServer? server, int seriesId)
     {
         return TriggerSearchAsync(server, "SeriesSearch", "seriesId", seriesId);
     }
 
-    public Task TriggerEpisodeSearchAsync(MediaServer server, int episodeId)
+    internal Task TriggerEpisodeSearchAsync(MediaServer server, int episodeId)
     {
         return TriggerEpisodesSearchAsync(server, [episodeId]);
     }

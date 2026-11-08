@@ -130,6 +130,7 @@ public class SettingsService(
         [("Maintenance", "RoutineRunRetentionDays")] = ("30", "int"),
         [("Maintenance", "LogEventRetentionDays")] = ("14", "int"),
         [("Maintenance", "SourceSummaryRetentionDays")] = ("90", "int"),
+        [("Maintenance", "ActionLogRetentionDays")] = ("90", "int"),
         [("Maintenance", "VacuumAfterCleanup")] = ("true", "bool"),
         [("Maintenance", "CleanupIntervalHours")] = ("24", "int")
     };

@@ -4,8 +4,10 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Trackarr.Core.Actions;
 using Trackarr.Core.Media.Missing;
 using Trackarr.Core.Server;
+using Trackarr.Services.Actions;
 using Trackarr.Services.Media;
 using Trackarr.Services.Settings;
 using Trackarr.Services.UI;
@@ -54,6 +56,19 @@ public class MissingSearchThrottleTests
     public void Batch_ZeroCapacity_AcceptsNothing()
     {
         Assert.False(new MissingSearchBatch(0).TryAdd(true, new MissingMediaRecord { RemoteId = 1 }));
+    }
+
+    [Fact]
+    public void Batch_DescribesEachCommand_WithUpToFiveNames()
+    {
+        var batch = new MissingSearchBatch(10);
+        for (var i = 1; i <= 7; i++)
+            batch.TryAdd(true, new MissingMediaRecord { RemoteId = i }, $"Movie {i}");
+
+        var command = Assert.Single(batch.Commands());
+        Assert.Equal(SearchKind.Movies, command.Kind);
+        Assert.Equal(7, command.Records.Count);
+        Assert.Equal("Movie 1, Movie 2, Movie 3, Movie 4, Movie 5 and 2 more", command.Description);
     }
 
     #endregion
@@ -106,6 +121,44 @@ public class MissingSearchThrottleTests
         Assert.Empty(fake.Commands);
         await using var db = factory.CreateDbContext();
         Assert.All(await db.MissingMedia.ToListAsync(), r => Assert.Equal(MissingSearchState.Waiting, r.SearchState));
+    }
+
+    [Fact]
+    public async Task PassiveMode_LogsTheSearchItWouldHaveSent()
+    {
+        var (service, _, factory, server) = await CreateAsync(missingMovies: 3, passive: true);
+        using var _ = factory;
+
+        await service.EvaluateServerAsync(server);
+
+        await using var db = factory.CreateDbContext();
+        var entry = Assert.Single(await db.ActionLog.ToListAsync());
+        Assert.Equal(ActionKind.SearchMovies, entry.Kind);
+        Assert.Equal(ActionOutcome.Simulated, entry.Outcome);
+        Assert.Equal("routine:missing_search", entry.Source);
+    }
+
+    [Fact]
+    public async Task ForceSearch_SearchesTheMovie_AndStartsItsCooldown()
+    {
+        // Passive Mode, so the routine sends nothing: the forced search (yours, so not simulated) is the only one.
+        var (service, fake, factory, server) = await CreateAsync(missingMovies: 1, passive: true);
+        using var _ = factory;
+        await service.EvaluateServerAsync(server);
+
+        var (sent, message) = await service.ForceSearchAsync(server.Id, 1);
+
+        Assert.True(sent, message);
+        var command = Assert.Single(fake.Commands);
+        Assert.Equal("MoviesSearch", command.Name);
+        Assert.Equal([1], command.Ids);
+
+        await using var db = factory.CreateDbContext();
+        var record = await db.MissingMedia.SingleAsync();
+        Assert.Equal(MissingSearchState.SearchPushed, record.SearchState);
+        Assert.NotNull(record.LastSearchPushedAt);
+        Assert.Equal(ActionSource.User,
+            (await db.ActionLog.SingleAsync(e => e.Outcome == ActionOutcome.Executed)).Source);
     }
 
     [Fact]
@@ -289,7 +342,8 @@ public class MissingSearchThrottleTests
             }
         }
 
-        return (new MissingService(factory, media, settings, bus), fake, factory, server);
+        var actions = new ActionExecutor(media, settings, factory, bus, NullLogger<ActionExecutor>.Instance);
+        return (new MissingService(factory, media, settings, actions, bus), fake, factory, server);
     }
 
     private sealed record SentCommand(string Name, List<int> Ids);

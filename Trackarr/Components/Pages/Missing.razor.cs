@@ -49,6 +49,7 @@ public partial class Missing : ComponentBase, IAsyncDisposable
     [Inject] private IDbContextFactory<AppDbContext> DbFactory { get; set; } = null!;
     [Inject] private MissingStatsService MissingStatsService { get; set; } = null!;
     [Inject] private SettingsService Settings { get; set; } = null!;
+    [Inject] private MissingService MissingService { get; set; } = null!;
     [Inject] private IJSRuntime Js { get; set; } = null!;
 
     #endregion
@@ -264,22 +265,13 @@ public partial class Missing : ComponentBase, IAsyncDisposable
         if (series != null) await _detailsModal.Open(series);
     }
 
+    // The result of the last Force Search, shown at the top of the page.
+    private (bool Sent, string Message)? _searchNotice;
+
     private async Task SearchMedia(MissingMediaRow row)
     {
-        // await, not .Result: blocking on an async call can freeze or deadlock a Blazor Server page.
-        var server = await MediaServerService.GetServerByIdAsync(row.ServerId);
-        if (server is null) return;
-
-        var movie = GetMovie(row);
-        if (movie != null)
-        {
-            await MediaServerService.TriggerMovieSearchAsync(server, movie.RemoteId);
-            return;
-        }
-
-        var series = GetSeries(row);
-        if (series != null)
-            await MediaServerService.TriggerSeriesSearchAsync(server, series.RemoteId);
+        _searchNotice = await MissingService.ForceSearchAsync(row.ServerId, row.RemoteId);
+        await RefreshAsync();
     }
 
     #endregion

@@ -15,6 +15,7 @@ public sealed class AppStateService : IAsyncDisposable
         new("/history", "History", []),
         new("/system/routines", "Routines", [new BreadcrumbSegment("System", "/system/routines")]),
         new("/system/events", "Events", [new BreadcrumbSegment("System", "/system/events")]),
+        new("/system/actions", "Actions", [new BreadcrumbSegment("System", "/system/actions")]),
         new("/system/tasks", "Tasks", [new BreadcrumbSegment("System", "/system/tasks")]),
         new("/system/status", "Status", [new BreadcrumbSegment("System", "/system/status")]),
         new("/settings", "Settings", []),
