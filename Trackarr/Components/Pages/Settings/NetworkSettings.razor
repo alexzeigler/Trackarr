@@ -10,10 +10,13 @@
 
 @if (Running.UrlsOverride is not null)
 {
+    @* Tabler alerts are flex rows, so the text needs one wrapper or each <code> becomes its own column. *@
     <div class="alert alert-info mb-4" role="status">
-        Trackarr is listening on <code>@Running.UrlsOverride</code> because <code>ASPNETCORE_URLS</code> is set, so
-        the port and bind address below are not used. Remove that variable (older Docker templates set it) to use
-        these settings.
+        <div>
+            Trackarr is listening on <code>@Running.UrlsOverride</code> because <code>ASPNETCORE_URLS</code> is set,
+            so the port and bind address below are not used. Remove that variable (older Docker templates set it) to
+            use these settings.
+        </div>
     </div>
 }
 

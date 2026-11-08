@@ -48,6 +48,10 @@ public class SettingsService(
         [("Network", "ProxyUrl")] = ("", "string"),
         [("Network", "ProxyBypassLocal")] = ("true", "bool"),
 
+        // Security. The login itself is in the Users table. These keys are LocalAccess's constants.
+        [("Security", "LocalAccess")] = ("false", "bool"),
+        [("Security", "LocalNetworks")] = ("", "string"),
+
         // Display
         [("Display", "DateFormat")] = ("MMM d, yyyy h:mm tt", "string"),
         [("Display", "UseTimeAgo")] = ("true", "bool"),

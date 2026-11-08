@@ -802,7 +802,7 @@ with `INotificationSender<TTarget>` implementations in Integrations. Start with 
 | First run | If no user exists, every route redirects to `/setup`, which creates one. |
 | Login page | **Must be static server rendering**, because a cookie can't be set from an interactive circuit. Mark `Login.razor` and `Setup.razor` with `[ExcludeFromInteractiveRouting]`. In `App.razor`, replace the fixed `<Routes @rendermode="new InteractiveServerRenderMode(false)"/>` with a render mode chosen by `HttpContext.AcceptsInteractiveRouting()`, so those pages render statically and the rest stay interactive. The form posts and the endpoint calls `SignInAsync`. |
 | Cookie | `AddAuthentication().AddCookie()`, sliding expiry, `SameSite=Lax`, `Secure` when HTTPS. Works with the URL base (`PathBase`). |
-| Local bypass | Auth method setting: *Forms* or *Disabled for local addresses*. Reuse `HostingOptions.ParseTrustedProxies`-style ranges for "local". Implement it as a small authentication handler that signs in a synthetic local user. |
+| Local bypass | Auth method setting: *Forms* or *Disabled for local addresses*. Reuse `HostingOptions.ParseTrustedProxies`-style ranges for "local". Implement it as a small authentication handler that signs in a synthetic local user. **Built** as `LocalAccess` plus a middleware after `UseAuthentication`: a request is local only when its address is in the ranges *and* no proxy header is left that the forwarded-headers step didn't handle. |
 | API key | A second handler for `/api/*` and webhooks, using an `X-Api-Key` header. Generate the key on first run and show it in Settings. |
 | UI | `AuthorizeRouteView` in `Routes.razor`, `[Authorize]` by default, and a logout item in the settings dropdown. |
 | Locked out | An environment variable (`TRACKARR_RESET_AUTH=true`) clears the user on next start, like the *arr apps' config edit. |
@@ -894,7 +894,9 @@ they add *more* secrets and *more* destructive actions.
 
 1. **Auth** as in [4.11](#411-authentication-s1-on-blazor-server). Add a minimal Login, Setup and Settings > Security
    page using the existing layout. Forms login lands first (`v7/phase1-auth`). "Disabled for local addresses" follows in
-   its own PR, because it needs care behind reverse proxies. The API key waits until there's an `/api` to protect.
+   its own PR (`v7/phase1-local-access`), because it needs care behind reverse proxies: any proxy header the
+   forwarded-headers step didn't handle means "not local" (the CVE-2026-30975 class). The API key waits until there's
+   an `/api` to protect.
 2. **Secrets** as in [4.12](#412-secrets-at-rest-s2), with masking in `AddServerModal`.
 3. **`ActionExecutor` and `ActionLog`** ([4.8](#48-the-action-gate)). Route the existing calls through it:
    - `QueueEvaluationRoutine`: blacklist removal and health removal

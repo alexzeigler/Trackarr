@@ -72,7 +72,9 @@
     {
         Input ??= new LoginInput();
 
-        if (HttpMethods.IsGet(HttpContext.Request.Method) && HttpContext.User.Identity?.IsAuthenticated == true)
+        // Already signed in: carry on. Someone in through local network access can still sign in properly here.
+        if (HttpMethods.IsGet(HttpContext.Request.Method) && HttpContext.User.Identity?.IsAuthenticated == true &&
+            !LocalAccess.IsLocalPrincipal(HttpContext.User))
             Nav.NavigateTo(Target);
     }
 
