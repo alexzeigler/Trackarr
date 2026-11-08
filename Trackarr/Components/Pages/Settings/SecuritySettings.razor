@@ -104,12 +104,15 @@ else
 
 @if (_localAccess)
 {
+    @* One wrapper inside the alert, which is a flex row: otherwise the <strong> becomes its own column. *@
     <div class="alert alert-warning" role="status" style="max-width: 48rem;">
-        Anyone who reaches Trackarr from these networks gets in without the login. Only use this when Trackarr's
-        port isn't reachable from the internet. Behind a reverse proxy, turn on <strong>Trust forwarded
-        headers</strong> in Settings &gt; Network: until then, every visit through the proxy needs the login.
-        Then test it from outside your network, for example on a phone using mobile data. Trackarr should still ask
-        for the login there.
+        <div>
+            Anyone who reaches Trackarr from these networks gets in without the login. Only use this when Trackarr's
+            port isn't reachable from the internet. Behind a reverse proxy, turn on <strong>Trust forwarded
+            headers</strong> in Settings &gt; Network: until then, every visit through the proxy needs the login.
+            Then test it from outside your network, for example on a phone using mobile data. Trackarr should still
+            ask for the login there.
+        </div>
     </div>
 }
 
