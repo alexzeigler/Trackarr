@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Media.Shows;
+using Trackarr.Core.Queue;
+using Trackarr.Integrations.Media.Arr.Dtos;
 
 namespace Trackarr.Services.Media;
 
@@ -166,6 +168,65 @@ internal static class MediaRecordMappers
             RatingsJson = JsonSerializer.Serialize(x.Ratings),
             StatisticsJson = JsonSerializer.Serialize(x.Statistics)
         };
+    }
+
+    /// <summary>A queue record as a download. The embedded movie, series and episode are stored separately.</summary>
+    public static DownloadItem ToEntity(this QueueRecord x, int serverId)
+    {
+        return new DownloadItem
+        {
+            RemoteId = x.Id,
+            Title = x.Title,
+            Size = x.Size,
+            SizeLeft = x.SizeLeft,
+            TimeLeft = x.TimeLeft,
+            Status = x.Status,
+            TrackedDownloadStatus = x.TrackedDownloadStatus,
+            TrackedDownloadState = x.TrackedDownloadState,
+            ErrorMessage = x.ErrorMessage,
+            DownloadId = x.DownloadId,
+            Protocol = x.Protocol,
+            DownloadClient = x.DownloadClient,
+            DownloadClientHasPostImportCategory = x.DownloadClientHasPostImportCategory,
+            Indexer = x.Indexer,
+            OutputPath = x.OutputPath,
+            EstimatedCompletionTime = x.EstimatedCompletionTime,
+            Added = x.Added,
+            MovieId = x.MovieId,
+            SeriesId = x.SeriesId,
+            EpisodeId = x.EpisodeId,
+            ServerId = serverId,
+            State = ToQueueState(x.TrackedDownloadState),
+            LanguagesJson = SerializeJsonElement(x.Languages, "[]"),
+            QualityJson = SerializeJsonElement(x.Quality, "null"),
+            CustomFormatsJson = SerializeJsonElement(x.CustomFormats, "[]"),
+            StatusMessagesJson = SerializeJsonElement(x.StatusMessages, "[]")
+        };
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private static readonly JsonSerializerOptions CompactJsonOptions = new() { WriteIndented = false };
+
+    internal static QueueState ToQueueState(string? trackedDownloadState)
+    {
+        return trackedDownloadState?.ToLowerInvariant() switch
+        {
+            "downloading" => QueueState.Downloading,
+            "importpending" => QueueState.PendingImport,
+            "importing" => QueueState.Importing,
+            "failed" => QueueState.Failed,
+            _ => QueueState.Unknown
+        };
+    }
+
+    private static string SerializeJsonElement(JsonElement value, string fallback)
+    {
+        return value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
+            ? fallback
+            : JsonSerializer.Serialize(value, CompactJsonOptions);
     }
 
     #endregion

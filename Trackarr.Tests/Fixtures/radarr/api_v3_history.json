@@ -1,0 +1,10 @@
+{
+  "page": 1,
+  "pageSize": 10,
+  "sortKey": "date",
+  "sortDirection": "descending",
+  "totalRecords": 1,
+  "records": [
+    { "id": 77, "movieId": 101, "sourceTitle": "Example.Movie.2021.1080p.BluRay.x264-GROUP", "downloadId": "0123456789ABCDEF0123456789ABCDEF01234567", "eventType": "downloadFolderImported", "date": "2024-10-02T09:01:00Z" }
+  ]
+}
