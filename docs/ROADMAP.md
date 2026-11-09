@@ -189,7 +189,7 @@ Each arrow is one PR or more. At every step the app runs and the existing tests 
 
 | Net | Why | How |
 |-----|-----|-----|
-| **Recorded API fixtures** (T3) | Phase 2 moves every HTTP call. Fixtures prove the parsing didn't change | Add a *record mode* to the MockServer repository that saves each Radarr and Sonarr GET response to a configurable folder. Point it at this repo's `Trackarr.Tests/Fixtures/{radarr,sonarr}/`, commit the JSON files here, and replay them through a stub `HttpMessageHandler`. Trackarr's tests never depend on the MockServer project, only on the recorded files. |
+| **API fixtures** (T3) | Phase 2 moves every HTTP call. Fixtures prove the parsing didn't change | Hand-written Radarr and Sonarr responses in the v3 shape, in `Trackarr.Tests/Fixtures/{radarr,sonarr}/`, replayed through `FixtureHandler`. *Decided 2026-11-08:* responses recorded from real servers aren't committed. They'd publish library titles, paths and indexer names, and the strangling only needs old and new code to read the same input the same way. Edge cases (season packs, queued items with no size) are written into the fixtures by hand. |
 | **A v6 database snapshot** ✅ | Phases 3 and 4 change the schema | `V6DatabaseUpgradeTests` builds the schema exactly as v6.0.0 shipped it from the migrations, puts a row in every table, upgrades to the current schema and checks every row and foreign key survives. No real database is committed, so no personal data ends up in the repository. |
 | **Characterization tests** | Pin down today's behaviour where coverage is thin, such as `MissingService` (T1) | Table-driven tests over the state diagram in AUDIT.md 4.4, run before Phase 2 touches the code |
 | **Backup before migrate** (F13) ✅ | A failed migration on a user's machine shouldn't lose data | `DatabaseBackup` runs `VACUUM INTO /config/backups/trackarr_pre_<version>_<time>.db` at startup when migrations are pending, and keeps the newest 5. A failed backup is logged and the upgrade goes ahead. |
@@ -882,8 +882,8 @@ Phases 5 and 6 can run in either order once Phase 4 lands.
    `Trackarr.Services` (returning a string, so the tests can still reach it), and move `[NotMapped]`/`[ForeignKey]`
    configuration into `AppDbContext`. **This is required:** `Trackarr.Integrations` will reference Core, and Core must
    stay dependency-free. Its only package is `Microsoft.Extensions.Logging.Abstractions`, for `LogLevel`.
-5. Build the safety nets from [3.4](#34-safety-nets-to-build-before-restructuring): MockServer record mode and
-   fixtures, the v6 database snapshot test, and backup-before-migrate.
+5. Build the safety nets from [3.4](#34-safety-nets-to-build-before-restructuring): API fixtures (hand-written, not
+   recorded; see the T3 row), the v6 database snapshot test, and backup-before-migrate.
 
 **Done when:** build and tests are green, the fixtures are checked in, and the v6 snapshot migrates in a test.
 
@@ -952,8 +952,8 @@ and `IsPassiveMode` is only read by `ActionExecutor`, `SettingsService`, the UI 
      step 4, when the entities stop being parsed directly.
    - **`Microsoft.Extensions.Http.Resilience` waits for step 4**, where the clients are first used. Its retries must
      be limited to GET: retrying a DELETE or a search command could repeat an action.
-   - **No recordings yet.** The client tests use hand-written samples (`Fixtures/samples`). Record the real responses
-     (`Fixtures/README.md`) before step 4: they're what proves the strangling didn't change the parsing.
+   - **Hand-written fixtures, no recordings** (see the T3 row in 3.4). Each strangling PR feeds the old and new code
+     the same fixtures and checks they agree, adding edge cases to the fixtures as it goes.
    - The planned PRs from here: strangle the reads (status, health, profiles, commands, history), then missing
      media, then the queue and writes; split what's left (4.7) with a `CommandWatcher`; pages stop calling the
      *arr apps; typed settings; per-routine loops; delete `MediaServerService`.
@@ -1208,8 +1208,8 @@ If you later want a component library, try MudBlazor or Fluent UI Blazor on one 
 3. `v7/phase0-build-props`: add `Directory.Build.props`.
 4. `v7/phase0-dead-code`: delete the A9 items.
 5. `v7/phase0-core-deps`: move UI types out of Core (A2).
-6. `v7/phase0-fixtures`: record mode in the MockServer repository, then (in this repository) the first fixtures for `/queue`, `/wanted/missing`, `/system/status`
-   and `/qualityprofile`, and the v6 snapshot test.
+6. `v7/phase0-fixtures`: the fixture replay handler and the v6 snapshot test. The fixtures themselves are written by
+   hand, starting in `v7/phase2-integrations` (recording real responses was tried and dropped, see the T3 row).
 
 After that, Phase 1 starts with auth.
 

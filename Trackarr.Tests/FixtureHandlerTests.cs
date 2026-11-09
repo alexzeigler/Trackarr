@@ -17,7 +17,7 @@ public sealed class FixtureHandlerTests : IDisposable
     [InlineData("/api/v3/wanted/missing", "api_v3_wanted_missing.json")]
     [InlineData("/sonarr/api/v3/episode/7/file", "api_v3_episode_id_file.json")]
     [InlineData("/API/V3/System/Status", "api_v3_system_status.json")]
-    public void FileNameFor_MatchesTheMockServerRule(string path, string expected)
+    public void FileNameFor_DropsTheUrlBaseAndNumbers(string path, string expected)
     {
         Assert.Equal(expected, FixtureHandler.FileNameFor(path));
     }
@@ -29,7 +29,7 @@ public sealed class FixtureHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task Get_ServesTheRecordingAndIgnoresTheQueryAndUrlBase()
+    public async Task Get_ServesTheFixtureAndIgnoresTheQueryAndUrlBase()
     {
         Directory.CreateDirectory(Path.Combine(_root, FixtureHandler.Radarr));
         await File.WriteAllTextAsync(Path.Combine(_root, FixtureHandler.Radarr, "api_v3_queue.json"),
@@ -47,7 +47,7 @@ public sealed class FixtureHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task Get_WithoutARecording_Returns404ThatSaysWhatToRecord()
+    public async Task Get_WithoutAFixture_Returns404ThatNamesTheFile()
     {
         var handler = new FixtureHandler(FixtureHandler.Sonarr, _root);
         using var client = handler.AsFactory().CreateClient("any");

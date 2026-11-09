@@ -11,13 +11,11 @@ using Trackarr.Integrations.Media.Arr;
 namespace Trackarr.Tests;
 
 /// <summary>
-///     The Radarr and Sonarr clients in Trackarr.Integrations (ROADMAP Phase 2). Reads replay the hand-written samples
-///     in Fixtures/samples, which follow the v3 API's shape; recorded responses (Fixtures/{radarr,sonarr}) replace
-///     them as the source of truth once they're committed. Writes go to a handler that records each request.
+///     The Radarr and Sonarr clients in Trackarr.Integrations (ROADMAP Phase 2). Reads replay the hand-written v3
+///     responses in Fixtures/{radarr,sonarr}. Writes go to a handler that records each request.
 /// </summary>
 public class ArrClientTests
 {
-    private static readonly string Samples = Path.Combine(FixtureHandler.DefaultRoot, "samples");
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
     #region Radarr reads
@@ -319,13 +317,13 @@ public class ArrClientTests
 
     private static (RadarrClient, FixtureHandler) Radarr()
     {
-        var fixtures = new FixtureHandler(FixtureHandler.Radarr, Samples);
+        var fixtures = new FixtureHandler(FixtureHandler.Radarr);
         return (new ArrClientFactory(fixtures.AsFactory()).Radarr(Server(ServiceType.Radarr), Timeout), fixtures);
     }
 
     private static (SonarrClient, FixtureHandler) Sonarr()
     {
-        var fixtures = new FixtureHandler(FixtureHandler.Sonarr, Samples);
+        var fixtures = new FixtureHandler(FixtureHandler.Sonarr);
         return (new ArrClientFactory(fixtures.AsFactory()).Sonarr(Server(ServiceType.Sonarr), Timeout), fixtures);
     }
 
