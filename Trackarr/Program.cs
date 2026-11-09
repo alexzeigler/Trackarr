@@ -15,6 +15,7 @@ using Trackarr.Auth;
 using Trackarr.Components;
 using Trackarr.Core.Routine;
 using Trackarr.Data;
+using Trackarr.Integrations.Media.Arr;
 using Trackarr.Routines;
 using Trackarr.Services.Actions;
 using Trackarr.Services.Auth;
@@ -108,6 +109,8 @@ builder.Services.AddSingleton<IRoutine, HealthCheckRoutine>();
 builder.Services.AddSingleton<EventService>();
 builder.Services.AddSingleton<RoutineRunner>();
 builder.Services.AddSingleton<RoutineService>();
+// Radarr/Sonarr clients (Trackarr.Integrations). MediaServerService moves onto these step by step in Phase 2.
+builder.Services.AddSingleton<ArrClientFactory>();
 builder.Services.AddSingleton<MediaServerService>();
 // Every change on Radarr/Sonarr goes through here, and Passive Mode is enforced here only (ROADMAP 4.8).
 builder.Services.AddSingleton<ActionExecutor>();

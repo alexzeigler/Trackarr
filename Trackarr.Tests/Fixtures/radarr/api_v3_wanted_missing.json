@@ -1,0 +1,11 @@
+{
+  "page": 1,
+  "pageSize": 100,
+  "sortKey": "title",
+  "sortDirection": "ascending",
+  "totalRecords": 2,
+  "records": [
+    { "id": 201, "title": "Missing Movie", "sortTitle": "missing movie", "year": 2020, "status": "released", "monitored": true, "hasFile": false, "isAvailable": true, "qualityProfileId": 4, "minimumAvailability": "released", "tmdbId": 5001, "imdbId": "tt0000201", "titleSlug": "missing-movie-5001", "added": "2024-01-01T00:00:00Z" },
+    { "id": 202, "title": "Not Out Yet", "sortTitle": "not out yet", "year": 2026, "status": "announced", "monitored": true, "hasFile": false, "isAvailable": false, "qualityProfileId": 4, "minimumAvailability": "released", "tmdbId": 5002, "titleSlug": "not-out-yet-5002", "added": "2024-01-02T00:00:00Z" }
+  ]
+}
