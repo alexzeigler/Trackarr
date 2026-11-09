@@ -968,7 +968,11 @@ and `IsPassiveMode` is only read by `ActionExecutor`, `SettingsService`, the UI 
 
    Part 2 is built in `v7/phase2-strangle-media`. The missing movie and episode pages, the single movie and series
    fetches, and a series' episode list (sync and states) now go through `RadarrClient` and `SonarrClient`, pinned the
-   same way. Still on raw HTTP: only the queue.
+   same way.
+
+   Part 3 is built in `v7/phase2-strangle-queue`. The queue pages go through the clients too, and the queue record to
+   `DownloadItem` mapping moved into `MediaRecordMappers`. `MediaServerService` makes no HTTP calls of its own any
+   more: its `CreateClient` is gone. Next: `Microsoft.Extensions.Http.Resilience` on the clients, retrying GETs only.
 5. **Split what's left** into the services in [4.7](#47-services-after-the-mediaserverservice-split-a1). Replace
    `FollowSearchAsync` with a hosted `CommandWatcher` (P12), and move the static dictionaries (`ProfileFetchTimes`,
    `QueueLocks`) into injected singletons (A5).

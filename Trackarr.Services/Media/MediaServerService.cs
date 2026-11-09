@@ -1129,64 +1129,8 @@ public class MediaServerService(
     private async Task<(List<DownloadItem> Items, int TotalRecords, List<QueueRecord> Records)> FetchQueuePageAsync(
         MediaServer server, int page, int pageSize)
     {
-        if (string.IsNullOrWhiteSpace(server.ApiKey))
-            throw new MediaServerException($"{server.Name}: API key is required.");
-
-        try
-        {
-            var client = CreateClient(server, 15);
-            var url =
-                $"{server.BaseUrl}/api/v3/queue?page={page}&pageSize={pageSize}&includeUnknownMovieItems=true&includeMovie=true&includeSeries=true&includeEpisode=true";
-
-            using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, "/api/v3/queue", (int)response.StatusCode);
-
-            await using var stream = await response.Content.ReadAsStreamAsync();
-            var queue = await JsonSerializer.DeserializeAsync<QueueResponse>(stream, _jsonOptions);
-            var records = queue?.Records ?? [];
-
-            var items = records.Select(x => new DownloadItem
-            {
-                RemoteId = x.Id,
-                Title = x.Title,
-                Size = x.Size,
-                SizeLeft = x.SizeLeft,
-                TimeLeft = x.TimeLeft,
-                Status = x.Status,
-                TrackedDownloadStatus = x.TrackedDownloadStatus,
-                TrackedDownloadState = x.TrackedDownloadState,
-                ErrorMessage = x.ErrorMessage,
-                DownloadId = x.DownloadId,
-                Protocol = x.Protocol,
-                DownloadClient = x.DownloadClient,
-                DownloadClientHasPostImportCategory = x.DownloadClientHasPostImportCategory,
-                Indexer = x.Indexer,
-                OutputPath = x.OutputPath,
-                EstimatedCompletionTime = x.EstimatedCompletionTime,
-                Added = x.Added,
-                MovieId = x.MovieId,
-                SeriesId = x.SeriesId,
-                EpisodeId = x.EpisodeId,
-                ServerId = server.Id,
-                State = MapQueueState(x.TrackedDownloadState),
-                LanguagesJson = SerializeJsonElement(x.Languages, "[]"),
-                QualityJson = SerializeJsonElement(x.Quality, "null"),
-                CustomFormatsJson = SerializeJsonElement(x.CustomFormats, "[]"),
-                StatusMessagesJson = SerializeJsonElement(x.StatusMessages, "[]")
-            }).ToList();
-
-            return (items, queue?.TotalRecords ?? 0, records);
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Error fetching queue page {page}.", ex);
-        }
+        var queue = await Arr(server, 15).GetQueuePageAsync(page, pageSize);
+        return (queue.Records.Select(x => x.ToEntity(server.Id)).ToList(), queue.TotalRecords, queue.Records);
     }
 
     private static async Task UpsertEmbeddedMoviesAsync(AppDbContext db, int serverId, IEnumerable<QueueRecord> records)
@@ -1517,16 +1461,7 @@ public class MediaServerService(
 
     #region Helpers
 
-    private static readonly JsonSerializerOptions _compactJsonOptions = new() { WriteIndented = false };
-
     private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
-
-    private static string SerializeJsonElement(JsonElement value, string fallback)
-    {
-        return value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
-            ? fallback
-            : JsonSerializer.Serialize(value, _compactJsonOptions);
-    }
 
     /// <summary>A Radarr or Sonarr client for this server, with its <see cref="RequestTimeout" />.</summary>
     /// <param name="fallbackSeconds">Used only when no settings are available (tests).</param>
@@ -1551,19 +1486,6 @@ public class MediaServerService(
     private TimeSpan RequestTimeout(MediaServer server, int fallbackSeconds)
     {
         return TimeSpan.FromSeconds(Math.Max(1, settings?.GetRequestTimeout(server) ?? fallbackSeconds));
-    }
-
-    /// <param name="fallbackSeconds">Used only when no settings are available (tests).</param>
-    private HttpClient CreateClient(MediaServer server, int fallbackSeconds)
-    {
-        var client =
-            httpClientFactory.CreateClient(server.SkipCertificateValidation ? InsecureHttpClientName : HttpClientName);
-        client.Timeout = RequestTimeout(server, fallbackSeconds);
-
-        if (!string.IsNullOrWhiteSpace(server.ApiKey))
-            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Api-Key", server.ApiKey);
-
-        return client;
     }
 
     /// <summary>
@@ -1603,18 +1525,6 @@ public class MediaServerService(
             await operation();
             return true;
         });
-    }
-
-    private static QueueState MapQueueState(string? state)
-    {
-        return state?.ToLowerInvariant() switch
-        {
-            "downloading" => QueueState.Downloading,
-            "importpending" => QueueState.PendingImport,
-            "importing" => QueueState.Importing,
-            "failed" => QueueState.Failed,
-            _ => QueueState.Unknown
-        };
     }
 
     private async Task EnsureMediaHealthSummaryAsync<TMedia>(AppDbContext db, TMedia media, DateTime now)

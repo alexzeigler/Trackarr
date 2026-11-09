@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Trackarr.Core.Exception;
+using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
 using Trackarr.Services.Settings;
@@ -246,6 +247,100 @@ public sealed class MediaServerServiceReadTests : IDisposable
 
         server.ApiKey = "";
         await Assert.ThrowsAsync<MediaServerException>(() => service.GetSeriesEpisodeStatesAsync(server, 302));
+    }
+
+    [Fact]
+    public async Task RadarrQueue_StoresTheDownloads_AndTheMoviesItEmbeds()
+    {
+        var (service, server, _) = await CreateAsync(FixtureHandler.Radarr);
+
+        var items = (await service.GetQueueAsync(server, forceRefresh: true)).OrderBy(i => i.RemoteId).ToList();
+
+        Assert.Equal([1001, 1002], items.Select(i => i.RemoteId));
+        Assert.All(items, i => Assert.Equal(server.Id, i.ServerId));
+
+        var first = items[0];
+        Assert.Equal(("Example.Movie.2021.1080p.BluRay.x264-GROUP", 8589934592L, 4294967296L, 101),
+            (first.Title, first.Size, first.SizeLeft, first.MovieId));
+        Assert.Equal("0123456789ABCDEF0123456789ABCDEF01234567", first.DownloadId);
+        Assert.Equal(("torrent", "qBittorrent", "Example Indexer"), (first.Protocol, first.DownloadClient, first.Indexer));
+        Assert.Equal(QueueState.Downloading, first.State);
+        Assert.Contains("Bluray-1080p", first.QualityJson);
+        Assert.Contains("English", first.LanguagesJson);
+        Assert.Equal("[]", first.CustomFormatsJson);
+        Assert.Equal("[]", first.StatusMessagesJson);
+
+        var stalled = items[1];
+        Assert.Equal("The download is stalled with no connections", stalled.ErrorMessage);
+        Assert.Contains("stalled", stalled.StatusMessagesJson);
+
+        await using var db = _db.CreateDbContext();
+        Assert.Equal(2, await db.DownloadQueue.CountAsync(q => q.ServerId == server.Id));
+        var movie = Assert.Single(await db.Movies.Where(m => m.ServerId == server.Id).ToListAsync());
+        Assert.Equal((101, "Example Movie"), (movie.RemoteId, movie.Title)); // 1002 embeds no movie
+
+        var saved = await db.MediaServers.SingleAsync(s => s.Id == server.Id);
+        Assert.Equal(2, saved.LastQueueCount);
+        Assert.True(DateTime.UtcNow - saved.LastQueueFetchAt < TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task SonarrQueue_StoresTheDownloads_AndTheSeriesAndEpisodesItEmbeds()
+    {
+        var (service, server, _) = await CreateAsync(FixtureHandler.Sonarr);
+
+        var items = (await service.GetQueueAsync(server, forceRefresh: true)).OrderBy(i => i.RemoteId).ToList();
+
+        Assert.Equal([(2001, 301, 3011), (2002, 301, 3012)], items.Select(i => (i.RemoteId, i.SeriesId, i.EpisodeId)));
+
+        await using var db = _db.CreateDbContext();
+        var series = Assert.Single(await db.Series.Where(s => s.ServerId == server.Id).ToListAsync());
+        Assert.Equal((301, "Example Show"), (series.RemoteId, series.Title));
+        var episode = Assert.Single(await db.Episodes.Where(e => e.ServerId == server.Id).ToListAsync());
+        Assert.Equal((3011, "Pilot", series.Id), (episode.RemoteId, episode.Title, episode.SeriesDbId));
+    }
+
+    [Fact]
+    public async Task Queue_IsCachedBriefly_AndRewrittenOnRefresh()
+    {
+        var (service, server, fixtures) = await CreateAsync(FixtureHandler.Radarr);
+
+        var fetched = await service.GetQueueAsync(server, forceRefresh: true);
+        var cached = await service.GetQueueAsync(server);
+        Assert.Single(fixtures.Requested, "api_v3_queue.json");
+        Assert.Equal(fetched.Select(i => i.RemoteId).Order(), cached.Select(i => i.RemoteId).Order());
+
+        await service.GetQueueAsync(server, forceRefresh: true);
+        Assert.Equal(2, fixtures.Requested.Count(r => r == "api_v3_queue.json"));
+
+        await using var db = _db.CreateDbContext();
+        Assert.Equal(2, await db.DownloadQueue.CountAsync(q => q.ServerId == server.Id)); // replaced, not added to
+    }
+
+    [Fact]
+    public async Task Queue_ComesFromTheDatabaseWhileTheServerIsOff()
+    {
+        var (service, server, fixtures) = await CreateAsync(FixtureHandler.Radarr);
+        await service.GetQueueAsync(server, forceRefresh: true);
+        server.IsEnabled = false;
+
+        Assert.Equal(2, (await service.GetQueueAsync(server, forceRefresh: true)).Count);
+        Assert.Single(fixtures.Requested);
+    }
+
+    [Fact]
+    public async Task Queue_WithoutAnApiKey_OrWhenTheServerRefuses_IsAnError()
+    {
+        var (service, server, fixtures) = await CreateAsync(FixtureHandler.Radarr);
+        server.ApiKey = "";
+
+        var noKey = await Assert.ThrowsAsync<MediaServerException>(() => service.GetQueueAsync(server, true));
+        Assert.Equal($"{server.Name}: API key is required.", noKey.Message);
+        Assert.Empty(fixtures.Requested);
+
+        var (broken, brokenServer, _) = await CreateAsync(FixtureHandler.Radarr, root: "no-such-folder");
+        var refused = await Assert.ThrowsAsync<ApiException>(() => broken.GetQueueAsync(brokenServer, true));
+        Assert.Equal(404, refused.StatusCode);
     }
 
     private async Task<(MediaServerService, MediaServer, FixtureHandler)> CreateAsync(string app, string? root = null)
