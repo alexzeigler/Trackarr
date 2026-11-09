@@ -46,9 +46,9 @@ public abstract class ArrClientBase(HttpClient http, MediaServer server) : IMedi
         return await GetAsync<List<RemoteHealthMessage>>("/api/v3/health", ct) ?? [];
     }
 
-    public async Task<IReadOnlyList<QualityProfile>> GetQualityProfilesAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<QualityProfileDto>> GetQualityProfilesAsync(CancellationToken ct = default)
     {
-        return await GetAsync<List<QualityProfile>>("/api/v3/qualityprofile", ct) ?? [];
+        return await GetAsync<List<QualityProfileDto>>("/api/v3/qualityprofile", ct) ?? [];
     }
 
     public async Task<QueueResponse> GetQueuePageAsync(int page, int pageSize, CancellationToken ct = default)
@@ -76,10 +76,16 @@ public abstract class ArrClientBase(HttpClient http, MediaServer server) : IMedi
         return history?.Records.Count > 0;
     }
 
-    public async Task<bool> MediaExistsAsync(int remoteId, CancellationToken ct = default)
+    public async Task<bool> ExistsAsync(ArrSearch kind, int id, CancellationToken ct = default)
     {
-        using var response = await SendAsync(HttpMethod.Get, Invariant($"/api/v3/{MediaResource}/{remoteId}"), null,
-            ct, allowNotFound: true);
+        var resource = kind switch
+        {
+            ArrSearch.Movies => "movie",
+            ArrSearch.Episodes => "episode",
+            _ => "series"
+        };
+        using var response = await SendAsync(HttpMethod.Get, Invariant($"/api/v3/{resource}/{id}"), null, ct,
+            allowNotFound: true);
         return response.StatusCode != HttpStatusCode.NotFound;
     }
 

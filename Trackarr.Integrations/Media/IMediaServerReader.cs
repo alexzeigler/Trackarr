@@ -17,7 +17,7 @@ public interface IMediaServerReader
 
     Task<ServerMetadata> GetSystemStatusAsync(CancellationToken ct = default);
     Task<IReadOnlyList<RemoteHealthMessage>> GetHealthAsync(CancellationToken ct = default);
-    Task<IReadOnlyList<QualityProfile>> GetQualityProfilesAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<QualityProfileDto>> GetQualityProfilesAsync(CancellationToken ct = default);
 
     /// <summary>One page of the queue, with the movie, series and episode included.</summary>
     Task<QueueResponse> GetQueuePageAsync(int page, int pageSize, CancellationToken ct = default);
@@ -30,8 +30,10 @@ public interface IMediaServerReader
     /// <summary>True when the history has an import for this download ID.</summary>
     Task<bool> HasImportedAsync(string downloadId, CancellationToken ct = default);
 
-    /// <summary>False when the movie or series is gone (404). Other errors throw.</summary>
-    Task<bool> MediaExistsAsync(int remoteId, CancellationToken ct = default);
+    /// <summary>
+    ///     False when the movie, episode or series a search was for is gone (404). Other errors throw.
+    /// </summary>
+    Task<bool> ExistsAsync(ArrSearch kind, int id, CancellationToken ct = default);
 }
 
 /// <param name="Elapsed">How long the server took to answer.</param>

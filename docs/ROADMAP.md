@@ -960,6 +960,12 @@ and `IsPassiveMode` is only read by `ActionExecutor`, `SettingsService`, the UI 
 4. **Strangle `MediaServerService`** method by method ([3.3](#33-the-strangler-pattern)). Its HTTP code becomes calls to
    the reader or writer. Suggested order, from easiest to riskiest: system status and health, quality profiles,
    commands and history, missing pages, then the queue.
+
+   Part 1 is built in `v7/phase2-strangle-reads`. The connection test, system status, health, quality profiles,
+   active searches, the search follow-up, import history and the three writes (queue removal, profile change,
+   searches) now go through the clients. `MediaServerServiceReadTests` pinned their results before the move and
+   still pass after it. `QualityProfile` lost its JSON attributes: the client reads a `QualityProfileDto` (A3). Still
+   on raw HTTP: the missing pages, single movie, series and episode fetches, and the queue.
 5. **Split what's left** into the services in [4.7](#47-services-after-the-mediaserverservice-split-a1). Replace
    `FollowSearchAsync` with a hosted `CommandWatcher` (P12), and move the static dictionaries (`ProfileFetchTimes`,
    `QueueLocks`) into injected singletons (A5).

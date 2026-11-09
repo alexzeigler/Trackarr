@@ -54,7 +54,7 @@ public class ArrClientTests
         Assert.Equal("warning", health.Type);
 
         var profiles = await radarr.GetQualityProfilesAsync();
-        Assert.Equal([(1, "Any"), (4, "HD-1080p")], profiles.Select(p => (p.RemoteId, p.Name)));
+        Assert.Equal([(1, "Any"), (4, "HD-1080p")], profiles.Select(p => (p.Id, p.Name)));
     }
 
     [Fact]
@@ -170,12 +170,12 @@ public class ArrClientTests
     }
 
     [Fact]
-    public async Task MissingMedia_IsFalse_NotAnError()
+    public async Task MissingItem_IsFalse_NotAnError()
     {
         var recorder = new RecordingServer { Status = HttpStatusCode.NotFound };
         var radarr = recorder.Client(Server(ServiceType.Radarr));
 
-        Assert.False(await radarr.MediaExistsAsync(404));
+        Assert.False(await radarr.ExistsAsync(ArrSearch.Movies, 404));
         Assert.Equal(["GET /api/v3/movie/404"], recorder.Requests.Select(r => r.Line));
     }
 
