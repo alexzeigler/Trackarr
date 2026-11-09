@@ -2,12 +2,14 @@
 using Trackarr.Core.Routine;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
+using Trackarr.Services.Servers;
 using Trackarr.Services.Settings;
 
 namespace Trackarr.Routines;
 
 public sealed class QueueRefreshRoutine(
     MediaServerService mediaServerService,
+    ServerRepository serverRepository,
     HealthService healthService,
     SettingsService settings,
     ILogger<QueueRefreshRoutine> logger) : Routine
@@ -21,7 +23,7 @@ public sealed class QueueRefreshRoutine(
 
     public override async Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken)
     {
-        var servers = (await mediaServerService.GetAllServersAsync())
+        var servers = (await serverRepository.GetAllAsync())
             .Where(s => s.IsEnabled && settings.ShouldMonitorQueue(s)).OrderBy(s => s.Priority).ToList();
 
         if (servers.Count == 0)

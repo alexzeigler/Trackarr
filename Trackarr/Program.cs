@@ -13,18 +13,13 @@ using Microsoft.EntityFrameworkCore;
 using Trackarr;
 using Trackarr.Auth;
 using Trackarr.Components;
-using Trackarr.Core.Routine;
 using Trackarr.Data;
 using Trackarr.Integrations.Media.Arr;
 using Trackarr.Routines;
-using Trackarr.Services.Actions;
+using Trackarr.Services;
 using Trackarr.Services.Auth;
 using Trackarr.Services.Diagnostics;
-using Trackarr.Services.Media;
-using Trackarr.Services.Routines;
 using Trackarr.Services.Settings;
-using Trackarr.Services.SystemInfo;
-using Trackarr.Services.UI;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -97,36 +92,9 @@ builder.Services.AddDbContextFactory<AppDbContext, ProtectedDbContextFactory>(op
     options.UseSqlite(connectionString, sqlite => { sqlite.CommandTimeout(30); });
 });
 
-builder.Services.AddHostedService<RoutineHostedService>();
-
-builder.Services.AddSingleton<IRoutine, HeartbeatRoutine>();
-builder.Services.AddSingleton<IRoutine, QueueRefreshRoutine>();
-builder.Services.AddSingleton<IRoutine, QueueEvaluationRoutine>();
-builder.Services.AddSingleton<IRoutine, MissingMediaFetchRoutine>();
-builder.Services.AddSingleton<IRoutine, DatabaseCleanupRoutine>();
-builder.Services.AddSingleton<IRoutine, HealthCheckRoutine>();
-
-builder.Services.AddSingleton<EventService>();
-builder.Services.AddSingleton<RoutineRunner>();
-builder.Services.AddSingleton<RoutineService>();
-// Radarr/Sonarr clients (Trackarr.Integrations). MediaServerService moves onto these step by step in Phase 2.
-builder.Services.AddSingleton<ArrClientFactory>();
-builder.Services.AddSingleton<MediaServerService>();
-// Every change on Radarr/Sonarr goes through here, and Passive Mode is enforced here only (ROADMAP 4.8).
-builder.Services.AddSingleton<ActionExecutor>();
-builder.Services.AddSingleton<MissingService>();
-builder.Services.AddSingleton<ServerSyncService>();
-builder.Services.AddSingleton<HealthService>();
-builder.Services.AddSingleton<HistoryService>();
-builder.Services.AddSingleton<QueueStatsService>();
-builder.Services.AddSingleton<MissingStatsService>();
-builder.Services.AddSingleton<SystemStatusService>();
-builder.Services.AddSingleton<GitHubReleaseService>();
-builder.Services.AddSingleton<SettingsService>();
-builder.Services.AddSingleton<BlacklistService>();
-builder.Services.AddSingleton<DataChangeBus>();
-
-builder.Services.AddScoped<AppStateService>();
+// The routines and Trackarr's services (one list each, also built by ServiceRegistrationTests).
+builder.Services.AddTrackarrRoutines();
+builder.Services.AddTrackarrServices();
 
 builder.Services.AddHttpClient();
 

@@ -1,4 +1,4 @@
-@inject MediaServerService MediaServerService
+@inject ServerRepository ServerRepository
 @inject RoutineRunner RoutineRunner
 @inject SettingsService Settings
 @inject AppStateService AppState
@@ -127,7 +127,7 @@
 
     private async Task LoadAsync()
     {
-        _servers = (await MediaServerService.GetAllServersAsync()).Where(s => s.IsEnabled).ToList();
+        _servers = (await ServerRepository.GetAllAsync()).Where(s => s.IsEnabled).ToList();
         _passiveMode = Settings.IsPassiveMode();
         LoadRoutines();
     }

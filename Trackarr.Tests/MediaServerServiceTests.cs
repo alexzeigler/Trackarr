@@ -2,24 +2,15 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 using Trackarr.Core.Server;
-using Trackarr.Services.Media;
-using Trackarr.Services.Settings;
-using Trackarr.Services.UI;
 
 namespace Trackarr.Tests;
 
 public class MediaServerServiceTests
 {
-    private static MediaServerService Create(SqliteInMemoryFactory factory)
+    private static TestServices Create(SqliteInMemoryFactory factory)
     {
-        var changeBus = new DataChangeBus();
-        var settings = new SettingsService(factory, NullLogger<SettingsService>.Instance, changeBus);
-        var healthService = new HealthService(factory, settings, changeBus);
-
-        return new MediaServerService(factory, new StubHttpClientFactory(), NullLogger<MediaServerService>.Instance,
-            changeBus, healthService);
+        return new TestServices(factory, new StubHttpClientFactory());
     }
 
     [Fact]
@@ -48,7 +39,7 @@ public class MediaServerServiceTests
             CreatedAt = DateTime.UtcNow
         };
 
-        await service.CreateServerAsync(server);
+        await service.Servers.AddAsync(server);
 
         await using var db = await factory.CreateDbContextAsync();
         var saved = await db.MediaServers.FindAsync(server.Id);
@@ -84,7 +75,7 @@ public class MediaServerServiceTests
             CreatedAt = DateTime.UtcNow
         };
 
-        await service.CreateServerAsync(server);
+        await service.Servers.AddAsync(server);
 
         await using var db = await factory.CreateDbContextAsync();
         var saved = await db.MediaServers.FindAsync(server.Id);
@@ -112,8 +103,8 @@ public class MediaServerServiceTests
             CreatedAt = DateTime.UtcNow
         };
 
-        await service.CreateServerAsync(server);
-        await service.SyncServerAsync(server);
+        await service.Servers.AddAsync(server);
+        await service.Media.SyncServerAsync(server);
 
         await using var db = await factory.CreateDbContextAsync();
         var attempts = await db.DownloadAttempts.Where(a => a.ServerId == server.Id).ToListAsync();
@@ -139,10 +130,10 @@ public class MediaServerServiceTests
             IsEnabled = true,
             CreatedAt = DateTime.UtcNow
         };
-        await service.CreateServerAsync(server);
+        await service.Servers.AddAsync(server);
 
-        await service.GetQueueAsync(server, true);
-        await service.GetQueueAsync(server, true);
+        await service.Media.GetQueueAsync(server, true);
+        await service.Media.GetQueueAsync(server, true);
 
         await using var db = await factory.CreateDbContextAsync();
         var attempt = await db.DownloadAttempts.SingleAsync(a => a.ServerId == server.Id);
@@ -167,7 +158,7 @@ public class MediaServerServiceTests
             CreatedAt = DateTime.UtcNow
         };
 
-        await service.CreateServerAsync(server);
+        await service.Servers.AddAsync(server);
 
         await using var db = await factory.CreateDbContextAsync();
         var saved = await db.MediaServers.FindAsync(server.Id);

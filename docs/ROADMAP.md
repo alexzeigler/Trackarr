@@ -677,6 +677,8 @@ and category. Offer "Import from Radarr" to pre-fill the form. Passwords come ba
 | New service | Takes over | Notes |
 |-------------|-----------|-------|
 | `ServerRepository` | Server CRUD, status writes | Status updates use `ExecuteUpdateAsync` on changed columns (P9). Typed getters: `GetMediaServersAsync()`, `GetDownloadServersAsync()`. |
+| `ServerConnectionService` | Connection test, metadata, the server's own health checks | Added in the split: these call the server, so they don't belong in the repository. |
+| `QualityProfileService` | Profile fetch and cache | Added in the split. Its fetch times are an instance field, not static (A5). |
 | `MediaRepository` | Movie, Series and Episode upserts, `MediaRecordMappers` | |
 | `QueueSyncService` | Queue fetch, the `DownloadQueue` mirror, scoring new items | Per-server lock becomes an injected singleton (A5). Also fetches client downloads from Phase 4 on. |
 | `DownloadClientSyncService` | (new) | Fetches each download server's items into a `ClientDownloads` mirror table. |
@@ -982,6 +984,24 @@ and `IsPassiveMode` is only read by `ActionExecutor`, `SettingsService`, the UI 
 5. **Split what's left** into the services in [4.7](#47-services-after-the-mediaserverservice-split-a1). Replace
    `FollowSearchAsync` with a hosted `CommandWatcher` (P12), and move the static dictionaries (`ProfileFetchTimes`,
    `QueueLocks`) into injected singletons (A5).
+
+   Part 1 is built in `v7/phase2-split-servers`:
+   - **`ServerRepository`** stores the servers, their status, the heartbeat samples and the health events. It never
+     calls Radarr or Sonarr.
+   - **`ServerConnectionService`** runs the connection test, and fetches a server's metadata and its own health
+     checks.
+   - **`QualityProfileService`** holds the profiles. Its fetch times are an instance field instead of the static
+     `ProfileFetchTimes` (A5).
+   - **`MediaServerClients`** hands every service its Radarr and Sonarr clients, so the Request Timeout rule is in one
+     place.
+   - **Saving a server no longer contacts it.** The Add/Edit form refreshes the metadata afterwards, and the Enable
+     toggle doesn't, so turning off a server that's down is instant.
+   - **The registrations moved** into `AddTrackarrServices` and `AddTrackarrRoutines`, and
+     `ServiceRegistrationTests` builds them the way Program.cs does.
+
+   Still to split: the media and missing syncs (`MediaRepository`, `MediaSummaryService`), the queue
+   (`QueueSyncService` and its locks), then the searches and writes (`SearchCommandService`, `CommandWatcher`,
+   `ActionExecutor`).
 6. **Pages stop calling the *arr apps** (P5). The Queue page reads `QueueQueryService`, and its Refresh button enqueues
    `queue_refresh`. The details modal reads local data and gets an explicit "Sync from Sonarr" button. Inject query
    services instead of `IDbContextFactory` in `Missing` and `Routines` (A6).

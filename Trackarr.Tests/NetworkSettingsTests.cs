@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Trackarr.Core.Exception;
 using Trackarr.Core.Server;
 using Trackarr.Data;
+using Trackarr.Integrations.Media.Arr;
 using Trackarr.Services.Media;
 using Trackarr.Services.Settings;
 using Trackarr.Services.UI;
@@ -177,16 +178,16 @@ public class NetworkSettingsTests
     }
 
     [Theory]
-    [InlineData(false, MediaServerService.HttpClientName)]
-    [InlineData(true, MediaServerService.InsecureHttpClientName)]
+    [InlineData(false, ArrClientFactory.HttpClientName)]
+    [InlineData(true, ArrClientFactory.InsecureHttpClientName)]
     public async Task SkipCertificateValidation_UsesTheInsecureClient(bool skip, string expectedClient)
     {
         using var factory = new SqliteInMemoryFactory();
         var bus = new DataChangeBus();
         var settings = new SettingsService(factory, NullLogger<SettingsService>.Instance, bus);
         var recorder = new RecordingFactory();
-        var service = new MediaServerService(factory, recorder, NullLogger<MediaServerService>.Instance, bus,
-            new HealthService(factory, settings, bus));
+        var service = new TestServices(factory, recorder, bus: bus, health: new HealthService(factory, settings, bus))
+            .Connection;
 
         var server = new MediaServer
         {

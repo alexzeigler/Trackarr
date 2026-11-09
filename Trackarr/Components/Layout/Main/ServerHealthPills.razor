@@ -1,4 +1,4 @@
-@inject MediaServerService MediaServerService
+@inject ServerRepository ServerRepository
 @inject AppStateService AppState
 @using Trackarr.Core.Server
 @using Trackarr.Services.Media
@@ -40,7 +40,7 @@
 
     private async Task LoadServersAsync()
     {
-        _servers = await MediaServerService.GetAllServersAsync();
+        _servers = await ServerRepository.GetAllAsync();
     }
 
     private static (string Color, string Tooltip) GetIndicator(MediaServer server)

@@ -2,7 +2,9 @@
 @using Trackarr.Services.Media
 @using Trackarr.Services.Settings
 @inject IJSRuntime Js
-@inject MediaServerService ServerService
+@inject ServerRepository ServerRepository
+@inject ServerConnectionService ServerConnection
+@inject QualityProfileService QualityProfiles
 @inject ServerSyncService ServerSync
 @inject SettingsService Settings
 

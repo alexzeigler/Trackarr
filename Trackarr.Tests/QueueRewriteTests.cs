@@ -24,8 +24,8 @@ public class QueueRewriteTests
         using var factory = new SqliteFileFactory(); // real file + pooled connections, like production
         var bus = new DataChangeBus();
         var settings = new SettingsService(factory, NullLogger<SettingsService>.Instance, bus);
-        var service = new MediaServerService(factory, new SlowQueue(), NullLogger<MediaServerService>.Instance, bus,
-            new HealthService(factory, settings, bus));
+        var service = new TestServices(factory, new SlowQueue(), bus: bus, health: new HealthService(factory, settings, bus))
+            .Media;
 
         var server = new MediaServer
         {

@@ -4,23 +4,14 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Trackarr.Core.Server;
 using Trackarr.Routines;
-using Trackarr.Services.Media;
-using Trackarr.Services.Settings;
-using Trackarr.Services.UI;
 
 namespace Trackarr.Tests;
 
 public class HeartbeatRoutineTests
 {
-    private static MediaServerService CreateService(SqliteInMemoryFactory factory,
-        IHttpClientFactory httpClientFactory)
+    private static TestServices CreateService(SqliteInMemoryFactory factory, IHttpClientFactory httpClientFactory)
     {
-        var changeBus = new DataChangeBus();
-        var settings = new SettingsService(factory, NullLogger<SettingsService>.Instance, changeBus);
-        var healthService = new HealthService(factory, settings, changeBus);
-
-        return new MediaServerService(factory, httpClientFactory, NullLogger<MediaServerService>.Instance,
-            changeBus, healthService);
+        return new TestServices(factory, httpClientFactory);
     }
 
     private static MediaServer NewServer(string name) =>
@@ -43,21 +34,22 @@ public class HeartbeatRoutineTests
         var service = CreateService(factory, httpFactory);
 
         var server = NewServer("Down Radarr");
-        await service.CreateServerAsync(server);
+        await service.Servers.AddAsync(server);
 
         httpFactory.Handler.Fail = true;
 
-        var routine = new HeartbeatRoutine(service, NullLogger<HeartbeatRoutine>.Instance);
+        var routine = new HeartbeatRoutine(service.Servers, service.Connection, service.Media,
+            NullLogger<HeartbeatRoutine>.Instance);
         for (var run = 1; run < HeartbeatRoutine.FailuresBeforeDisable; run++)
         {
             var early = (await routine.ExecuteAsync(CancellationToken.None)).Message;
-            Assert.True((await service.GetServerByIdAsync(server.Id))!.IsEnabled, $"disabled after {run} failure(s)");
+            Assert.True((await service.Servers.GetByIdAsync(server.Id))!.IsEnabled, $"disabled after {run} failure(s)");
             Assert.Contains("1 not responding", early);
         }
 
         var result = (await routine.ExecuteAsync(CancellationToken.None)).Message;
 
-        Assert.False((await service.GetServerByIdAsync(server.Id))!.IsEnabled);
+        Assert.False((await service.Servers.GetByIdAsync(server.Id))!.IsEnabled);
         Assert.Contains("1 disabled", result);
     }
 
@@ -70,14 +62,15 @@ public class HeartbeatRoutineTests
         var service = CreateService(factory, httpFactory);
 
         var server = NewServer("Flaky Radarr");
-        await service.CreateServerAsync(server);
-        var routine = new HeartbeatRoutine(service, NullLogger<HeartbeatRoutine>.Instance);
+        await service.Servers.AddAsync(server);
+        var routine = new HeartbeatRoutine(service.Servers, service.Connection, service.Media,
+            NullLogger<HeartbeatRoutine>.Instance);
 
         foreach (var fail in new[] { true, true, false, true, true, false })
         {
             httpFactory.Handler.Fail = fail;
             await routine.ExecuteAsync(CancellationToken.None);
-            Assert.True((await service.GetServerByIdAsync(server.Id))!.IsEnabled);
+            Assert.True((await service.Servers.GetByIdAsync(server.Id))!.IsEnabled);
         }
     }
 
@@ -89,12 +82,13 @@ public class HeartbeatRoutineTests
         var service = CreateService(factory, httpFactory);
 
         var server = NewServer("Up Radarr");
-        await service.CreateServerAsync(server);
+        await service.Servers.AddAsync(server);
 
-        var routine = new HeartbeatRoutine(service, NullLogger<HeartbeatRoutine>.Instance);
+        var routine = new HeartbeatRoutine(service.Servers, service.Connection, service.Media,
+            NullLogger<HeartbeatRoutine>.Instance);
         var result = (await routine.ExecuteAsync(CancellationToken.None)).Message;
 
-        var updated = await service.GetServerByIdAsync(server.Id);
+        var updated = await service.Servers.GetByIdAsync(server.Id);
 
         Assert.True(updated!.IsEnabled);
         Assert.DoesNotContain("disabled", result);
@@ -108,12 +102,13 @@ public class HeartbeatRoutineTests
         var service = CreateService(factory, httpFactory);
 
         var server = NewServer("Disabled Radarr");
-        await service.CreateServerAsync(server);
-        await service.UpdateServerStatsAsync(server.Id, s => s.IsEnabled = false);
+        await service.Servers.AddAsync(server);
+        await service.Servers.UpdateStatusAsync(server.Id, s => s.IsEnabled = false);
 
         httpFactory.Handler.Fail = true;
 
-        var routine = new HeartbeatRoutine(service, NullLogger<HeartbeatRoutine>.Instance);
+        var routine = new HeartbeatRoutine(service.Servers, service.Connection, service.Media,
+            NullLogger<HeartbeatRoutine>.Instance);
         var result = (await routine.ExecuteAsync(CancellationToken.None)).Message;
 
         Assert.Contains("0 servers checked", result);
@@ -127,23 +122,24 @@ public class HeartbeatRoutineTests
         var service = CreateService(factory, httpFactory);
 
         var server = NewServer("Recovering Radarr");
-        await service.CreateServerAsync(server);
-        await service.UpdateServerStatsAsync(server.Id, s =>
+        await service.Servers.AddAsync(server);
+        await service.Servers.UpdateStatusAsync(server.Id, s =>
         {
             s.IsEnabled = false;
             s.DisabledByHeartbeat = true;
         });
 
-        var routine = new HeartbeatRoutine(service, NullLogger<HeartbeatRoutine>.Instance);
+        var routine = new HeartbeatRoutine(service.Servers, service.Connection, service.Media,
+            NullLogger<HeartbeatRoutine>.Instance);
         var result = (await routine.ExecuteAsync(CancellationToken.None)).Message;
 
-        var updated = await service.GetServerByIdAsync(server.Id);
+        var updated = await service.Servers.GetByIdAsync(server.Id);
 
         Assert.True(updated!.IsEnabled);
         Assert.False(updated.DisabledByHeartbeat);
         Assert.Contains("1 re-enabled", result);
 
-        var events = await service.GetRecentHealthEventsAsync(server.Id, 10);
+        var events = await service.Servers.GetRecentHealthEventsAsync(server.Id, 10);
         Assert.Contains(events, e => e.EventType == ServerHealthEventType.Resolved);
     }
 
@@ -155,18 +151,19 @@ public class HeartbeatRoutineTests
         var service = CreateService(factory, httpFactory);
 
         var server = NewServer("Recovering Radarr");
-        await service.CreateServerAsync(server);
-        await service.UpdateServerStatsAsync(server.Id, s =>
+        await service.Servers.AddAsync(server);
+        await service.Servers.UpdateStatusAsync(server.Id, s =>
         {
             s.IsEnabled = false;
             s.DisabledByHeartbeat = true;
             s.LastQueueFetchAt = default;
         });
 
-        var routine = new HeartbeatRoutine(service, NullLogger<HeartbeatRoutine>.Instance);
+        var routine = new HeartbeatRoutine(service.Servers, service.Connection, service.Media,
+            NullLogger<HeartbeatRoutine>.Instance);
         await routine.ExecuteAsync(CancellationToken.None);
 
-        var updated = await service.GetServerByIdAsync(server.Id);
+        var updated = await service.Servers.GetByIdAsync(server.Id);
 
         Assert.True(updated!.IsEnabled);
         Assert.NotEqual(default, updated.LastQueueFetchAt);
@@ -180,15 +177,16 @@ public class HeartbeatRoutineTests
         var service = CreateService(factory, httpFactory);
 
         var server = NewServer("Flaky Radarr");
-        await service.CreateServerAsync(server);
+        await service.Servers.AddAsync(server);
 
         httpFactory.Handler.Fail = true;
 
-        var routine = new HeartbeatRoutine(service, NullLogger<HeartbeatRoutine>.Instance);
+        var routine = new HeartbeatRoutine(service.Servers, service.Connection, service.Media,
+            NullLogger<HeartbeatRoutine>.Instance);
         for (var run = 0; run < HeartbeatRoutine.FailuresBeforeDisable; run++)
             await routine.ExecuteAsync(CancellationToken.None);
 
-        var events = await service.GetRecentHealthEventsAsync(server.Id, 10);
+        var events = await service.Servers.GetRecentHealthEventsAsync(server.Id, 10);
 
         Assert.Contains(events, e => e.EventType == ServerHealthEventType.Down);
     }
@@ -201,12 +199,13 @@ public class HeartbeatRoutineTests
         var service = CreateService(factory, httpFactory);
 
         var server = NewServer("Healthy Radarr");
-        await service.CreateServerAsync(server);
+        await service.Servers.AddAsync(server);
 
-        var routine = new HeartbeatRoutine(service, NullLogger<HeartbeatRoutine>.Instance);
+        var routine = new HeartbeatRoutine(service.Servers, service.Connection, service.Media,
+            NullLogger<HeartbeatRoutine>.Instance);
         await routine.ExecuteAsync(CancellationToken.None);
 
-        var updated = await service.GetServerByIdAsync(server.Id);
+        var updated = await service.Servers.GetByIdAsync(server.Id);
 
         Assert.Equal(100, updated!.UptimePercent);
     }
@@ -219,9 +218,10 @@ public class HeartbeatRoutineTests
         var service = CreateService(factory, httpFactory);
 
         var server = NewServer("Recovering Uptime Radarr");
-        await service.CreateServerAsync(server);
+        await service.Servers.AddAsync(server);
 
-        var routine = new HeartbeatRoutine(service, NullLogger<HeartbeatRoutine>.Instance);
+        var routine = new HeartbeatRoutine(service.Servers, service.Connection, service.Media,
+            NullLogger<HeartbeatRoutine>.Instance);
 
         httpFactory.Handler.Fail = true;
         await routine.ExecuteAsync(CancellationToken.None);
@@ -229,7 +229,7 @@ public class HeartbeatRoutineTests
         httpFactory.Handler.Fail = false;
         await routine.ExecuteAsync(CancellationToken.None);
 
-        var updated = await service.GetServerByIdAsync(server.Id);
+        var updated = await service.Servers.GetByIdAsync(server.Id);
 
         Assert.Equal(50, updated!.UptimePercent);
     }

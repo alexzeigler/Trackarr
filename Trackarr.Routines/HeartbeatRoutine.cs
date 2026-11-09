@@ -2,10 +2,15 @@ using Microsoft.Extensions.Logging;
 using Trackarr.Core.Routine;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
+using Trackarr.Services.Servers;
 
 namespace Trackarr.Routines;
 
-public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILogger<HeartbeatRoutine> logger) : Routine
+public sealed class HeartbeatRoutine(
+    ServerRepository serverRepository,
+    ServerConnectionService connection,
+    MediaServerService mediaServerService,
+    ILogger<HeartbeatRoutine> logger) : Routine
 {
     /// <summary>
     ///     Failed checks in a row before a server is disabled (AUDIT B13). One failure is usually a DNS blip or
@@ -25,7 +30,7 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
     {
         // Keep probing servers we disabled ourselves so we can detect recovery and re-enable them.
         // A server the user disabled manually (IsEnabled false, DisabledByHeartbeat false) is skipped.
-        var servers = (await mediaServerService.GetAllServersAsync())
+        var servers = (await serverRepository.GetAllAsync())
             .Where(s => s.IsEnabled || s.DisabledByHeartbeat).ToList();
 
         var disabled = 0;
@@ -39,7 +44,7 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
 
             try
             {
-                var result = await mediaServerService.TestConnectionAsync(server);
+                var result = await connection.TestConnectionAsync(server);
                 success = true;
                 pingMs = result.ElapsedMilliseconds;
 
@@ -55,13 +60,13 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
                     server.IsEnabled = true;
                     server.DisabledByHeartbeat = false;
 
-                    await mediaServerService.LogHealthEventAsync(server.Id, ServerHealthEventType.Resolved,
+                    await serverRepository.LogHealthEventAsync(server.Id, ServerHealthEventType.Resolved,
                         $"{server.Name} responded again after being automatically disabled; re-enabled.",
                         "Heartbeat");
                     reenabled++;
                 }
 
-                await mediaServerService.UpdateServerStatsAsync(server.Id, s =>
+                await serverRepository.UpdateStatusAsync(server.Id, s =>
                 {
                     s.IsEnabled = true;
                     s.DisabledByHeartbeat = false;
@@ -86,7 +91,7 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
             {
                 // This failure plus the ones right before it (this run's sample is recorded below).
                 var failures = server.IsEnabled
-                    ? await mediaServerService.CountRecentFailuresAsync(server.Id, FailuresBeforeDisable - 1) + 1
+                    ? await serverRepository.CountRecentFailuresAsync(server.Id, FailuresBeforeDisable - 1) + 1
                     : 0;
 
                 if (server.IsEnabled && failures < FailuresBeforeDisable)
@@ -101,10 +106,10 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
                     logger.LogWarning("Heartbeat [{name}]: failed {count} times in a row — {message}. Disabling server.",
                         server.Name, failures, ex.Message);
 
-                    await mediaServerService.LogHealthEventAsync(server.Id, ServerHealthEventType.Down, ex.Message,
+                    await serverRepository.LogHealthEventAsync(server.Id, ServerHealthEventType.Down, ex.Message,
                         "Heartbeat");
 
-                    await mediaServerService.UpdateServerStatsAsync(server.Id, s =>
+                    await serverRepository.UpdateStatusAsync(server.Id, s =>
                     {
                         s.IsEnabled = false;
                         s.DisabledByHeartbeat = true;
@@ -118,7 +123,7 @@ public sealed class HeartbeatRoutine(MediaServerService mediaServerService, ILog
                 }
             }
 
-            await mediaServerService.RecordStatusSampleAsync(server.Id, pingMs, success);
+            await serverRepository.RecordStatusSampleAsync(server.Id, pingMs, success);
         }
 
         var parts = new List<string> { $"{servers.Count} servers checked" };

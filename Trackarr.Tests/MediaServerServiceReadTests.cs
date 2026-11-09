@@ -23,67 +23,6 @@ public sealed class MediaServerServiceReadTests : IDisposable
     }
 
     [Fact]
-    public async Task TestConnection_Reachable_MarksTheServerOnlineAndAuthenticated()
-    {
-        var (service, server, _) = await CreateAsync(FixtureHandler.Radarr);
-
-        var (success, elapsed, reason) = await service.TestConnectionAsync(server);
-
-        Assert.True(success);
-        Assert.True(elapsed >= 0);
-        Assert.Equal("OK", reason);
-        var saved = await service.GetServerByIdAsync(server.Id);
-        Assert.True(saved!.IsOnline);
-        Assert.True(saved.IsAuthenticated);
-        Assert.NotNull(saved.LastPingMs);
-    }
-
-    [Fact]
-    public async Task GetProfiles_StoresTheServersProfiles_AndCachesThemBriefly()
-    {
-        var (service, server, fixtures) = await CreateAsync(FixtureHandler.Radarr);
-
-        var profiles = await service.GetProfilesAsync(server, forceRefresh: true);
-        var again = await service.GetProfilesAsync(server);
-
-        Assert.Equal([(1, "Any"), (4, "HD-1080p")], profiles.OrderBy(p => p.RemoteId).Select(p => (p.RemoteId, p.Name)));
-        Assert.All(profiles, p => Assert.Equal(server.Id, p.ServerId));
-        Assert.Equal(profiles.Select(p => p.Id).Order(), again.Select(p => p.Id).Order());
-        Assert.Single(fixtures.Requested, "api_v3_qualityprofile.json"); // the second call came from the database
-
-        await using var db = _db.CreateDbContext();
-        Assert.Equal(2, await db.QualityProfiles.CountAsync(p => p.ServerId == server.Id));
-    }
-
-    [Fact]
-    public async Task GetProfiles_RefreshUpdatesRowsInPlace()
-    {
-        var (service, server, _) = await CreateAsync(FixtureHandler.Radarr);
-
-        var first = await service.GetProfilesAsync(server, forceRefresh: true);
-        var second = await service.GetProfilesAsync(server, forceRefresh: true);
-
-        Assert.Equal(first.Select(p => p.Id).Order(), second.Select(p => p.Id).Order()); // no duplicates
-    }
-
-    [Fact]
-    public async Task RemoteHealth_ReadsTheMessages_AndIsEmptyWhenItCantBeRead()
-    {
-        var (radarr, radarrServer, _) = await CreateAsync(FixtureHandler.Radarr);
-        var (sonarr, sonarrServer, _) = await CreateAsync(FixtureHandler.Sonarr);
-
-        var message = Assert.Single(await radarr.GetRemoteHealthAsync(radarrServer));
-        Assert.Equal("IndexerStatusCheck", message.Source);
-        Assert.Empty(await sonarr.GetRemoteHealthAsync(sonarrServer));
-
-        radarrServer.ApiKey = "";
-        Assert.Empty(await radarr.GetRemoteHealthAsync(radarrServer));
-
-        var (broken, brokenServer, _) = await CreateAsync(FixtureHandler.Radarr, root: "no-such-folder");
-        Assert.Empty(await broken.GetRemoteHealthAsync(brokenServer)); // 404: swallowed
-    }
-
-    [Fact]
     public async Task ActiveSearches_AreTheUnfinishedSearchCommands()
     {
         var (service, server, _) = await CreateAsync(FixtureHandler.Radarr);
@@ -349,8 +288,8 @@ public sealed class MediaServerServiceReadTests : IDisposable
         var bus = new DataChangeBus();
         var settings = new SettingsService(_db, NullLogger<SettingsService>.Instance, bus);
         await settings.InitializeAsync();
-        var service = new MediaServerService(_db, fixtures.AsFactory(), NullLogger<MediaServerService>.Instance, bus,
-            new HealthService(_db, settings, bus), settings);
+        var service = new TestServices(_db, fixtures.AsFactory(), settings, bus, new HealthService(_db, settings, bus))
+            .Media;
 
         var server = new MediaServer
         {

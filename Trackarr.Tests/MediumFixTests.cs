@@ -213,8 +213,8 @@ public class MediumFixTests
         using var factory = new SqliteInMemoryFactory();
         var bus = new DataChangeBus();
         var settings = new SettingsService(factory, NullLogger<SettingsService>.Instance, bus);
-        var media = new MediaServerService(factory, new NoHttp(), NullLogger<MediaServerService>.Instance, bus,
-            new HealthService(factory, settings, bus));
+        var media = new TestServices(factory, new NoHttp(), bus: bus, health: new HealthService(factory, settings, bus))
+            .Servers;
 
         var server = new MediaServer
         {
@@ -232,10 +232,10 @@ public class MediumFixTests
         }
 
         // The page loaded `server`; meanwhile a routine records a queue fetch.
-        await media.UpdateServerStatsAsync(server.Id, s => s.LastQueueCount = 42);
+        await media.UpdateStatusAsync(server.Id, s => s.LastQueueCount = 42);
 
         server.Name = "Renamed"; // the user's edit
-        await media.UpdateServerAsync(server);
+        await media.UpdateAsync(server);
 
         await using var check = factory.CreateDbContext();
         var saved = await check.MediaServers.SingleAsync();
@@ -258,9 +258,8 @@ public class MediumFixTests
         await service.EvaluateAsync(MovieItem(serverId));
 
         var bus = new DataChangeBus();
-        var media = new MediaServerService(factory, new NoHttp(), NullLogger<MediaServerService>.Instance, bus, service,
-            settings);
-        await media.DeleteServerAsync(serverId);
+        var servers = new TestServices(factory, new NoHttp(), settings, bus, service).Servers;
+        await servers.DeleteAsync(serverId);
 
         await using var check = factory.CreateDbContext();
         Assert.Empty(await check.Movies.ToListAsync());

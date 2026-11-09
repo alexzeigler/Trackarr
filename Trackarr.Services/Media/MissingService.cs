@@ -9,6 +9,7 @@ using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Data;
 using Trackarr.Services.Actions;
+using Trackarr.Services.Servers;
 using Trackarr.Services.Settings;
 using Trackarr.Services.UI;
 
@@ -21,6 +22,7 @@ namespace Trackarr.Services.Media;
 public sealed class MissingService(
     IDbContextFactory<AppDbContext> contextFactory,
     MediaServerService media,
+    ServerRepository servers,
     SettingsService settings,
     ActionExecutor actions,
     DataChangeBus changeBus)
@@ -77,7 +79,7 @@ public sealed class MissingService(
             await ApplySonarrFallbackAsync(server, db, records, missing, now, ct);
         }
 
-        await media.UpdateServerStatsAsync(server.Id, s =>
+        await servers.UpdateStatusAsync(server.Id, s =>
         {
             s.LastMissingFetchAt = now;
             s.LastMissingCount = count;

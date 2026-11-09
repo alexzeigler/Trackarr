@@ -1,6 +1,6 @@
 @inject NavigationManager Nav
 @inject SystemStatusService StatusService
-@inject MediaServerService MediaServerService
+@inject ServerRepository ServerRepository
 @inject ILogger<NavMenu> Logger
 @using Trackarr.Core.SystemInfo
 @using Trackarr.Services.Media
@@ -206,7 +206,7 @@
     {
         try
         {
-            var servers = await MediaServerService.GetAllServersAsync();
+            var servers = await ServerRepository.GetAllAsync();
 
             var disabledCount = servers.Count(s => !s.IsEnabled);
             var serversBadge = disabledCount > 0 ? new BadgeState(disabledCount, "bg-danger") : (BadgeState?)null;

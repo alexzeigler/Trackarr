@@ -19,8 +19,8 @@ public class RequestTimeoutTests
         var bus = new DataChangeBus();
         var settings = new SettingsService(factory, NullLogger<SettingsService>.Instance, bus);
         await settings.InitializeAsync();
-        var service = new MediaServerService(factory, new HangingHandler(), NullLogger<MediaServerService>.Instance,
-            bus, new HealthService(factory, settings, bus), settings);
+        var health = new HealthService(factory, settings, bus);
+        var service = new TestServices(factory, new HangingHandler(), settings, bus, health).Connection;
 
         // 1 second here, against the 10 second value TestConnection used to hardcode.
         var server = new MediaServer

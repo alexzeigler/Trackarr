@@ -181,7 +181,7 @@ public sealed class ActionExecutorTests : IDisposable
             await settings.SaveCategoryAsync("General", new Dictionary<string, string> { ["PassiveMode"] = "true" });
 
         var health = new HealthService(_factory, settings, bus);
-        var media = new MediaServerService(_factory, _http, NullLogger<MediaServerService>.Instance, bus, health);
+        var media = new TestServices(_factory, _http, bus: bus, health: health).Media;
 
         var server = new MediaServer
         {

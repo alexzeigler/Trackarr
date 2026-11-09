@@ -33,9 +33,9 @@ public partial class Uptime : ComponentBase, IAsyncDisposable
         }
 
         var since = DateTime.UtcNow.AddHours(-_periodHours);
-        _samples = await MediaServerService.GetStatusSamplesAsync(_selectedServerId, since);
-        _events = await MediaServerService.GetRecentHealthEventsAsync(_selectedServerId, 500);
-        _remoteHealth = SelectedServer is { } server ? await MediaServerService.GetRemoteHealthAsync(server) : [];
+        _samples = await ServerRepository.GetStatusSamplesAsync(_selectedServerId, since);
+        _events = await ServerRepository.GetRecentHealthEventsAsync(_selectedServerId, 500);
+        _remoteHealth = SelectedServer is { } server ? await ServerConnection.GetRemoteHealthAsync(server) : [];
         _currentPage = 1;
         _chartsPending = true;
     }
@@ -81,7 +81,7 @@ public partial class Uptime : ComponentBase, IAsyncDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        _servers = (await MediaServerService.GetAllServersAsync())
+        _servers = (await ServerRepository.GetAllAsync())
             .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList();
         _hasServers = _servers.Count > 0;
         if (!_hasServers) return;
@@ -173,7 +173,8 @@ public partial class Uptime : ComponentBase, IAsyncDisposable
 
         try
         {
-            await MediaServerService.UpdateServerAsync(server);
+            // Only the setting is saved. The server isn't contacted, so turning off one that's down is instant.
+            await ServerRepository.UpdateAsync(server);
         }
         catch (MediaServerException ex)
         {
@@ -209,7 +210,7 @@ public partial class Uptime : ComponentBase, IAsyncDisposable
 
         try
         {
-            await MediaServerService.TestConnectionAsync(server);
+            await ServerConnection.TestConnectionAsync(server);
         }
         catch (MediaServerException ex)
         {
@@ -231,7 +232,7 @@ public partial class Uptime : ComponentBase, IAsyncDisposable
     {
         try
         {
-            await MediaServerService.DeleteServerAsync(id);
+            await ServerRepository.DeleteAsync(id);
         }
         catch (MediaServerException ex)
         {
@@ -244,7 +245,7 @@ public partial class Uptime : ComponentBase, IAsyncDisposable
 
     private async Task RefreshAsync()
     {
-        _servers = (await MediaServerService.GetAllServersAsync())
+        _servers = (await ServerRepository.GetAllAsync())
             .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList();
         _hasServers = _servers.Count > 0;
         if (_hasServers) await LoadAsync();
