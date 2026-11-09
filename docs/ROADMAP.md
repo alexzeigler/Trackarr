@@ -972,7 +972,13 @@ and `IsPassiveMode` is only read by `ActionExecutor`, `SettingsService`, the UI 
 
    Part 3 is built in `v7/phase2-strangle-queue`. The queue pages go through the clients too, and the queue record to
    `DownloadItem` mapping moved into `MediaRecordMappers`. `MediaServerService` makes no HTTP calls of its own any
-   more: its `CreateClient` is gone. Next: `Microsoft.Extensions.Http.Resilience` on the clients, retrying GETs only.
+   more: its `CreateClient` is gone.
+
+   Retries are built in `v7/phase2-resilience`. `ArrHttpClients.AddArrHttpClients` registers both named clients
+   (Program.cs calls it), each with a `Microsoft.Extensions.Http.Resilience` retry. A GET that failed to connect or got
+   a 408, 429 or 5xx is retried twice, about 1 and 2 seconds apart. A 4xx, a timeout and every other method are not
+   retried. The retries share the server's Request Timeout. The package is pinned to 10.6.0, the release built on
+   the 10.0.8 Microsoft.Extensions packages, until those are raised.
 5. **Split what's left** into the services in [4.7](#47-services-after-the-mediaserverservice-split-a1). Replace
    `FollowSearchAsync` with a hosted `CommandWatcher` (P12), and move the static dictionaries (`ProfileFetchTimes`,
    `QueueLocks`) into injected singletons (A5).

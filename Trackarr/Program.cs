@@ -133,10 +133,8 @@ builder.Services.AddHttpClient();
 // Clients for Radarr/Sonarr. Both honour the outgoing proxy from Settings > Network (handlers are recycled every
 // couple of minutes, which is when a proxy change takes effect). The "insecure" one accepts any TLS certificate,
 // for servers with "Skip certificate validation" on (self-signed certificates on Radarr/Sonarr's own SSL port).
-builder.Services.AddHttpClient(MediaServerService.HttpClientName)
-    .ConfigurePrimaryHttpMessageHandler(sp => CreateMediaServerHandler(sp, false));
-builder.Services.AddHttpClient(MediaServerService.InsecureHttpClientName)
-    .ConfigurePrimaryHttpMessageHandler(sp => CreateMediaServerHandler(sp, true));
+// Both retry a failed GET twice; nothing else is retried (ArrHttpClients).
+builder.Services.AddArrHttpClients(CreateMediaServerHandler);
 
 static SocketsHttpHandler CreateMediaServerHandler(IServiceProvider sp, bool acceptAnyCertificate)
 {
