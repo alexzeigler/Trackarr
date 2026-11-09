@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stateless clients for everything outside the app: Radarr and Sonarr now, download clients and notification
+    targets later (ROADMAP 4.1). References Core only: no database, no settings, no ASP.NET.
+  -->
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Trackarr.Tests"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http"/>
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Trackarr.Core\Trackarr.Core.csproj"/>
+  </ItemGroup>
+
+</Project>

@@ -1,4 +1,4 @@
-﻿namespace Trackarr.Core.Media.Shows;
+﻿namespace Trackarr.Integrations.Media.Arr.Dtos;
 
 public class MissingShowResponse
 {

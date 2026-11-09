@@ -1,6 +1,6 @@
 ﻿using System.Text.Json;
 
-namespace Trackarr.Core.Queue;
+namespace Trackarr.Integrations.Media.Arr.Dtos;
 
 public class QueueRecord
 {

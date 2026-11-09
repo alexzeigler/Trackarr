@@ -15,6 +15,7 @@ using Trackarr.Auth;
 using Trackarr.Components;
 using Trackarr.Core.Routine;
 using Trackarr.Data;
+using Trackarr.Integrations.Media.Arr;
 using Trackarr.Routines;
 using Trackarr.Services.Actions;
 using Trackarr.Services.Auth;
@@ -108,6 +109,8 @@ builder.Services.AddSingleton<IRoutine, HealthCheckRoutine>();
 builder.Services.AddSingleton<EventService>();
 builder.Services.AddSingleton<RoutineRunner>();
 builder.Services.AddSingleton<RoutineService>();
+// Radarr/Sonarr clients (Trackarr.Integrations). MediaServerService moves onto these step by step in Phase 2.
+builder.Services.AddSingleton<ArrClientFactory>();
 builder.Services.AddSingleton<MediaServerService>();
 // Every change on Radarr/Sonarr goes through here, and Passive Mode is enforced here only (ROADMAP 4.8).
 builder.Services.AddSingleton<ActionExecutor>();
@@ -130,10 +133,8 @@ builder.Services.AddHttpClient();
 // Clients for Radarr/Sonarr. Both honour the outgoing proxy from Settings > Network (handlers are recycled every
 // couple of minutes, which is when a proxy change takes effect). The "insecure" one accepts any TLS certificate,
 // for servers with "Skip certificate validation" on (self-signed certificates on Radarr/Sonarr's own SSL port).
-builder.Services.AddHttpClient(MediaServerService.HttpClientName)
-    .ConfigurePrimaryHttpMessageHandler(sp => CreateMediaServerHandler(sp, false));
-builder.Services.AddHttpClient(MediaServerService.InsecureHttpClientName)
-    .ConfigurePrimaryHttpMessageHandler(sp => CreateMediaServerHandler(sp, true));
+// Both retry a failed GET twice; nothing else is retried (ArrHttpClients).
+builder.Services.AddArrHttpClients(CreateMediaServerHandler);
 
 static SocketsHttpHandler CreateMediaServerHandler(IServiceProvider sp, bool acceptAnyCertificate)
 {

@@ -1,12 +1,36 @@
 using System.Text.Json;
 using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Media.Shows;
+using Trackarr.Core.Queue;
+using Trackarr.Integrations.Media.Arr.Dtos;
 using Trackarr.Services.Media;
 
 namespace Trackarr.Tests;
 
 public class MediaRecordMappersTests
 {
+    [Theory]
+    [InlineData("downloading", QueueState.Downloading)]
+    [InlineData("importPending", QueueState.PendingImport)]
+    [InlineData("importing", QueueState.Importing)]
+    [InlineData("failed", QueueState.Failed)]
+    [InlineData("imported", QueueState.Unknown)]
+    [InlineData(null, QueueState.Unknown)]
+    public void ToQueueState_ReadsTheTrackedDownloadState(string? state, QueueState expected)
+    {
+        Assert.Equal(expected, MediaRecordMappers.ToQueueState(state));
+    }
+
+    [Fact]
+    public void QueueRecord_ToEntity_FillsMissingJsonFieldsWithEmptyValues()
+    {
+        var item = new QueueRecord { Id = 7, Title = "Some.Release", TrackedDownloadState = "importing" }.ToEntity(3);
+
+        Assert.Equal((7, "Some.Release", 3, QueueState.Importing), (item.RemoteId, item.Title, item.ServerId, item.State));
+        Assert.Equal(("[]", "null", "[]", "[]"),
+            (item.LanguagesJson, item.QualityJson, item.CustomFormatsJson, item.StatusMessagesJson));
+    }
+
     [Fact]
     public void MovieRecord_ToEntity_MapsScalarsAndServerId()
     {

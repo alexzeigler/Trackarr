@@ -12,6 +12,8 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8"/>
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.8"/>
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.8"/>
+    <!-- 10.6.0 is the release built on the 10.0.8 packages; later ones need those raised first. -->
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.6.0"/>
     <PackageVersion Include="Microsoft.Extensions.Identity.Core" Version="10.0.8"/>
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8"/>
     <!-- Pin native SQLite bundle to patched 3.0.3; the 2.1.11 pulled in transitively has GHSA-2m69-gcr7-jv3q. -->
