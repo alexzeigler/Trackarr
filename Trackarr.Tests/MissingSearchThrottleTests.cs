@@ -320,7 +320,8 @@ public class MissingSearchThrottleTests
 
         var health = new HealthService(factory, settings, bus);
         var fake = new FakeRadarr(missingMovies);
-        var media = new MediaServerService(factory, fake, NullLogger<MediaServerService>.Instance, bus, health);
+        var services = new TestServices(factory, fake, bus: bus, health: health);
+        var media = services.Media;
 
         var server = new MediaServer
         {
@@ -343,7 +344,7 @@ public class MissingSearchThrottleTests
         }
 
         var actions = new ActionExecutor(media, settings, factory, bus, NullLogger<ActionExecutor>.Instance);
-        return (new MissingService(factory, media, settings, actions, bus), fake, factory, server);
+        return (new MissingService(factory, media, services.Servers, settings, actions, bus), fake, factory, server);
     }
 
     private sealed record SentCommand(string Name, List<int> Ids);

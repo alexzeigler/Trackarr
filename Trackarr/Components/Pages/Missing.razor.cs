@@ -139,7 +139,7 @@ public partial class Missing : ComponentBase, IAsyncDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        _hasServers = (await MediaServerService.GetAllServersAsync()).Count > 0;
+        _hasServers = (await ServerRepository.GetAllAsync()).Count > 0;
         if (!_hasServers) return;
 
         AppState.OnRefreshRequested += OnAutoRefreshAsync;

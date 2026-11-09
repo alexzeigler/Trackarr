@@ -5,16 +5,16 @@ using System.Text.Json;
 namespace Trackarr.Tests;
 
 /// <summary>
-///     Answers HTTP requests from the recorded Radarr/Sonarr responses in <c>Fixtures/&lt;app&gt;/</c> instead of the
-///     network. See <c>Fixtures/README.md</c> for how to record them. Only GETs are served: Trackarr's writes
-///     (searches, removals) have nothing to replay.
+///     Answers HTTP requests from the hand-written Radarr/Sonarr responses in <c>Fixtures/&lt;app&gt;/</c> instead of
+///     the network (see <c>Fixtures/README.md</c>). Only GETs are served: Trackarr's writes (searches, removals) have
+///     nothing to replay.
 /// </summary>
 internal sealed class FixtureHandler(string app, string? root = null) : HttpMessageHandler
 {
     public const string Radarr = "radarr";
     public const string Sonarr = "sonarr";
 
-    /// <summary>Where the recordings are copied next to the test assembly.</summary>
+    /// <summary>Where the fixtures are copied next to the test assembly.</summary>
     public static string DefaultRoot => Path.Combine(AppContext.BaseDirectory, "Fixtures");
 
     private string Folder => Path.Combine(root ?? DefaultRoot, app);
@@ -26,7 +26,6 @@ internal sealed class FixtureHandler(string app, string? root = null) : HttpMess
     ///     The fixture file a request path maps to, or null for paths outside /api. Everything before "/api/" (a
     ///     URL base) is dropped, number segments become "id", and the segments are joined with "_":
     ///     <c>/radarr/api/v3/movie/42</c> → <c>api_v3_movie_id.json</c>. The query string isn't part of the name.
-    ///     This must match FixtureRecorder.FileNameFor in the Trackarr.MockServer repository, which writes the files.
     /// </summary>
     public static string? FileNameFor(string path)
     {
@@ -46,7 +45,7 @@ internal sealed class FixtureHandler(string app, string? root = null) : HttpMess
         }
     }
 
-    /// <summary>True when a recording exists for <paramref name="path" />.</summary>
+    /// <summary>True when a fixture exists for <paramref name="path" />.</summary>
     public bool Has(string path)
     {
         return FileNameFor(path) is { } name && File.Exists(Path.Combine(Folder, name));
@@ -74,7 +73,7 @@ internal sealed class FixtureHandler(string app, string? root = null) : HttpMess
         if (!File.Exists(file))
         {
             return Json(HttpStatusCode.NotFound,
-                $"No fixture {app}/{name}. Record it with the MockServer (see Trackarr.Tests/Fixtures/README.md).");
+                $"No fixture {app}/{name}. Add one (see Trackarr.Tests/Fixtures/README.md).");
         }
 
         var body = await File.ReadAllTextAsync(file, cancellationToken);

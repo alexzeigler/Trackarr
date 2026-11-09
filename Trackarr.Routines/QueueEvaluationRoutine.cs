@@ -8,12 +8,14 @@ using Trackarr.Core.Server;
 using Trackarr.Core.Settings;
 using Trackarr.Services.Actions;
 using Trackarr.Services.Media;
+using Trackarr.Services.Servers;
 using Trackarr.Services.Settings;
 
 namespace Trackarr.Routines;
 
 public sealed class QueueEvaluationRoutine(
     MediaServerService mediaServerService,
+    ServerRepository serverRepository,
     HealthService healthService,
     BlacklistService blacklistService,
     SettingsService settings,
@@ -33,7 +35,7 @@ public sealed class QueueEvaluationRoutine(
     public override async Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken)
     {
         // Monitor Queue off means hands off the queue entirely: no fetching, scoring or removing on that server.
-        var servers = (await mediaServerService.GetAllServersAsync())
+        var servers = (await serverRepository.GetAllAsync())
             .Where(s => s.IsEnabled && settings.ShouldMonitorQueue(s)).OrderBy(s => s.Priority).ToList();
 
         if (servers.Count == 0)

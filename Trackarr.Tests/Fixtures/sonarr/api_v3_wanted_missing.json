@@ -1,0 +1,24 @@
+{
+  "page": 1,
+  "pageSize": 100,
+  "sortKey": "airDateUtc",
+  "sortDirection": "descending",
+  "totalRecords": 1,
+  "records": [
+    {
+      "seriesId": 302,
+      "tvdbId": 9001,
+      "episodeFileId": 0,
+      "seasonNumber": 2,
+      "episodeNumber": 3,
+      "title": "Missing Episode",
+      "airDate": "2024-09-01",
+      "airDateUtc": "2024-09-01T01:00:00Z",
+      "hasFile": false,
+      "monitored": true,
+      "unverifiedSceneNumbering": false,
+      "series": { "id": 302, "title": "Missing Show", "year": 2023, "monitored": true, "qualityProfileId": 6, "status": "continuing", "titleSlug": "missing-show", "tvdbId": 9000 },
+      "id": 3023
+    }
+  ]
+}

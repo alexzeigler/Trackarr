@@ -2,12 +2,13 @@
 using Trackarr.Core.Routine;
 using Trackarr.Core.Server;
 using Trackarr.Services.Media;
+using Trackarr.Services.Servers;
 using Trackarr.Services.Settings;
 
 namespace Trackarr.Routines;
 
 public sealed class MissingMediaFetchRoutine(
-    MediaServerService mediaServerService,
+    ServerRepository serverRepository,
     MissingService missingService,
     SettingsService settings,
     ILogger<MissingMediaFetchRoutine> logger) : Routine
@@ -24,7 +25,7 @@ public sealed class MissingMediaFetchRoutine(
 
     public override async Task<RoutineResult> ExecuteAsync(CancellationToken cancellationToken)
     {
-        var servers = (await mediaServerService.GetAllServersAsync())
+        var servers = (await serverRepository.GetAllAsync())
             .Where(s => s.IsEnabled && settings.ShouldSearchMissing(s)).OrderBy(s => s.Priority).ToList();
 
         if (servers.Count == 0)

@@ -493,7 +493,7 @@ public partial class Queue : ComponentBase
             await InvokeAsync(StateHasChanged);
 
             _loadError = null;
-            var allServers = await MediaServerService.GetAllServersAsync();
+            var allServers = await ServerRepository.GetAllAsync();
             _hasServers = allServers.Count > 0;
             if (!_hasServers) return;
 
@@ -532,7 +532,7 @@ public partial class Queue : ComponentBase
             var profiles = new Dictionary<string, QualityProfile>();
 
             foreach (var server in servers)
-            foreach (var profile in await MediaServerService.GetProfilesAsync(server))
+            foreach (var profile in await QualityProfiles.GetProfilesAsync(server))
                 profiles[$"{profile.ServerId}_{profile.RemoteId}"] = profile;
 
             // One batched read for the whole page (P3), instead of three service calls per download.

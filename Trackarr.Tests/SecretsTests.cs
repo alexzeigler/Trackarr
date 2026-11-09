@@ -143,11 +143,10 @@ public sealed class SecretsTests : IDisposable
         var id = await AddServerAsync(Key);
         var before = await StoredApiKeyAsync(id);
         var settings = new SettingsService(_factory, NullLogger<SettingsService>.Instance, new DataChangeBus());
-        var service = new MediaServerService(_factory, new NoHttp(),
-            NullLogger<MediaServerService>.Instance, new DataChangeBus(),
-            new HealthService(_factory, settings, new DataChangeBus()));
+        var health = new HealthService(_factory, settings, new DataChangeBus());
+        var service = new TestServices(_factory, new NoHttp(), health: health).Servers;
 
-        await service.UpdateServerStatsAsync(id, s => s.LastPingMs = 42);
+        await service.UpdateStatusAsync(id, s => s.LastPingMs = 42);
 
         // Protect uses a fresh IV every time, so a rewrite would show up as a different stored value.
         Assert.Equal(before, await StoredApiKeyAsync(id));

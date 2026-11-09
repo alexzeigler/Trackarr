@@ -11,6 +11,7 @@ using Trackarr.Core.Settings;
 using Trackarr.Routines;
 using Trackarr.Services.Actions;
 using Trackarr.Services.Media;
+using Trackarr.Services.Servers;
 using Trackarr.Services.Settings;
 using Trackarr.Services.UI;
 
@@ -28,7 +29,7 @@ public class QueueRoutineIsolationTests
         var ctx = await CreateAsync();
         using var _ = ctx.Factory;
 
-        var routine = new QueueRefreshRoutine(ctx.Media, ctx.Health, ctx.Settings,
+        var routine = new QueueRefreshRoutine(ctx.Media, ctx.Servers, ctx.Health, ctx.Settings,
             NullLogger<QueueRefreshRoutine>.Instance);
         var run = await routine.ExecuteAsync(CancellationToken.None);
         var result = run.Message;
@@ -47,8 +48,8 @@ public class QueueRoutineIsolationTests
         var ctx = await CreateAsync();
         using var _ = ctx.Factory;
 
-        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
-            NullLogger<QueueEvaluationRoutine>.Instance);
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Servers, ctx.Health, ctx.Blacklist, ctx.Settings,
+            ctx.Actions, NullLogger<QueueEvaluationRoutine>.Instance);
         var run = await routine.ExecuteAsync(CancellationToken.None);
         var result = run.Message;
 
@@ -65,8 +66,8 @@ public class QueueRoutineIsolationTests
         var ctx = await CreateAsync();
         using var _ = ctx.Factory;
 
-        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
-            NullLogger<QueueEvaluationRoutine>.Instance);
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Servers, ctx.Health, ctx.Blacklist, ctx.Settings,
+            ctx.Actions, NullLogger<QueueEvaluationRoutine>.Instance);
         await routine.ExecuteAsync(CancellationToken.None);
 
         await using var db = ctx.Factory.CreateDbContext();
@@ -86,8 +87,8 @@ public class QueueRoutineIsolationTests
         // Queue item 1 already left the client, so its DELETE returns 404. Item 2 should still be removed.
         ctx.Fake.MissingQueueIds.Add(1);
 
-        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
-            NullLogger<QueueEvaluationRoutine>.Instance);
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Servers, ctx.Health, ctx.Blacklist, ctx.Settings,
+            ctx.Actions, NullLogger<QueueEvaluationRoutine>.Instance);
         var run = await routine.ExecuteAsync(CancellationToken.None);
         var result = run.Message;
 
@@ -105,8 +106,8 @@ public class QueueRoutineIsolationTests
         await ctx.Blacklist.AddAsync(new BlacklistEntry { Pattern = "BadGroup", Type = BlacklistType.Keyword });
         await SetServerAsync(ctx, s => s.MonitorQueue = false);
 
-        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
-            NullLogger<QueueEvaluationRoutine>.Instance);
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Servers, ctx.Health, ctx.Blacklist, ctx.Settings,
+            ctx.Actions, NullLogger<QueueEvaluationRoutine>.Instance);
         await routine.ExecuteAsync(CancellationToken.None);
 
         Assert.Empty(ctx.Fake.DeleteAttempts);
@@ -123,8 +124,8 @@ public class QueueRoutineIsolationTests
         await ctx.Blacklist.AddAsync(new BlacklistEntry { Pattern = "BadGroup", Type = BlacklistType.Keyword });
         await SetServerAsync(ctx, s => s.AutoRemoveDownloads = false);
 
-        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
-            NullLogger<QueueEvaluationRoutine>.Instance);
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Servers, ctx.Health, ctx.Blacklist, ctx.Settings,
+            ctx.Actions, NullLogger<QueueEvaluationRoutine>.Instance);
         var result = (await routine.ExecuteAsync(CancellationToken.None)).Message;
 
         Assert.Empty(ctx.Fake.DeleteAttempts);
@@ -139,8 +140,8 @@ public class QueueRoutineIsolationTests
         await ctx.Blacklist.AddAsync(new BlacklistEntry { Pattern = "BadGroup", Type = BlacklistType.Keyword });
         await ctx.Settings.SaveCategoryAsync("General", new Dictionary<string, string> { ["PassiveMode"] = "true" });
 
-        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
-            NullLogger<QueueEvaluationRoutine>.Instance);
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Servers, ctx.Health, ctx.Blacklist, ctx.Settings,
+            ctx.Actions, NullLogger<QueueEvaluationRoutine>.Instance);
         var result = (await routine.ExecuteAsync(CancellationToken.None)).Message;
 
         Assert.Empty(ctx.Fake.DeleteAttempts);
@@ -160,8 +161,8 @@ public class QueueRoutineIsolationTests
         var ctx = await CreateAsync();
         using var _ = ctx.Factory;
         await ctx.Blacklist.AddAsync(new BlacklistEntry { Pattern = "BadGroup", Type = BlacklistType.Keyword });
-        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Health, ctx.Blacklist, ctx.Settings, ctx.Actions,
-            NullLogger<QueueEvaluationRoutine>.Instance);
+        var routine = new QueueEvaluationRoutine(ctx.Media, ctx.Servers, ctx.Health, ctx.Blacklist, ctx.Settings,
+            ctx.Actions, NullLogger<QueueEvaluationRoutine>.Instance);
 
         // A first run in Passive Mode only starts tracking the two downloads.
         await ctx.Settings.SaveCategoryAsync("General", new Dictionary<string, string> { ["PassiveMode"] = "true" });
@@ -197,7 +198,8 @@ public class QueueRoutineIsolationTests
         await settings.InitializeAsync();
         var health = new HealthService(factory, settings, bus);
         var fake = new FakeServers();
-        var media = new MediaServerService(factory, fake, NullLogger<MediaServerService>.Instance, bus, health);
+        var services = new TestServices(factory, fake, bus: bus, health: health);
+        var media = services.Media;
 
         // The offline server sorts first by priority, so before the fix it aborted the run before the other.
         var down = NewServer("Down Radarr", FakeServers.DownHost, priority: 1);
@@ -209,7 +211,8 @@ public class QueueRoutineIsolationTests
         }
 
         var actions = new ActionExecutor(media, settings, factory, bus, NullLogger<ActionExecutor>.Instance);
-        return new Context(factory, media, health, settings, new BlacklistService(factory, bus), actions, fake, up.Id);
+        return new Context(factory, media, services.Servers, health, settings, new BlacklistService(factory, bus), actions,
+            fake, up.Id);
     }
 
     private static MediaServer NewServer(string name, string host, int priority)
@@ -230,6 +233,7 @@ public class QueueRoutineIsolationTests
     private sealed record Context(
         SqliteInMemoryFactory Factory,
         MediaServerService Media,
+        ServerRepository Servers,
         HealthService Health,
         SettingsService Settings,
         BlacklistService Blacklist,

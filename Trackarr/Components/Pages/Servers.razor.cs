@@ -28,7 +28,7 @@ public partial class Servers : ComponentBase
         {
             IsRefreshing = true;
             StateHasChanged();
-            _servers = await MediaServerService.GetAllServersAsync();
+            _servers = await ServerRepository.GetAllAsync();
             await LoadLatestEventsAsync();
             IsRefreshing = false;
             StateHasChanged();
@@ -41,7 +41,7 @@ public partial class Servers : ComponentBase
 
         foreach (var server in _servers)
         {
-            var recent = await MediaServerService.GetRecentHealthEventsAsync(server.Id, 1);
+            var recent = await ServerRepository.GetRecentHealthEventsAsync(server.Id, 1);
             events[server.Id] = recent.FirstOrDefault();
         }
 
@@ -89,7 +89,7 @@ public partial class Servers : ComponentBase
     protected override async Task OnInitializedAsync()
     {
         AppState.OnRefreshRequested += RefreshAsync;
-        _servers = await MediaServerService.GetAllServersAsync();
+        _servers = await ServerRepository.GetAllAsync();
         await LoadLatestEventsAsync();
     }
 
@@ -143,7 +143,8 @@ public partial class Servers : ComponentBase
 
         try
         {
-            await MediaServerService.UpdateServerAsync(server);
+            // Only the setting is saved. The server isn't contacted, so turning off one that's down is instant.
+            await ServerRepository.UpdateAsync(server);
         }
         catch (MediaServerException ex)
         {
@@ -159,7 +160,7 @@ public partial class Servers : ComponentBase
 
         try
         {
-            await MediaServerService.TestConnectionAsync(row);
+            await ServerConnection.TestConnectionAsync(row);
         }
         catch (MediaServerException ex)
         {
@@ -199,7 +200,7 @@ public partial class Servers : ComponentBase
 
         try
         {
-            await MediaServerService.DeleteServerAsync(id);
+            await ServerRepository.DeleteAsync(id);
         }
         catch (Exception ex) when (ex is MediaServerException or DbUpdateException)
         {

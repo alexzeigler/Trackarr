@@ -22,7 +22,7 @@ public class ServerActionFailureTests
         using var factory = new SqliteInMemoryFactory();
         var (service, server) = await CreateAsync(factory, new FixedHandler(status));
 
-        var ex = await Assert.ThrowsAsync<ApiException>(() => service.TestConnectionAsync(server));
+        var ex = await Assert.ThrowsAsync<ApiException>(() => service.Connection.TestConnectionAsync(server));
         Assert.True(ex.IsAuthFailure);
 
         Assert.False(server.IsAuthenticated);
@@ -41,19 +41,19 @@ public class ServerActionFailureTests
         var (service, server) = await CreateAsync(factory, new FixedHandler(null));
 
         server.IsEnabled = false;
-        await service.UpdateServerAsync(server); // must not throw just because the server is down
+        await service.Servers.UpdateAsync(server);
+        Assert.False(await service.Connection.TryRefreshMetadataAsync(server)); // must not throw just because it's down
 
         await using var db = factory.CreateDbContext();
         Assert.False((await db.MediaServers.SingleAsync()).IsEnabled);
     }
 
-    private static async Task<(MediaServerService, MediaServer)> CreateAsync(SqliteInMemoryFactory factory,
+    private static async Task<(TestServices, MediaServer)> CreateAsync(SqliteInMemoryFactory factory,
         FixedHandler handler)
     {
         var bus = new DataChangeBus();
         var settings = new SettingsService(factory, NullLogger<SettingsService>.Instance, bus);
-        var service = new MediaServerService(factory, handler, NullLogger<MediaServerService>.Instance, bus,
-            new HealthService(factory, settings, bus));
+        var service = new TestServices(factory, handler, bus: bus, health: new HealthService(factory, settings, bus));
 
         var server = new MediaServer
         {

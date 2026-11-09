@@ -189,7 +189,7 @@ Each arrow is one PR or more. At every step the app runs and the existing tests 
 
 | Net | Why | How |
 |-----|-----|-----|
-| **Recorded API fixtures** (T3) | Phase 2 moves every HTTP call. Fixtures prove the parsing didn't change | Add a *record mode* to the MockServer repository that saves each Radarr and Sonarr GET response to a configurable folder. Point it at this repo's `Trackarr.Tests/Fixtures/{radarr,sonarr}/`, commit the JSON files here, and replay them through a stub `HttpMessageHandler`. Trackarr's tests never depend on the MockServer project, only on the recorded files. |
+| **API fixtures** (T3) | Phase 2 moves every HTTP call. Fixtures prove the parsing didn't change | Hand-written Radarr and Sonarr responses in the v3 shape, in `Trackarr.Tests/Fixtures/{radarr,sonarr}/`, replayed through `FixtureHandler`. *Decided 2026-11-08:* responses recorded from real servers aren't committed. They'd publish library titles, paths and indexer names, and the strangling only needs old and new code to read the same input the same way. Edge cases (season packs, queued items with no size) are written into the fixtures by hand. |
 | **A v6 database snapshot** ✅ | Phases 3 and 4 change the schema | `V6DatabaseUpgradeTests` builds the schema exactly as v6.0.0 shipped it from the migrations, puts a row in every table, upgrades to the current schema and checks every row and foreign key survives. No real database is committed, so no personal data ends up in the repository. |
 | **Characterization tests** | Pin down today's behaviour where coverage is thin, such as `MissingService` (T1) | Table-driven tests over the state diagram in AUDIT.md 4.4, run before Phase 2 touches the code |
 | **Backup before migrate** (F13) ✅ | A failed migration on a user's machine shouldn't lose data | `DatabaseBackup` runs `VACUUM INTO /config/backups/trackarr_pre_<version>_<time>.db` at startup when migrations are pending, and keeps the newest 5. A failed backup is logged and the upgrade goes ahead. |
@@ -677,6 +677,8 @@ and category. Offer "Import from Radarr" to pre-fill the form. Passwords come ba
 | New service | Takes over | Notes |
 |-------------|-----------|-------|
 | `ServerRepository` | Server CRUD, status writes | Status updates use `ExecuteUpdateAsync` on changed columns (P9). Typed getters: `GetMediaServersAsync()`, `GetDownloadServersAsync()`. |
+| `ServerConnectionService` | Connection test, metadata, the server's own health checks | Added in the split: these call the server, so they don't belong in the repository. |
+| `QualityProfileService` | Profile fetch and cache | Added in the split. Its fetch times are an instance field, not static (A5). |
 | `MediaRepository` | Movie, Series and Episode upserts, `MediaRecordMappers` | |
 | `QueueSyncService` | Queue fetch, the `DownloadQueue` mirror, scoring new items | Per-server lock becomes an injected singleton (A5). Also fetches client downloads from Phase 4 on. |
 | `DownloadClientSyncService` | (new) | Fetches each download server's items into a `ClientDownloads` mirror table. |
@@ -882,8 +884,8 @@ Phases 5 and 6 can run in either order once Phase 4 lands.
    `Trackarr.Services` (returning a string, so the tests can still reach it), and move `[NotMapped]`/`[ForeignKey]`
    configuration into `AppDbContext`. **This is required:** `Trackarr.Integrations` will reference Core, and Core must
    stay dependency-free. Its only package is `Microsoft.Extensions.Logging.Abstractions`, for `LogLevel`.
-5. Build the safety nets from [3.4](#34-safety-nets-to-build-before-restructuring): MockServer record mode and
-   fixtures, the v6 database snapshot test, and backup-before-migrate.
+5. Build the safety nets from [3.4](#34-safety-nets-to-build-before-restructuring): API fixtures (hand-written, not
+   recorded; see the T3 row), the v6 database snapshot test, and backup-before-migrate.
 
 **Done when:** build and tests are green, the fixtures are checked in, and the v6 snapshot migrates in a test.
 
@@ -945,12 +947,61 @@ and `IsPassiveMode` is only read by `ActionExecutor`, `SettingsService`, the UI 
    `DownloadItem` their own DTOs and mappers, so entities stop carrying `[JsonPropertyName]` (A3).
 3. **Write `IMediaServerReader`, `IMediaServerWriter`, `ArrClientBase`, `RadarrClient` and `SonarrClient`**, tested
    against the Phase 0 fixtures. At this stage they still take today's `MediaServer` entity. Phase 3 changes that.
+
+   Steps 1 and 3, and the DTO move in step 2, are built in `v7/phase2-integrations`. Decisions made along the way:
+   - **The clients return the types `MediaServerService` parses today** (`QualityProfile`, `ServerMetadata`, the
+     records), so the strangling in step 4 can't change what Trackarr reads. The entity DTOs and mappers (A3) land in
+     step 4, when the entities stop being parsed directly.
+   - **`Microsoft.Extensions.Http.Resilience` waits for step 4**, where the clients are first used. Its retries must
+     be limited to GET: retrying a DELETE or a search command could repeat an action.
+   - **Hand-written fixtures, no recordings** (see the T3 row in 3.4). Each strangling PR feeds the old and new code
+     the same fixtures and checks they agree, adding edge cases to the fixtures as it goes.
+   - The planned PRs from here: strangle the reads (status, health, profiles, commands, history), then missing
+     media, then the queue and writes; split what's left (4.7) with a `CommandWatcher`; pages stop calling the
+     *arr apps; typed settings; per-routine loops; delete `MediaServerService`.
 4. **Strangle `MediaServerService`** method by method ([3.3](#33-the-strangler-pattern)). Its HTTP code becomes calls to
    the reader or writer. Suggested order, from easiest to riskiest: system status and health, quality profiles,
    commands and history, missing pages, then the queue.
+
+   Part 1 is built in `v7/phase2-strangle-reads`. The connection test, system status, health, quality profiles,
+   active searches, the search follow-up, import history and the three writes (queue removal, profile change,
+   searches) now go through the clients. `MediaServerServiceReadTests` pinned their results before the move and
+   still pass after it. `QualityProfile` lost its JSON attributes: the client reads a `QualityProfileDto` (A3).
+
+   Part 2 is built in `v7/phase2-strangle-media`. The missing movie and episode pages, the single movie and series
+   fetches, and a series' episode list (sync and states) now go through `RadarrClient` and `SonarrClient`, pinned the
+   same way.
+
+   Part 3 is built in `v7/phase2-strangle-queue`. The queue pages go through the clients too, and the queue record to
+   `DownloadItem` mapping moved into `MediaRecordMappers`. `MediaServerService` makes no HTTP calls of its own any
+   more: its `CreateClient` is gone.
+
+   Retries are built in `v7/phase2-resilience`. `ArrHttpClients.AddArrHttpClients` registers both named clients
+   (Program.cs calls it), each with a `Microsoft.Extensions.Http.Resilience` retry. A GET that failed to connect or got
+   a 408, 429 or 5xx is retried twice, about 1 and 2 seconds apart. A 4xx, a timeout and every other method are not
+   retried. The retries share the server's Request Timeout. The package is pinned to 10.6.0, the release built on
+   the 10.0.8 Microsoft.Extensions packages, until those are raised.
 5. **Split what's left** into the services in [4.7](#47-services-after-the-mediaserverservice-split-a1). Replace
    `FollowSearchAsync` with a hosted `CommandWatcher` (P12), and move the static dictionaries (`ProfileFetchTimes`,
    `QueueLocks`) into injected singletons (A5).
+
+   Part 1 is built in `v7/phase2-split-servers`:
+   - **`ServerRepository`** stores the servers, their status, the heartbeat samples and the health events. It never
+     calls Radarr or Sonarr.
+   - **`ServerConnectionService`** runs the connection test, and fetches a server's metadata and its own health
+     checks.
+   - **`QualityProfileService`** holds the profiles. Its fetch times are an instance field instead of the static
+     `ProfileFetchTimes` (A5).
+   - **`MediaServerClients`** hands every service its Radarr and Sonarr clients, so the Request Timeout rule is in one
+     place.
+   - **Saving a server no longer contacts it.** The Add/Edit form refreshes the metadata afterwards, and the Enable
+     toggle doesn't, so turning off a server that's down is instant.
+   - **The registrations moved** into `AddTrackarrServices` and `AddTrackarrRoutines`, and
+     `ServiceRegistrationTests` builds them the way Program.cs does.
+
+   Still to split: the media and missing syncs (`MediaRepository`, `MediaSummaryService`), the queue
+   (`QueueSyncService` and its locks), then the searches and writes (`SearchCommandService`, `CommandWatcher`,
+   `ActionExecutor`).
 6. **Pages stop calling the *arr apps** (P5). The Queue page reads `QueueQueryService`, and its Refresh button enqueues
    `queue_refresh`. The details modal reads local data and gets an explicit "Sync from Sonarr" button. Inject query
    services instead of `IDbContextFactory` in `Missing` and `Routines` (A6).
@@ -1196,8 +1247,8 @@ If you later want a component library, try MudBlazor or Fluent UI Blazor on one 
 3. `v7/phase0-build-props`: add `Directory.Build.props`.
 4. `v7/phase0-dead-code`: delete the A9 items.
 5. `v7/phase0-core-deps`: move UI types out of Core (A2).
-6. `v7/phase0-fixtures`: record mode in the MockServer repository, then (in this repository) the first fixtures for `/queue`, `/wanted/missing`, `/system/status`
-   and `/qualityprofile`, and the v6 snapshot test.
+6. `v7/phase0-fixtures`: the fixture replay handler and the v6 snapshot test. The fixtures themselves are written by
+   hand, starting in `v7/phase2-integrations` (recording real responses was tried and dropped, see the T3 row).
 
 After that, Phase 1 starts with auth.
 

@@ -324,7 +324,7 @@ public partial class MediaDetailsModal : ComponentBase
         _media = (MediaItem?)movie ?? series;
         _queueItem = queueItem;
 
-        _server = serverId.HasValue ? await MediaServerService.GetServerByIdAsync(serverId.Value) : null;
+        _server = serverId.HasValue ? await ServerRepository.GetByIdAsync(serverId.Value) : null;
         await LoadProfilesAsync();
 
         await ResolveMediaAsync(_queueItem);
@@ -381,7 +381,7 @@ public partial class MediaDetailsModal : ComponentBase
     {
         if (_server != null)
         {
-            var profiles = await MediaServerService.GetProfilesAsync(_server);
+            var profiles = await QualityProfiles.GetProfilesAsync(_server);
             foreach (var p in profiles) _profiles[$"{p.ServerId}_{p.RemoteId}"] = p;
         }
     }

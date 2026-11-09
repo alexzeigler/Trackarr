@@ -125,7 +125,7 @@ public partial class AddServerModal : ComponentBase
         SyncBehaviorFromModel();
         if (server.FallBackProfileId != null)
         {
-            Profiles = await ServerService.GetProfilesAsync(server);
+            Profiles = await QualityProfiles.GetProfilesAsync(server);
             var selected = Profiles?.FirstOrDefault(p =>
                 string.Equals(p.Name, Model.FallbackProfile?.Name, StringComparison.OrdinalIgnoreCase));
             if (selected == null)
@@ -154,7 +154,7 @@ public partial class AddServerModal : ComponentBase
         try
         {
             await ResetFallbackSelect(); // the profile options are about to change, on success or failure
-            TestResult = await ServerService.TestConnectionAsync(Model);
+            TestResult = await ServerConnection.TestConnectionAsync(Model);
 
             if (TestResult is { Item1: true })
             {
@@ -165,7 +165,7 @@ public partial class AddServerModal : ComponentBase
                     ReasonPhrase =
                     $"{TestResult.Value.ReasonPhrase} Last ping time: {TestResult.Value.ElapsedMilliseconds}ms"
                 };
-                Profiles = await ServerService.GetProfilesAsync(Model);
+                Profiles = await QualityProfiles.GetProfilesAsync(Model);
             }
             else
             {
@@ -218,9 +218,12 @@ public partial class AddServerModal : ComponentBase
         IsSaving = true;
         var isNew = !IsEditing;
         if (IsEditing)
-            await ServerService.UpdateServerAsync(Model);
+            await ServerRepository.UpdateAsync(Model);
         else
-            await ServerService.CreateServerAsync(Model);
+            await ServerRepository.AddAsync(Model);
+
+        // The address or key may have changed. A server that's down still saves; its metadata waits for the next sync.
+        await ServerConnection.TryRefreshMetadataAsync(Model);
 
         await ResetFallbackSelect();
         await Js.InvokeVoidAsync("modalHelper.hide", "serverModal");

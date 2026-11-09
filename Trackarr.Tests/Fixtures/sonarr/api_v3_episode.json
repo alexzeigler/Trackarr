@@ -1,0 +1,5 @@
+[
+  { "id": 3021, "seriesId": 302, "tvdbId": 9011, "episodeFileId": 55, "seasonNumber": 2, "episodeNumber": 1, "title": "First", "airDateUtc": "2024-08-18T01:00:00Z", "hasFile": true, "monitored": true },
+  { "id": 3022, "seriesId": 302, "tvdbId": 9012, "episodeFileId": 56, "seasonNumber": 2, "episodeNumber": 2, "title": "Second", "airDateUtc": "2024-08-25T01:00:00Z", "hasFile": true, "monitored": true },
+  { "id": 3023, "seriesId": 302, "tvdbId": 9013, "episodeFileId": 0, "seasonNumber": 2, "episodeNumber": 3, "title": "Missing Episode", "airDateUtc": "2024-09-01T01:00:00Z", "hasFile": false, "monitored": true }
+]

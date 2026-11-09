@@ -13,17 +13,13 @@ using Microsoft.EntityFrameworkCore;
 using Trackarr;
 using Trackarr.Auth;
 using Trackarr.Components;
-using Trackarr.Core.Routine;
 using Trackarr.Data;
+using Trackarr.Integrations.Media.Arr;
 using Trackarr.Routines;
-using Trackarr.Services.Actions;
+using Trackarr.Services;
 using Trackarr.Services.Auth;
 using Trackarr.Services.Diagnostics;
-using Trackarr.Services.Media;
-using Trackarr.Services.Routines;
 using Trackarr.Services.Settings;
-using Trackarr.Services.SystemInfo;
-using Trackarr.Services.UI;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -96,44 +92,17 @@ builder.Services.AddDbContextFactory<AppDbContext, ProtectedDbContextFactory>(op
     options.UseSqlite(connectionString, sqlite => { sqlite.CommandTimeout(30); });
 });
 
-builder.Services.AddHostedService<RoutineHostedService>();
-
-builder.Services.AddSingleton<IRoutine, HeartbeatRoutine>();
-builder.Services.AddSingleton<IRoutine, QueueRefreshRoutine>();
-builder.Services.AddSingleton<IRoutine, QueueEvaluationRoutine>();
-builder.Services.AddSingleton<IRoutine, MissingMediaFetchRoutine>();
-builder.Services.AddSingleton<IRoutine, DatabaseCleanupRoutine>();
-builder.Services.AddSingleton<IRoutine, HealthCheckRoutine>();
-
-builder.Services.AddSingleton<EventService>();
-builder.Services.AddSingleton<RoutineRunner>();
-builder.Services.AddSingleton<RoutineService>();
-builder.Services.AddSingleton<MediaServerService>();
-// Every change on Radarr/Sonarr goes through here, and Passive Mode is enforced here only (ROADMAP 4.8).
-builder.Services.AddSingleton<ActionExecutor>();
-builder.Services.AddSingleton<MissingService>();
-builder.Services.AddSingleton<ServerSyncService>();
-builder.Services.AddSingleton<HealthService>();
-builder.Services.AddSingleton<HistoryService>();
-builder.Services.AddSingleton<QueueStatsService>();
-builder.Services.AddSingleton<MissingStatsService>();
-builder.Services.AddSingleton<SystemStatusService>();
-builder.Services.AddSingleton<GitHubReleaseService>();
-builder.Services.AddSingleton<SettingsService>();
-builder.Services.AddSingleton<BlacklistService>();
-builder.Services.AddSingleton<DataChangeBus>();
-
-builder.Services.AddScoped<AppStateService>();
+// The routines and Trackarr's services (one list each, also built by ServiceRegistrationTests).
+builder.Services.AddTrackarrRoutines();
+builder.Services.AddTrackarrServices();
 
 builder.Services.AddHttpClient();
 
 // Clients for Radarr/Sonarr. Both honour the outgoing proxy from Settings > Network (handlers are recycled every
 // couple of minutes, which is when a proxy change takes effect). The "insecure" one accepts any TLS certificate,
 // for servers with "Skip certificate validation" on (self-signed certificates on Radarr/Sonarr's own SSL port).
-builder.Services.AddHttpClient(MediaServerService.HttpClientName)
-    .ConfigurePrimaryHttpMessageHandler(sp => CreateMediaServerHandler(sp, false));
-builder.Services.AddHttpClient(MediaServerService.InsecureHttpClientName)
-    .ConfigurePrimaryHttpMessageHandler(sp => CreateMediaServerHandler(sp, true));
+// Both retry a failed GET twice; nothing else is retried (ArrHttpClients).
+builder.Services.AddArrHttpClients(CreateMediaServerHandler);
 
 static SocketsHttpHandler CreateMediaServerHandler(IServiceProvider sp, bool acceptAnyCertificate)
 {
