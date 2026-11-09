@@ -1,4 +1,4 @@
-namespace Trackarr.Core.Server;
+namespace Trackarr.Integrations.Media.Arr.Dtos;
 
 public record HistoryResponse(List<HistoryRecord> Records);
 

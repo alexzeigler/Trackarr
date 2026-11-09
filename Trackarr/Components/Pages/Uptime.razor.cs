@@ -3,6 +3,7 @@ using Microsoft.JSInterop;
 using Trackarr.Components.Modals;
 using Trackarr.Core.Exception;
 using Trackarr.Core.Server;
+using Trackarr.Integrations.Media.Arr.Dtos;
 using Trackarr.Services.Media;
 using Trackarr.Services.Routines;
 

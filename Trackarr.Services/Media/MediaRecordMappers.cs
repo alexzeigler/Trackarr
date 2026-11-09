@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Trackarr.Core.Media.Movies;
 using Trackarr.Core.Media.Shows;
+using Trackarr.Integrations.Media.Arr.Dtos;
 
 namespace Trackarr.Services.Media;
 

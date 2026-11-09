@@ -17,6 +17,8 @@ using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Data;
+using Trackarr.Integrations.Media.Arr;
+using Trackarr.Integrations.Media.Arr.Dtos;
 using Trackarr.Services.Diagnostics;
 using Trackarr.Services.Settings;
 using Trackarr.Services.UI;
@@ -33,9 +35,9 @@ public class MediaServerService(
     EventService? eventService = null)
 {
     /// <summary>Named HttpClients for Radarr/Sonarr, registered in Program.cs (outgoing proxy, TLS options).</summary>
-    public const string HttpClientName = "MediaServer";
+    public const string HttpClientName = ArrClientFactory.HttpClientName;
 
-    public const string InsecureHttpClientName = "MediaServerInsecure";
+    public const string InsecureHttpClientName = ArrClientFactory.InsecureHttpClientName;
     private static readonly TimeSpan QueueCacheTtl = TimeSpan.FromSeconds(30);
 
     #region Media
