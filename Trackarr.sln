@@ -32,6 +32,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trackarr.Routines", "Tracka
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trackarr.Tests", "Trackarr.Tests\Trackarr.Tests.csproj", "{C0F9A6AD-322B-4949-9E5B-BA2C627C6AF0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trackarr.Integrations", "Trackarr.Integrations\Trackarr.Integrations.csproj", "{F3B3607C-B5EF-4E71-9BE2-BEC52AA9F4CD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -114,6 +116,18 @@ Global
 		{C0F9A6AD-322B-4949-9E5B-BA2C627C6AF0}.Release|x64.Build.0 = Release|Any CPU
 		{C0F9A6AD-322B-4949-9E5B-BA2C627C6AF0}.Release|x86.ActiveCfg = Release|Any CPU
 		{C0F9A6AD-322B-4949-9E5B-BA2C627C6AF0}.Release|x86.Build.0 = Release|Any CPU
+		{F3B3607C-B5EF-4E71-9BE2-BEC52AA9F4CD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F3B3607C-B5EF-4E71-9BE2-BEC52AA9F4CD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F3B3607C-B5EF-4E71-9BE2-BEC52AA9F4CD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F3B3607C-B5EF-4E71-9BE2-BEC52AA9F4CD}.Debug|x64.Build.0 = Debug|Any CPU
+		{F3B3607C-B5EF-4E71-9BE2-BEC52AA9F4CD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F3B3607C-B5EF-4E71-9BE2-BEC52AA9F4CD}.Debug|x86.Build.0 = Debug|Any CPU
+		{F3B3607C-B5EF-4E71-9BE2-BEC52AA9F4CD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F3B3607C-B5EF-4E71-9BE2-BEC52AA9F4CD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F3B3607C-B5EF-4E71-9BE2-BEC52AA9F4CD}.Release|x64.ActiveCfg = Release|Any CPU
+		{F3B3607C-B5EF-4E71-9BE2-BEC52AA9F4CD}.Release|x64.Build.0 = Release|Any CPU
+		{F3B3607C-B5EF-4E71-9BE2-BEC52AA9F4CD}.Release|x86.ActiveCfg = Release|Any CPU
+		{F3B3607C-B5EF-4E71-9BE2-BEC52AA9F4CD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

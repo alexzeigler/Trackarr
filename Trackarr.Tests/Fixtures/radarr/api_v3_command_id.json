@@ -1,0 +1,1 @@
+{ "name": "MoviesSearch", "commandName": "Movies Search", "message": "Completed. 0 reports downloaded.", "body": { "movieIds": [201] }, "priority": "normal", "status": "completed", "result": "successful", "queued": "2024-10-02T08:00:00Z", "id": 9 }

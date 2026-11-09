@@ -1,0 +1,5 @@
+[
+  { "name": "MoviesSearch", "commandName": "Movies Search", "message": "Completed", "body": { "movieIds": [201, 202], "sendUpdatesToClient": true }, "priority": "normal", "status": "completed", "result": "successful", "queued": "2024-10-02T08:00:00Z", "id": 9 },
+  { "name": "MoviesSearch", "commandName": "Movies Search", "body": { "movieIds": [203] }, "priority": "normal", "status": "started", "queued": "2024-10-02T08:05:00Z", "id": 10 },
+  { "name": "RefreshMonitoredDownloads", "commandName": "Refresh Monitored Downloads", "body": {}, "priority": "high", "status": "queued", "queued": "2024-10-02T08:06:00Z", "id": 11 }
+]

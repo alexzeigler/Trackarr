@@ -187,7 +187,8 @@ so Trackarr can be pointed at it without changing anything.
 Trackarr/              Web app: Blazor Server UI, startup, hosting and network settings
 Trackarr.Core/         Domain models: media, health, queue, routines, settings
 Trackarr.Data/         EF Core DbContext and migrations (SQLite)
-Trackarr.Services/     Business logic: Radarr/Sonarr API client, health scoring, missing search
+Trackarr.Integrations/ Clients for outside systems: the Radarr and Sonarr API (no database, no settings)
+Trackarr.Services/     Business logic: server sync, health scoring, missing search, the action gate
 Trackarr.Routines/     Background jobs (heartbeat, queue, evaluation, missing media, cleanup)
 Trackarr.Tests/        Unit and integration tests (xUnit)
 deploy/unraid/         Unraid container template

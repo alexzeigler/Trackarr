@@ -1,10 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Globalization;
 using System.Diagnostics;
-using System.Net;
-using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -17,6 +14,9 @@ using Trackarr.Core.Media.Shows;
 using Trackarr.Core.Queue;
 using Trackarr.Core.Server;
 using Trackarr.Data;
+using Trackarr.Integrations.Media;
+using Trackarr.Integrations.Media.Arr;
+using Trackarr.Integrations.Media.Arr.Dtos;
 using Trackarr.Services.Diagnostics;
 using Trackarr.Services.Settings;
 using Trackarr.Services.UI;
@@ -33,10 +33,14 @@ public class MediaServerService(
     EventService? eventService = null)
 {
     /// <summary>Named HttpClients for Radarr/Sonarr, registered in Program.cs (outgoing proxy, TLS options).</summary>
-    public const string HttpClientName = "MediaServer";
+    public const string HttpClientName = ArrClientFactory.HttpClientName;
 
-    public const string InsecureHttpClientName = "MediaServerInsecure";
+    public const string InsecureHttpClientName = ArrClientFactory.InsecureHttpClientName;
     private static readonly TimeSpan QueueCacheTtl = TimeSpan.FromSeconds(30);
+
+    // The Radarr/Sonarr HTTP calls are moving into Trackarr.Integrations (ROADMAP Phase 2, strangler pattern).
+    // Status, health, profiles, commands, history and the writes go through these clients already.
+    private readonly ArrClientFactory _arr = new(httpClientFactory);
 
     #region Media
 
@@ -58,16 +62,8 @@ public class MediaServerService(
 
         return await ExecuteApiAsync(server, "Unexpected error fetching profiles.", async () =>
         {
-            var client = CreateClient(server, 10);
-            var url = $"{server.BaseUrl}/api/v3/qualityprofile";
-
-            using var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, "/api/v3/qualityprofile", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var profiles = JsonSerializer.Deserialize<List<QualityProfile>>(json, _jsonOptions) ?? [];
+            var profiles = (await Arr(server, 10).GetQualityProfilesAsync())
+                .Select(p => new QualityProfile { RemoteId = p.Id, Name = p.Name }).ToList();
 
             if (!await db.MediaServers.AnyAsync(s => s.Id == server.Id))
                 return profiles;
@@ -115,43 +111,24 @@ public class MediaServerService(
         var resource = server.ServiceType == ServiceType.Radarr ? "movie" : "series";
 
         var error = $"Error setting profile on {resource} {remoteId}.";
-        var previous = await ExecuteApiAsync<int?>(server, error, async () =>
+        var change = await ExecuteApiAsync(server, error,
+            () => Arr(server, 15).SetQualityProfileAsync(remoteId, profileId, onlyIfCurrent));
+
+        switch (change.Outcome)
         {
-            var client = CreateClient(server, 15);
-            var getUrl = $"{server.BaseUrl}/api/v3/{resource}/{remoteId}";
-
-            using var getResponse = await client.GetAsync(getUrl);
-            if (!getResponse.IsSuccessStatusCode)
-                throw new ApiException(server.Name, $"/api/v3/{resource}/{remoteId}", (int)getResponse.StatusCode);
-
-            var json = await getResponse.Content.ReadAsStringAsync();
-            var node = JsonNode.Parse(json) ?? throw new MediaServerException($"{server.Name}: Empty {resource} body.");
-
-            var current = node["qualityProfileId"]?.GetValue<int>();
-            if (current == profileId) return current;
-            if (onlyIfCurrent is { } expected && current != expected)
-            {
+            case ProfileChangeOutcome.LeftAlone:
                 logger.LogInformation(
                     "Left profile {current} on {resource} {id} for {name}; expected {expected}, so it was changed outside Trackarr",
-                    current, resource, remoteId, server.Name, expected);
-                return current;
-            }
+                    change.Previous, resource, remoteId, server.Name, onlyIfCurrent);
+                break;
+            case ProfileChangeOutcome.Changed:
+                logger.LogInformation("Set profile {profile} on {resource} {id} for {name}", profileId, resource,
+                    remoteId, server.Name);
+                break;
+        }
 
-            node["qualityProfileId"] = profileId;
-
-            var putUrl = $"{server.BaseUrl}/api/v3/{resource}/{remoteId}";
-            using var content = new StringContent(node.ToJsonString(), Encoding.UTF8, "application/json");
-            using var putResponse = await client.PutAsync(putUrl, content);
-
-            if (!putResponse.IsSuccessStatusCode)
-                throw new ApiException(server.Name, $"/api/v3/{resource}/{remoteId}", (int)putResponse.StatusCode);
-
-            logger.LogInformation("Set profile {profile} on {resource} {id} for {name}", profileId, resource, remoteId,
-                server.Name);
-            return current;
-        });
         changeBus.NotifyChanged();
-        return previous;
+        return change.Previous;
     }
 
     public async Task<HashSet<string>> GetImportedDownloadIdsAsync(MediaServer server, IEnumerable<string> downloadIds)
@@ -168,21 +145,11 @@ public class MediaServerService(
 
         return await ExecuteApiAsync(server, "Error fetching history.", async () =>
         {
-            var client = CreateClient(server, 15);
+            var client = Arr(server, 15);
 
             foreach (var downloadId in ids)
             {
-                var url = $"{server.BaseUrl}/api/v3/history?downloadId={downloadId}&eventType=3";
-
-                using var response = await client.GetAsync(url);
-
-                if (!response.IsSuccessStatusCode)
-                    throw new ApiException(server.Name, "/api/v3/history", (int)response.StatusCode);
-
-                var json = await response.Content.ReadAsStringAsync();
-                var history = JsonSerializer.Deserialize<HistoryResponse>(json, _jsonOptions);
-
-                if (history?.Records.Count > 0)
+                if (await client.HasImportedAsync(downloadId))
                     imported.Add(downloadId);
             }
 
@@ -322,34 +289,8 @@ public class MediaServerService(
     private async Task<(List<Movie> Items, int TotalRecords)> FetchMissingMoviesPageAsync(MediaServer server, int page,
         int pageSize)
     {
-        if (string.IsNullOrWhiteSpace(server.ApiKey))
-            throw new MediaServerException($"{server.Name}: API key is required.");
-
-        try
-        {
-            var client = CreateClient(server, 15);
-            var url = $"{server.BaseUrl}/api/v3/wanted/missing?page={page}&pageSize={pageSize}";
-
-            using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, "/api/v3/wanted/missing", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var missing = JsonSerializer.Deserialize<MissingMovieResponse>(json, _jsonOptions);
-
-            var items = missing?.Records.Select(x => x.ToEntity(server.Id)).ToList() ?? [];
-
-            return (items, missing?.TotalRecords ?? 0);
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Error fetching missing movies page {page}.", ex);
-        }
+        var missing = await Radarr(server, 15).GetMissingPageAsync(page, pageSize);
+        return (missing.Records.Select(x => x.ToEntity(server.Id)).ToList(), missing.TotalRecords);
     }
 
     public async Task<Movie?> GetMovieByIdAsync(MediaServer server, int radarrMovieId)
@@ -360,16 +301,7 @@ public class MediaServerService(
 
         return await ExecuteApiAsync(server, $"Unexpected error fetching movie {radarrMovieId}.", async () =>
         {
-            var client = CreateClient(server, 10);
-            var url = $"{server.BaseUrl}/api/v3/movie/{radarrMovieId}";
-
-            using var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, $"/api/v3/movie/{radarrMovieId}", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var x = JsonSerializer.Deserialize<MovieRecord>(json, _jsonOptions);
+            var x = await Radarr(server, 10).GetMovieAsync(radarrMovieId);
 
             if (x is null)
             {
@@ -506,34 +438,8 @@ public class MediaServerService(
     private async Task<(List<Episode> Items, int TotalRecords)> FetchMissingEpisodesPageAsync(MediaServer server,
         int page, int pageSize)
     {
-        if (string.IsNullOrWhiteSpace(server.ApiKey))
-            throw new MediaServerException($"{server.Name}: API key is required.");
-
-        try
-        {
-            var client = CreateClient(server, 15);
-            var url = $"{server.BaseUrl}/api/v3/wanted/missing?page={page}&pageSize={pageSize}&includeSeries=true";
-
-            using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, "/api/v3/wanted/missing", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var missing = JsonSerializer.Deserialize<MissingShowResponse>(json, _jsonOptions);
-
-            var items = missing?.Records.Select(x => x.ToEntity(server.Id)).ToList() ?? [];
-
-            return (items, missing?.TotalRecords ?? 0);
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Error fetching missing episodes page {page}.", ex);
-        }
+        var missing = await Sonarr(server, 15).GetMissingPageAsync(page, pageSize);
+        return (missing.Records.Select(x => x.ToEntity(server.Id)).ToList(), missing.TotalRecords);
     }
 
     public async Task<Series?> GetSeriesByIdAsync(MediaServer server, int sonarrSeriesId)
@@ -548,16 +454,7 @@ public class MediaServerService(
 
         return await ExecuteApiAsync(server, $"Unexpected error fetching series {sonarrSeriesId}.", async () =>
         {
-            var client = CreateClient(server, 10);
-            var url = $"{server.BaseUrl}/api/v3/series/{sonarrSeriesId}";
-
-            using var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, $"/api/v3/series/{sonarrSeriesId}", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var x = JsonSerializer.Deserialize<SeriesRecord>(json, _jsonOptions);
+            var x = await Sonarr(server, 10).GetSeriesAsync(sonarrSeriesId);
 
             if (x is null)
             {
@@ -651,16 +548,7 @@ public class MediaServerService(
 
         await ExecuteApiAsync(server, $"Error syncing episodes for series {seriesId}.", async () =>
         {
-            var client = CreateClient(server, 15);
-            var url = $"{server.BaseUrl}/api/v3/episode?seriesId={seriesId}";
-
-            using var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, "/api/v3/episode", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var records = JsonSerializer.Deserialize<List<EpisodeRecord>>(json, _jsonOptions) ?? [];
+            var records = await Sonarr(server, 15).GetEpisodesAsync(seriesId);
 
             await using var db = await dbFactory.CreateDbContextAsync();
 
@@ -704,16 +592,7 @@ public class MediaServerService(
 
         return await ExecuteApiAsync(server, $"Error fetching episodes for series {seriesId}.", async () =>
         {
-            var client = CreateClient(server, 10);
-            var url = $"{server.BaseUrl}/api/v3/episode?seriesId={seriesId}";
-
-            using var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, "/api/v3/episode", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var episodes = JsonSerializer.Deserialize<List<EpisodeRecord>>(json, _jsonOptions) ?? [];
+            var episodes = await Sonarr(server, 10).GetEpisodesAsync(seriesId);
 
             return episodes.Select(e => (e.Id, e.HasFile, e.Monitored)).ToList();
         });
@@ -868,13 +747,8 @@ public class MediaServerService(
 
         try
         {
-            var client = CreateClient(server, 10);
-
-            var response = server.ServiceType switch
-            {
-                ServiceType.Radarr or ServiceType.Sonarr => await TestArrAsync(client, server),
-                _ => throw new MediaServerException($"{server.Name}: Unknown service type.")
-            };
+            // The factory refuses an unknown service type, and the client a missing API key.
+            var response = (await Arr(server, 10).CheckConnectionAsync()).ReasonPhrase;
 
             sw.Stop();
 
@@ -962,21 +836,6 @@ public class MediaServerService(
         }
     }
 
-    /// <summary>Calls the status endpoint and returns its reason phrase. The response is disposed here.</summary>
-    private static async Task<string?> TestArrAsync(HttpClient client, MediaServer server)
-    {
-        if (string.IsNullOrWhiteSpace(server.ApiKey))
-            throw new MediaServerException($"{server.Name}: API key is required.");
-
-        var url = $"{server.BaseUrl}/api/v3/system/status";
-        using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-
-        if (!response.IsSuccessStatusCode)
-            throw new ApiException(server.Name, "/api/v3/system/status", (int)response.StatusCode);
-
-        return response.ReasonPhrase;
-    }
-
     private async Task<ServerMetadata> GetSystemStatusAsync(MediaServer server)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -988,17 +847,8 @@ public class MediaServerService(
 
         try
         {
-            var client = CreateClient(mediaServer, 10);
-            var url = $"{mediaServer.BaseUrl}/api/v3/system/status";
-
-            using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, "/api/v3/system/status", (int)response.StatusCode);
-
-            await using var json = await response.Content.ReadAsStreamAsync();
-            var metadata = await JsonSerializer.DeserializeAsync<ServerMetadata>(json, _jsonOptions) ??
-                           throw new MetadataException(server.Name);
+            // The stored row: its API key is the one decrypted from the database.
+            var metadata = await Arr(mediaServer, 10).GetSystemStatusAsync();
 
             metadata.ServerId = mediaServer.Id;
 
@@ -1058,15 +908,7 @@ public class MediaServerService(
 
         try
         {
-            var client = CreateClient(server, 10);
-            var url = $"{server.BaseUrl}/api/v3/health";
-
-            using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-            if (!response.IsSuccessStatusCode)
-                return [];
-
-            await using var stream = await response.Content.ReadAsStreamAsync();
-            return await JsonSerializer.DeserializeAsync<List<RemoteHealthMessage>>(stream, _jsonOptions) ?? [];
+            return [.. await Arr(server, 10).GetHealthAsync()];
         }
         catch (Exception ex)
         {
@@ -1453,58 +1295,37 @@ public class MediaServerService(
 
         await ExecuteApiAsync(server, $"Unexpected error removing queue item {queueId}.", async () =>
         {
-            var client = CreateClient(server, 15);
-            var url =
-                $"{server.BaseUrl}/api/v3/queue/{queueId}?removeFromClient={removeFromClient.ToString().ToLowerInvariant()}&blocklist={blocklist.ToString().ToLowerInvariant()}&skipRedownload=false";
-
-            using var response = await client.DeleteAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, $"/api/v3/queue/{queueId}", (int)response.StatusCode);
-
+            await Arr(server, 15).RemoveFromQueueAsync(queueId, removeFromClient, blocklist);
             logger.LogInformation("Removed queue item {id} from {name}", queueId, server.Name);
         });
         changeBus.NotifyChanged();
     }
 
-    private async Task TriggerSearchAsync(MediaServer? server, string commandName, string paramName, object value)
+    private async Task TriggerSearchAsync(MediaServer? server, ArrSearch kind, IReadOnlyCollection<int> ids)
     {
         if (string.IsNullOrWhiteSpace(server?.ApiKey))
             throw new MediaServerException($"{server?.Name}: API key is required.");
 
-        var ids = value switch
-        {
-            int single => [single],
-            IEnumerable<int> many => many.ToArray(),
-            _ => Array.Empty<int>()
-        };
+        var started = await ExecuteApiAsync(server, $"Error triggering {CommandName(kind)}.",
+            () => Arr(server, 15).SearchAsync(kind, ids));
+        int? commandId = started.Count > 0 ? started[0] : null;
 
-        var commandId = await ExecuteApiAsync(server, $"Error triggering {commandName}.", async () =>
-        {
-            var client = CreateClient(server, 15);
-            var url = $"{server.BaseUrl}/api/v3/command";
-            var payload = JsonSerializer.Serialize(new Dictionary<string, object>
-            {
-                ["name"] = commandName, [paramName] = value
-            });
-
-            using var content = new StringContent(payload, Encoding.UTF8, "application/json");
-            using var response = await client.PostAsync(url, content);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, "/api/v3/command", (int)response.StatusCode);
-
-            var body = await response.Content.ReadAsStringAsync();
-            var id = TryReadCommand(body)?.Id;
-
-            logger.LogInformation("Triggered {cmd} (command {commandId}) on {name} for {param} {ids}", commandName, id,
-                server.Name, paramName, string.Join(", ", ids));
-            return id;
-        });
+        logger.LogInformation("Triggered {cmd} (command {commandId}) on {name} for {ids}", CommandName(kind),
+            commandId, server.Name, string.Join(", ", ids));
 
         // Following the search up (does the item exist, did it find anything) can take minutes, so it runs on
         // its own and never holds up the routine or page that asked for the search.
-        _ = Task.Run(() => FollowSearchAsync(server, commandName, paramName, ids, commandId));
+        _ = Task.Run(() => FollowSearchAsync(server, kind, ids.ToList(), commandId));
+    }
+
+    private static string CommandName(ArrSearch kind)
+    {
+        return kind switch
+        {
+            ArrSearch.Movies => "MoviesSearch",
+            ArrSearch.Episodes => "EpisodeSearch",
+            _ => "SeriesSearch"
+        };
     }
 
     private static readonly TimeSpan SearchFollowTimeout = TimeSpan.FromMinutes(10);
@@ -1515,28 +1336,32 @@ public class MediaServerService(
     ///     the server, and (b) once the command finishes, whether it found and grabbed a release. The result goes
     ///     to the Events page and the log.
     /// </summary>
-    private async Task FollowSearchAsync(MediaServer server, string commandName, string paramName,
-        IReadOnlyList<int> ids, int? commandId)
+    private async Task FollowSearchAsync(MediaServer server, ArrSearch kind, IReadOnlyList<int> ids, int? commandId)
     {
-        var label = $"{commandName} on {server.Name}";
+        var label = $"{CommandName(kind)} on {server.Name}";
         try
         {
-            var resource = paramName switch
+            var client = Arr(server, 15);
+            var resource = kind switch
             {
-                "movieIds" => "movie",
-                "episodeIds" => "episode",
-                "seriesId" => "series",
-                _ => null
+                ArrSearch.Movies => "movie",
+                ArrSearch.Episodes => "episode",
+                _ => "series"
             };
 
-            if (resource is not null && ids.Count > 0)
+            if (ids.Count > 0)
             {
                 var notFound = new List<int>();
-                var client = CreateClient(server, 15);
                 foreach (var id in ids)
                 {
-                    using var response = await client.GetAsync($"{server.BaseUrl}/api/v3/{resource}/{id}");
-                    if (response.StatusCode == HttpStatusCode.NotFound) notFound.Add(id);
+                    // Only a 404 means it's gone. Any other error status isn't evidence either way.
+                    try
+                    {
+                        if (!await client.ExistsAsync(kind, id)) notFound.Add(id);
+                    }
+                    catch (ApiException)
+                    {
+                    }
                 }
 
                 if (notFound.Count > 0)
@@ -1555,21 +1380,26 @@ public class MediaServerService(
             }
 
             var deadline = DateTime.UtcNow + SearchFollowTimeout;
-            SearchCommandStatus? command = null;
+            CommandRecord? command = null;
             while (DateTime.UtcNow < deadline)
             {
                 await Task.Delay(SearchPollInterval);
 
-                var client = CreateClient(server, 15);
-                using var response = await client.GetAsync($"{server.BaseUrl}/api/v3/command/{commandId}");
-                if (!response.IsSuccessStatusCode) continue;
+                // An error status or an unreadable reply: ask again next time. Can't connect at all: give up.
+                try
+                {
+                    command = await client.GetCommandAsync(commandId.Value);
+                }
+                catch (MediaServerException ex) when (ex is not ConnectionException)
+                {
+                    continue;
+                }
 
-                command = TryReadCommand(await response.Content.ReadAsStringAsync());
-                if (command?.IsFinished == true) break;
+                if (IsFinished(command)) break;
             }
 
             var what = $"{ids.Count} item(s)";
-            if (command?.IsFinished != true)
+            if (command is null || !IsFinished(command))
             {
                 await ReportSearchAsync(LogLevel.Warning,
                     $"{label}: still not finished after {SearchFollowTimeout.TotalMinutes:0} minutes (status: {command?.Status ?? "unknown"}).");
@@ -1583,7 +1413,7 @@ public class MediaServerService(
                 return;
             }
 
-            var grabbed = command.ReportsDownloaded;
+            var grabbed = ReportsDownloaded(command.Message);
             var message = grabbed switch
             {
                 > 0 => $"{label}: search for {what} found and grabbed {grabbed} release(s).",
@@ -1607,31 +1437,21 @@ public class MediaServerService(
             logger.Log(level, "{message}", message);
     }
 
-    private static SearchCommandStatus? TryReadCommand(string json)
+    private static bool IsFinished(CommandRecord? command)
     {
-        try
-        {
-            return JsonSerializer.Deserialize<SearchCommandStatus>(json, _jsonOptions);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        return command?.Status?.ToLowerInvariant() is "completed" or "failed" or "aborted" or "cancelled";
     }
 
-    private sealed record SearchCommandStatus(int Id, string? Status, string? Message)
+    /// <summary>
+    ///     Radarr/Sonarr finish a search with a message like "Movie search completed. 1 reports downloaded.";
+    ///     null when the message doesn't say.
+    /// </summary>
+    internal static int? ReportsDownloaded(string? message)
     {
-        public bool IsFinished => Status?.ToLowerInvariant() is "completed" or "failed" or "aborted" or "cancelled";
-
-        /// <summary>
-        ///     Radarr/Sonarr finish a search with a message like "Movie search completed. 1 reports downloaded.";
-        ///     null when the message doesn't say.
-        /// </summary>
-        public int? ReportsDownloaded =>
-            Message is not null && Regex.Match(Message, @"(\d+)\s+reports?\s+downloaded", RegexOptions.IgnoreCase) is
-                { Success: true } m
-                ? int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)
-                : null;
+        return message is not null &&
+               Regex.Match(message, @"(\d+)\s+reports?\s+downloaded", RegexOptions.IgnoreCase) is { Success: true } m
+            ? int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)
+            : null;
     }
 
     internal Task TriggerMovieSearchAsync(MediaServer? server, int movieId)
@@ -1642,18 +1462,18 @@ public class MediaServerService(
     /// <summary>One MoviesSearch command for several movies, instead of one command each.</summary>
     internal Task TriggerMoviesSearchAsync(MediaServer? server, IReadOnlyCollection<int> movieIds)
     {
-        return TriggerSearchAsync(server, "MoviesSearch", "movieIds", movieIds.ToArray());
+        return TriggerSearchAsync(server, ArrSearch.Movies, movieIds);
     }
 
     /// <summary>One EpisodeSearch command for several episodes, instead of one command each.</summary>
     internal Task TriggerEpisodesSearchAsync(MediaServer server, IReadOnlyCollection<int> episodeIds)
     {
-        return TriggerSearchAsync(server, "EpisodeSearch", "episodeIds", episodeIds.ToArray());
+        return TriggerSearchAsync(server, ArrSearch.Episodes, episodeIds);
     }
 
     internal Task TriggerSeriesSearchAsync(MediaServer? server, int seriesId)
     {
-        return TriggerSearchAsync(server, "SeriesSearch", "seriesId", seriesId);
+        return TriggerSearchAsync(server, ArrSearch.Series, [seriesId]);
     }
 
     internal Task TriggerEpisodeSearchAsync(MediaServer server, int episodeId)
@@ -1670,16 +1490,7 @@ public class MediaServerService(
 
         return await ExecuteApiAsync(server, "Error fetching commands.", async () =>
         {
-            var client = CreateClient(server, 10);
-            var url = $"{server.BaseUrl}/api/v3/command";
-
-            using var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, "/api/v3/command", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var commands = JsonSerializer.Deserialize<List<CommandRecord>>(json, _jsonOptions) ?? [];
+            var commands = await Arr(server, 10).GetCommandsAsync();
 
             foreach (var cmd in commands.Where(cmd =>
                          cmd.Status is not ("completed" or "failed" or "aborted" or "cancelled")))
@@ -1717,15 +1528,37 @@ public class MediaServerService(
             : JsonSerializer.Serialize(value, _compactJsonOptions);
     }
 
+    /// <summary>A Radarr or Sonarr client for this server, with its <see cref="RequestTimeout" />.</summary>
+    /// <param name="fallbackSeconds">Used only when no settings are available (tests).</param>
+    private ArrClientBase Arr(MediaServer server, int fallbackSeconds)
+    {
+        return _arr.Create(server, RequestTimeout(server, fallbackSeconds));
+    }
+
+    /// <inheritdoc cref="Arr" />
+    private RadarrClient Radarr(MediaServer server, int fallbackSeconds)
+    {
+        return _arr.Radarr(server, RequestTimeout(server, fallbackSeconds));
+    }
+
+    /// <inheritdoc cref="Arr" />
+    private SonarrClient Sonarr(MediaServer server, int fallbackSeconds)
+    {
+        return _arr.Sonarr(server, RequestTimeout(server, fallbackSeconds));
+    }
+
+    /// <summary>The server's own Request Timeout wins, then the global one (Settings > Servers).</summary>
+    private TimeSpan RequestTimeout(MediaServer server, int fallbackSeconds)
+    {
+        return TimeSpan.FromSeconds(Math.Max(1, settings?.GetRequestTimeout(server) ?? fallbackSeconds));
+    }
+
     /// <param name="fallbackSeconds">Used only when no settings are available (tests).</param>
     private HttpClient CreateClient(MediaServer server, int fallbackSeconds)
     {
-        // The server's own Request Timeout wins, then the global one (Settings > Servers).
-        var timeoutSeconds = Math.Max(1, settings?.GetRequestTimeout(server) ?? fallbackSeconds);
-
         var client =
             httpClientFactory.CreateClient(server.SkipCertificateValidation ? InsecureHttpClientName : HttpClientName);
-        client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+        client.Timeout = RequestTimeout(server, fallbackSeconds);
 
         if (!string.IsNullOrWhiteSpace(server.ApiKey))
             client.DefaultRequestHeaders.TryAddWithoutValidation("X-Api-Key", server.ApiKey);
