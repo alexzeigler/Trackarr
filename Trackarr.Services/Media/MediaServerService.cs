@@ -289,34 +289,8 @@ public class MediaServerService(
     private async Task<(List<Movie> Items, int TotalRecords)> FetchMissingMoviesPageAsync(MediaServer server, int page,
         int pageSize)
     {
-        if (string.IsNullOrWhiteSpace(server.ApiKey))
-            throw new MediaServerException($"{server.Name}: API key is required.");
-
-        try
-        {
-            var client = CreateClient(server, 15);
-            var url = $"{server.BaseUrl}/api/v3/wanted/missing?page={page}&pageSize={pageSize}";
-
-            using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, "/api/v3/wanted/missing", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var missing = JsonSerializer.Deserialize<MissingMovieResponse>(json, _jsonOptions);
-
-            var items = missing?.Records.Select(x => x.ToEntity(server.Id)).ToList() ?? [];
-
-            return (items, missing?.TotalRecords ?? 0);
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Error fetching missing movies page {page}.", ex);
-        }
+        var missing = await Radarr(server, 15).GetMissingPageAsync(page, pageSize);
+        return (missing.Records.Select(x => x.ToEntity(server.Id)).ToList(), missing.TotalRecords);
     }
 
     public async Task<Movie?> GetMovieByIdAsync(MediaServer server, int radarrMovieId)
@@ -327,16 +301,7 @@ public class MediaServerService(
 
         return await ExecuteApiAsync(server, $"Unexpected error fetching movie {radarrMovieId}.", async () =>
         {
-            var client = CreateClient(server, 10);
-            var url = $"{server.BaseUrl}/api/v3/movie/{radarrMovieId}";
-
-            using var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, $"/api/v3/movie/{radarrMovieId}", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var x = JsonSerializer.Deserialize<MovieRecord>(json, _jsonOptions);
+            var x = await Radarr(server, 10).GetMovieAsync(radarrMovieId);
 
             if (x is null)
             {
@@ -473,34 +438,8 @@ public class MediaServerService(
     private async Task<(List<Episode> Items, int TotalRecords)> FetchMissingEpisodesPageAsync(MediaServer server,
         int page, int pageSize)
     {
-        if (string.IsNullOrWhiteSpace(server.ApiKey))
-            throw new MediaServerException($"{server.Name}: API key is required.");
-
-        try
-        {
-            var client = CreateClient(server, 15);
-            var url = $"{server.BaseUrl}/api/v3/wanted/missing?page={page}&pageSize={pageSize}&includeSeries=true";
-
-            using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, "/api/v3/wanted/missing", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var missing = JsonSerializer.Deserialize<MissingShowResponse>(json, _jsonOptions);
-
-            var items = missing?.Records.Select(x => x.ToEntity(server.Id)).ToList() ?? [];
-
-            return (items, missing?.TotalRecords ?? 0);
-        }
-        catch (MediaServerException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            throw new MediaServerException($"{server.Name}: Error fetching missing episodes page {page}.", ex);
-        }
+        var missing = await Sonarr(server, 15).GetMissingPageAsync(page, pageSize);
+        return (missing.Records.Select(x => x.ToEntity(server.Id)).ToList(), missing.TotalRecords);
     }
 
     public async Task<Series?> GetSeriesByIdAsync(MediaServer server, int sonarrSeriesId)
@@ -515,16 +454,7 @@ public class MediaServerService(
 
         return await ExecuteApiAsync(server, $"Unexpected error fetching series {sonarrSeriesId}.", async () =>
         {
-            var client = CreateClient(server, 10);
-            var url = $"{server.BaseUrl}/api/v3/series/{sonarrSeriesId}";
-
-            using var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, $"/api/v3/series/{sonarrSeriesId}", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var x = JsonSerializer.Deserialize<SeriesRecord>(json, _jsonOptions);
+            var x = await Sonarr(server, 10).GetSeriesAsync(sonarrSeriesId);
 
             if (x is null)
             {
@@ -618,16 +548,7 @@ public class MediaServerService(
 
         await ExecuteApiAsync(server, $"Error syncing episodes for series {seriesId}.", async () =>
         {
-            var client = CreateClient(server, 15);
-            var url = $"{server.BaseUrl}/api/v3/episode?seriesId={seriesId}";
-
-            using var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, "/api/v3/episode", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var records = JsonSerializer.Deserialize<List<EpisodeRecord>>(json, _jsonOptions) ?? [];
+            var records = await Sonarr(server, 15).GetEpisodesAsync(seriesId);
 
             await using var db = await dbFactory.CreateDbContextAsync();
 
@@ -671,16 +592,7 @@ public class MediaServerService(
 
         return await ExecuteApiAsync(server, $"Error fetching episodes for series {seriesId}.", async () =>
         {
-            var client = CreateClient(server, 10);
-            var url = $"{server.BaseUrl}/api/v3/episode?seriesId={seriesId}";
-
-            using var response = await client.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-                throw new ApiException(server.Name, "/api/v3/episode", (int)response.StatusCode);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var episodes = JsonSerializer.Deserialize<List<EpisodeRecord>>(json, _jsonOptions) ?? [];
+            var episodes = await Sonarr(server, 10).GetEpisodesAsync(seriesId);
 
             return episodes.Select(e => (e.Id, e.HasFile, e.Monitored)).ToList();
         });
@@ -1616,22 +1528,37 @@ public class MediaServerService(
             : JsonSerializer.Serialize(value, _compactJsonOptions);
     }
 
-    /// <summary>A Radarr or Sonarr client for this server, with the same timeout rule as <see cref="CreateClient" />.</summary>
+    /// <summary>A Radarr or Sonarr client for this server, with its <see cref="RequestTimeout" />.</summary>
     /// <param name="fallbackSeconds">Used only when no settings are available (tests).</param>
     private ArrClientBase Arr(MediaServer server, int fallbackSeconds)
     {
-        return _arr.Create(server, TimeSpan.FromSeconds(Math.Max(1, settings?.GetRequestTimeout(server) ?? fallbackSeconds)));
+        return _arr.Create(server, RequestTimeout(server, fallbackSeconds));
+    }
+
+    /// <inheritdoc cref="Arr" />
+    private RadarrClient Radarr(MediaServer server, int fallbackSeconds)
+    {
+        return _arr.Radarr(server, RequestTimeout(server, fallbackSeconds));
+    }
+
+    /// <inheritdoc cref="Arr" />
+    private SonarrClient Sonarr(MediaServer server, int fallbackSeconds)
+    {
+        return _arr.Sonarr(server, RequestTimeout(server, fallbackSeconds));
+    }
+
+    /// <summary>The server's own Request Timeout wins, then the global one (Settings > Servers).</summary>
+    private TimeSpan RequestTimeout(MediaServer server, int fallbackSeconds)
+    {
+        return TimeSpan.FromSeconds(Math.Max(1, settings?.GetRequestTimeout(server) ?? fallbackSeconds));
     }
 
     /// <param name="fallbackSeconds">Used only when no settings are available (tests).</param>
     private HttpClient CreateClient(MediaServer server, int fallbackSeconds)
     {
-        // The server's own Request Timeout wins, then the global one (Settings > Servers).
-        var timeoutSeconds = Math.Max(1, settings?.GetRequestTimeout(server) ?? fallbackSeconds);
-
         var client =
             httpClientFactory.CreateClient(server.SkipCertificateValidation ? InsecureHttpClientName : HttpClientName);
-        client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+        client.Timeout = RequestTimeout(server, fallbackSeconds);
 
         if (!string.IsNullOrWhiteSpace(server.ApiKey))
             client.DefaultRequestHeaders.TryAddWithoutValidation("X-Api-Key", server.ApiKey);
